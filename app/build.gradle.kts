@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import com.android.build.api.artifact.SingleArtifact
-import javax.xml.parsers.DocumentBuilderFactory
-import org.w3c.dom.Element
 
 plugins {
     alias(libs.plugins.android.application)
@@ -9,32 +7,12 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// versionCode = 1000 + GITHUB_RUN_NUMBER (CI). 로컬 빌드는 1000.
-val ciRunNumber: Int = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 0
-
 // N-05 음성 시험 전용: -Pash.negativeTest=true 일 때만 INTERNET 권한을 넣은 빌드 유형(negativeProbe)을 만든다.
 val negativeTest: Boolean = providers.gradleProperty("ash.negativeTest").orNull == "true"
 
-// 서명 (P4): 워크플로가 시크릿에서 환경변수를 설정한다.
-//  - release: ASH_KEYSTORE_FILE / ASH_KEYSTORE_PASSWORD / ASH_KEY_ALIAS / ASH_KEY_PASSWORD
-//  - debug  : ASH_DEBUG_KEYSTORE_FILE / ASH_DEBUG_KEYSTORE_PASSWORD / ASH_DEBUG_KEY_ALIAS (키 비밀번호 = 저장소 비밀번호)
-// 값이 없으면 AGP 기본 debug 키로 대체한다. main·태그 빌드에서 키가 없으면 워크플로가 실패시킨다.
-fun env(name: String): String? = providers.environmentVariable(name).orNull?.takeIf { it.isNotBlank() }
-
-val releaseKeystorePath = env("ASH_KEYSTORE_FILE")
-val releaseKeystorePassword = env("ASH_KEYSTORE_PASSWORD")
-val releaseKeyAlias = env("ASH_KEY_ALIAS")
-val releaseKeyPassword = env("ASH_KEY_PASSWORD")
-val hasReleaseSigning: Boolean =
-    listOf(releaseKeystorePath, releaseKeystorePassword, releaseKeyAlias, releaseKeyPassword).all { it != null } &&
-        file(releaseKeystorePath!!).exists()
-
-val debugKeystorePath = env("ASH_DEBUG_KEYSTORE_FILE")
-val debugKeystorePassword = env("ASH_DEBUG_KEYSTORE_PASSWORD")
-val debugKeyAlias = env("ASH_DEBUG_KEY_ALIAS")
-val hasDebugSigning: Boolean =
-    listOf(debugKeystorePath, debugKeystorePassword, debugKeyAlias).all { it != null } &&
-        file(debugKeystorePath!!).exists()
+// 서명 키·versionCode 규칙은 buildSrc/AshBuild.kt (AshSigning, ashVersionCode)
+val releaseKey: AshKey? = AshSigning.release(project)
+val debugKey: AshKey? = AshSigning.debug(project)
 
 android {
     namespace = "kr.vici.ashreader"
@@ -44,34 +22,34 @@ android {
         applicationId = "kr.vici.ashreader"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1000 + ciRunNumber
+        versionCode = ashVersionCode()
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
-        if (hasReleaseSigning) {
+        releaseKey?.let { k ->
             create("ashRelease") {
-                storeFile = file(releaseKeystorePath!!)
-                storePassword = releaseKeystorePassword
-                keyAlias = releaseKeyAlias
-                keyPassword = releaseKeyPassword
+                storeFile = k.storeFile
+                storePassword = k.storePassword
+                keyAlias = k.alias
+                keyPassword = k.keyPassword
             }
         }
-        if (hasDebugSigning) {
+        debugKey?.let { k ->
             create("ashDebug") {
-                storeFile = file(debugKeystorePath!!)
-                storePassword = debugKeystorePassword
-                keyAlias = debugKeyAlias
-                keyPassword = debugKeystorePassword
+                storeFile = k.storeFile
+                storePassword = k.storePassword
+                keyAlias = k.alias
+                keyPassword = k.keyPassword
             }
         }
     }
 
     buildTypes {
         debug {
-            if (hasDebugSigning) signingConfig = signingConfigs.getByName("ashDebug")
+            if (debugKey != null) signingConfig = signingConfigs.getByName("ashDebug")
         }
         release {
             isMinifyEnabled = true
@@ -80,7 +58,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = if (hasReleaseSigning) {
+            signingConfig = if (releaseKey != null) {
                 signingConfigs.getByName("ashRelease")
             } else {
                 signingConfigs.getByName("debug")
@@ -117,73 +95,10 @@ dependencies {
     testImplementation(libs.junit)
 }
 
-// ---------------------------------------------------------------------------
-// N-05 ①: 병합된 매니페스트에 INTERNET 권한이 있으면 빌드 실패
-// ---------------------------------------------------------------------------
-abstract class CheckNoInternetPermissionTask : DefaultTask() {
-    @get:InputFile
-    @get:PathSensitive(PathSensitivity.NONE)
-    abstract val mergedManifest: RegularFileProperty
-
-    @get:Input
-    abstract val variantName: Property<String>
-
-    @get:OutputFile
-    abstract val report: RegularFileProperty
-
-    @TaskAction
-    fun check() {
-        val forbidden = setOf("android.permission.INTERNET")
-        val manifestFile = mergedManifest.get().asFile
-        val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
-        val doc = factory.newDocumentBuilder().parse(manifestFile)
-        val androidNs = "http://schemas.android.com/apk/res/android"
-        val found = mutableListOf<String>()
-        for (tag in listOf("uses-permission", "uses-permission-sdk-23", "uses-permission-sdk-m")) {
-            val nodes = doc.getElementsByTagName(tag)
-            for (i in 0 until nodes.length) {
-                val name = (nodes.item(i) as Element).getAttributeNS(androidNs, "name")
-                if (name in forbidden) found += "<$tag android:name=\"$name\">"
-            }
-        }
-        val out = report.get().asFile
-        out.parentFile.mkdirs()
-        if (found.isNotEmpty()) {
-            out.writeText("FAIL\n" + found.joinToString("\n") + "\n")
-            throw GradleException(
-                "N-05 위반 [${variantName.get()}]: 병합된 매니페스트에 금지 권한이 있습니다.\n" +
-                    found.joinToString("\n") { "  - $it" } +
-                    "\n매니페스트: ${manifestFile.absolutePath}\n" +
-                    "INTERNET 권한을 끌어온 라이브러리를 찾아 의존성에서 제거하세요. " +
-                    "tools:node=\"remove\" 로 숨기지 않습니다 (M-14).",
-            )
-        }
-        out.writeText("OK: ${forbidden.joinToString()} 없음\n")
-        logger.lifecycle("N-05 권한 검사 통과 [${variantName.get()}]: INTERNET 권한 없음")
-    }
-}
-
+// N-05 ①: 병합된 매니페스트 INTERNET 권한 검사 (구현은 buildSrc/AshBuild.kt)
 androidComponents {
     onVariants { variant ->
-        val cap = variant.name.replaceFirstChar { it.uppercase() }
-        tasks.register<CheckNoInternetPermissionTask>("check${cap}NoInternetPermission") {
-            group = "verification"
-            description = "${variant.name} 병합 매니페스트에 INTERNET 권한이 없는지 검사 (N-05 ①)"
-            mergedManifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
-            variantName.set(variant.name)
-            report.set(layout.buildDirectory.file("reports/permission-check/${variant.name}.txt"))
-        }
+        registerNoInternetCheck(variant.name, variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
     }
 }
-
-// 모든 변형의 assemble<Variant> 와 check 에 연결 (태스크 이름으로 지연 연결)
-tasks.configureEach {
-    val match = Regex("^assemble([A-Z][A-Za-z0-9]*)$").find(name)
-    if (match != null) {
-        val checkName = "check${match.groupValues[1]}NoInternetPermission"
-        dependsOn(tasks.matching { it.name == checkName })
-    }
-    if (name == "check") {
-        dependsOn(tasks.matching { it.name.endsWith("NoInternetPermission") })
-    }
-}
+wireNoInternetChecks()

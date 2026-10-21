@@ -104,13 +104,13 @@ jobs:
 
       - name: Permission check, merged manifest (N-05 ①)
         shell: bash
-        run: .github/scripts/gradle-annotate.sh :app:checkDebugNoInternetPermission :app:checkReleaseNoInternetPermission
+        run: .github/scripts/gradle-annotate.sh :app:checkDebugNoInternetPermission :app:checkReleaseNoInternetPermission :bench:checkDebugNoInternetPermission :bench:checkReleaseNoInternetPermission
 
       - name: Unit tests
         shell: bash
-        run: .github/scripts/gradle-annotate.sh :app:testDebugUnitTest
+        run: .github/scripts/gradle-annotate.sh :app:testDebugUnitTest :bench:testDebugUnitTest
 
-      - name: Assemble debug & release
+      - name: Assemble debug & release (app, bench)
         shell: bash
         env:
           ASH_KEYSTORE_FILE: ${{ steps.signing.outputs.release_keystore }}
@@ -120,7 +120,7 @@ jobs:
           ASH_DEBUG_KEYSTORE_FILE: ${{ steps.signing.outputs.debug_keystore }}
           ASH_DEBUG_KEYSTORE_PASSWORD: ${{ secrets.ASH_DEBUG_KEYSTORE_PASSWORD }}
           ASH_DEBUG_KEY_ALIAS: ${{ secrets.ASH_DEBUG_KEY_ALIAS }}
-        run: .github/scripts/gradle-annotate.sh :app:assembleDebug :app:assembleRelease
+        run: .github/scripts/gradle-annotate.sh :app:assembleDebug :app:assembleRelease :bench:assembleDebug :bench:assembleRelease
 
       - name: Remove keystore
         if: always()
@@ -129,7 +129,7 @@ jobs:
 
       - name: Permission check, final APK (aapt2)
         shell: bash
-        run: .github/scripts/check-apk-permissions.sh app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk
+        run: .github/scripts/check-apk-permissions.sh app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk bench/build/outputs/apk/debug/bench-debug.apk bench/build/outputs/apk/release/bench-release.apk
 
       # P4: 서명 인증서 지문 확인. release는 기대 지문과 다르면 실패, debug는 지문을 요약에 표시.
       - name: Verify signing certificates
@@ -139,6 +139,28 @@ jobs:
           RELEASE_MODE: ${{ steps.signing.outputs.release_mode }}
           DEBUG_MODE: ${{ steps.signing.outputs.debug_mode }}
         run: .github/scripts/verify-apk-signers.sh app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/debug/app-debug.apk
+
+      # 측정 앱(bench)은 release·debug 모두 고정 디버그 키로 서명돼야 한다 (app-debug 와 같은 지문).
+      - name: Verify bench signing (debug key)
+        shell: bash
+        env:
+          DEBUG_MODE: ${{ steps.signing.outputs.debug_mode }}
+        run: |
+          APKSIGNER="$(ls -1d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
+          fp() { "$APKSIGNER" verify --print-certs "$1" | grep -m1 'certificate SHA-256 digest:' | sed 's/.*digest: //'; }
+          REF="$(fp app/build/outputs/apk/debug/app-debug.apk)"
+          fail=0
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### 측정 앱 서명" >> "$GITHUB_STEP_SUMMARY"
+          for apk in bench/build/outputs/apk/debug/bench-debug.apk bench/build/outputs/apk/release/bench-release.apk; do
+            F="$(fp "$apk")"
+            echo "- $(basename "$apk"): \`$F\`" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$DEBUG_MODE" = "fixed" ] && [ "$F" != "$REF" ]; then
+              echo "::error title=측정 앱 서명 오류::$(basename "$apk") 가 고정 디버그 키로 서명되지 않았습니다 ($F)"
+              fail=1
+            fi
+          done
+          exit $fail
 
       # P5: 릴리스 APK와 같은 커밋의 소스(source.zip)를 함께 올린다 (AGPL-3.0 소스 제공).
       - name: Package APKs and source
@@ -156,11 +178,17 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk "dist/ash-reader-${VC}-${SHA}-debug${DS}.apk"
           cp app/build/outputs/apk/release/app-release.apk "dist/ash-reader-${VC}-${SHA}-release${RS}.apk"
           git archive --format=zip --prefix="ash-reader-${SHA}/" -o "dist/ash-reader-${VC}-${SHA}-source.zip" "$GITHUB_SHA"
+          # 측정 앱: 별도 artifact (같은 커밋 소스 포함)
+          mkdir -p dist-bench
+          cp bench/build/outputs/apk/release/bench-release.apk "dist-bench/ash-reader-bench-${VC}-${SHA}-release${DS}.apk"
+          cp bench/build/outputs/apk/debug/bench-debug.apk "dist-bench/ash-reader-bench-${VC}-${SHA}-debug${DS}.apk"
+          cp "dist/ash-reader-${VC}-${SHA}-source.zip" dist-bench/
           {
             echo ""
             echo "### 산출물 (versionCode ${VC}, 커밋 ${GITHUB_SHA})"
             echo '```'
             (cd dist && sha256sum *)
+            (cd dist-bench && sha256sum *.apk)
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -172,6 +200,14 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Upload bench APKs and source
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ash-reader-bench-${{ github.run_number }}
+          path: dist-bench/*
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -180,6 +216,7 @@ jobs:
           path: |
             app/build/reports/
             app/build/outputs/logs/
+            bench/build/reports/
           if-no-files-found: ignore
           retention-days: 14
 
