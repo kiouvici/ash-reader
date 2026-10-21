@@ -76,6 +76,7 @@ private fun CurlBenchScreen() {
     var dir by remember { mutableStateOf(TurnDirection.LTR) }
     var spread by remember { mutableStateOf(SpreadMode.AUTO) }
     var effect by remember { mutableStateOf(TurnEffect.CURL) }
+    var coverAlone by remember { mutableStateOf(true) }
     var page by remember { mutableIntStateOf(0) }
     var spreadNow by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("밀거나 화면 가장자리를 눌러 넘기세요") }
@@ -88,8 +89,8 @@ private fun CurlBenchScreen() {
         val pages = if (kind == SyntheticPages.Kind.COMIC) SyntheticPages(kind) else SyntheticPages(kind, paper = theme.paper, ink = theme.ink)
         view.setPageSource(pages, 0)
     }
-    LaunchedEffect(theme, dir, spread, effect) {
-        view.setConfig(CurlConfig(direction = dir, effect = effect, spread = spread, backColor = theme.paper, shadowStrength = theme.shadow))
+    LaunchedEffect(theme, dir, spread, effect, coverAlone) {
+        view.setConfig(CurlConfig(direction = dir, effect = effect, spread = spread, coverAlone = coverAlone, backColor = theme.paper, shadowStrength = theme.shadow))
     }
     LaunchedEffect(Unit) {
         view.onPageChanged = { p, s -> page = p; spreadNow = s; CurlBenchActivity.lastPage = p }
@@ -149,6 +150,7 @@ private fun CurlBenchScreen() {
                 Chip("자동 펼침", spread == SpreadMode.AUTO) { spread = SpreadMode.AUTO }
                 Chip("한 쪽", spread == SpreadMode.SINGLE) { spread = SpreadMode.SINGLE }
                 Chip("두 쪽", spread == SpreadMode.SPREAD) { spread = SpreadMode.SPREAD }
+                Chip("표지 단독", coverAlone) { coverAlone = !coverAlone }
             }
             ChipRow {
                 Chip("종이책", effect == TurnEffect.CURL) { effect = TurnEffect.CURL }

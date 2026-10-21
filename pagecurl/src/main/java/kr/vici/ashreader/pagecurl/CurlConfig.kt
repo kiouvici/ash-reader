@@ -17,6 +17,8 @@ data class CurlConfig(
     val direction: TurnDirection = TurnDirection.LTR,
     val effect: TurnEffect = TurnEffect.CURL,
     val spread: SpreadMode = SpreadMode.AUTO,
+    /** F-50: 두 쪽 펼침에서 첫 쪽(표지)을 오른쪽에 단독으로 둔다. false = 짝을 한 쪽 민 배치(0·1쪽이 첫 펼침). */
+    val coverAlone: Boolean = true,
     /** 말린 뒷면에 섞는 테마 바탕색 (M-03). 쪽이 아직 준비 안 됐을 때 빈 종이 색으로도 쓴다. */
     val backColor: Int = Color.WHITE,
     /** 한 쪽 보기에서 뒷면(앞 쪽이 비친 모습)에 바탕색을 섞는 비율. 기술 설계서 4.2: 70%. */

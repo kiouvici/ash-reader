@@ -106,7 +106,7 @@ class PageCurlView @JvmOverloads constructor(
 
     fun setConfig(cfg: CurlConfig) {
         gl.post {
-            val layoutChanged = cfg.spread != config.spread
+            val layoutChanged = cfg.spread != config.spread || cfg.coverAlone != config.coverAlone
             config = cfg
             if (layoutChanged) {
                 clearTextures()
@@ -268,14 +268,22 @@ class PageCurlView @JvmOverloads constructor(
     private fun pageW() = if (isSpread()) viewW / 2f else viewW
     private fun count() = source?.pageCount ?: 0
 
-    /** 펼침에서는 0, 2, 4… 쪽이 왼쪽 (표지 단독 배치는 엔진 연결 때 정한다) */
+    /**
+     * position = 펼침의 왼쪽 쪽 번호 (한 쪽 보기면 그 쪽).
+     * F-50 표지 단독: 왼쪽 쪽 번호가 -1, 1, 3… (첫 펼침 = 빈 왼쪽 + 0쪽 표지). 아니면 0, 2, 4….
+     */
+    private fun minPosition(): Int = if (isSpread() && config.coverAlone) -1 else 0
+
     private fun alignPosition() {
-        if (isSpread()) position -= position % 2
-        position = position.coerceIn(0, max(0, count() - 1))
+        if (isSpread()) {
+            val odd = config.coverAlone
+            if (Math.floorMod(position, 2) != (if (odd) 1 else 0)) position -= 1
+        }
+        position = position.coerceIn(minPosition(), max(minPosition(), count() - 1))
     }
 
     private fun canTurn(next: Boolean): Boolean =
-        if (next) position + step() < count() else position - step() >= 0
+        if (next) position + step() < count() else position - step() >= minPosition()
 
     private fun beginDrag(next: Boolean, y: Float) {
         if (phase == Phase.ANIM && autoRemaining > 0) return
@@ -368,7 +376,7 @@ class PageCurlView @JvmOverloads constructor(
         }
         if (!canTurn(true)) {
             // 끝에 닿으면 처음으로 (측정 중 넘김 횟수 유지)
-            position = 0
+            position = minPosition()
             ensureTextures()
             notifyPage()
         }
@@ -431,7 +439,7 @@ class PageCurlView @JvmOverloads constructor(
     private fun tex(i: Int): Int = if (i in 0 until count()) textures[i] ?: 0 else 0
 
     private fun notifyPage() {
-        val p = position
+        val p = max(0, position)
         val s = isSpread()
         mainHandler.post { onPageChanged?.invoke(p, s) }
     }
@@ -494,7 +502,7 @@ class PageCurlView @JvmOverloads constructor(
         val p = position
         if (phase == Phase.IDLE || config.effect == TurnEffect.NONE) {
             if (spread) {
-                renderer.drawFlat(0f, 0f, pw, h, tex(p))
+                if (p >= 0) renderer.drawFlat(0f, 0f, pw, h, tex(p))
                 if (p + 1 < count()) renderer.drawFlat(pw, 0f, pw, h, tex(p + 1))
             } else {
                 renderer.drawFlat(0f, 0f, pw, h, tex(p))
@@ -504,7 +512,7 @@ class PageCurlView @JvmOverloads constructor(
         if (config.effect == TurnEffect.SLIDE) {
             val off = -t * viewW
             if (spread) {
-                renderer.drawFlat(off, 0f, pw, h, tex(p))
+                if (p >= 0) renderer.drawFlat(off, 0f, pw, h, tex(p))
                 renderer.drawFlat(off + pw, 0f, pw, h, tex(p + 1))
                 renderer.drawFlat(off + viewW, 0f, pw, h, tex(p + 2))
                 renderer.drawFlat(off + viewW + pw, 0f, pw, h, tex(p + 3))
@@ -522,8 +530,8 @@ class PageCurlView @JvmOverloads constructor(
         val fy = gy + lift - (h * 0.06f) * 4f * t * (1f - t)
         val curl = CurlMath.curlFor(gx, gy, fx, fy, radius)
         if (spread) {
-            renderer.drawFlat(0f, 0f, pw, h, tex(p))
-            renderer.drawFlat(pw, 0f, pw, h, tex(p + 3), shadowFrom = curl)
+            if (p >= 0) renderer.drawFlat(0f, 0f, pw, h, tex(p))
+            if (p + 3 < count()) renderer.drawFlat(pw, 0f, pw, h, tex(p + 3), shadowFrom = curl)
             renderer.drawCurl(pw, 0f, pw, h, tex(p + 1), tex(p + 2), backIsTex = true, curl = curl)
         } else {
             renderer.drawFlat(0f, 0f, pw, h, tex(p + 1), shadowFrom = curl)

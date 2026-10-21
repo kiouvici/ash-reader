@@ -313,6 +313,23 @@ jobs:
         run: .github/scripts/gradle-annotate.sh :bench:assembleDebug :bench:assembleDebugAndroidTest
 
       - name: Emulator smoke test
+        id: smoke1
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 1200
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
+          disable-animations: true
+          script: ./gradlew --console=plain :bench:connectedDebugAndroidTest
+
+      # 러너(2코어)에서 에뮬레이터 부팅이 가끔 시간 초과 → 1회만 재시도
+      - name: Emulator smoke test (retry)
+        if: steps.smoke1.outcome == 'failure'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 30
