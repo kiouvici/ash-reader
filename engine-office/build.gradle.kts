@@ -23,7 +23,17 @@ android {
             // 시험 파일 위치. private 은 저장소에 없으므로 있을 때만 쓴다(D-006).
             it.systemProperty("ash.testFiles", rootProject.file("test-files").absolutePath)
             providers.environmentVariable("ASH_PRIVATE_TEST_FILES").orNull?.let { p -> it.systemProperty("ash.privateFiles", p) }
-            it.testLogging { events("passed", "skipped", "failed"); showStandardStreams = true }
+            it.testLogging {
+                events("passed", "skipped", "failed")
+                showStandardStreams = true
+                exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+            }
+            // 로그 파일을 못 받는 환경에서도 실패 원인이 GitHub 주석에 남도록 한 줄로 출력
+            it.afterTest(KotlinClosure2<TestDescriptor, TestResult, Unit>({ d, r ->
+                if (r.resultType == TestResult.ResultType.FAILURE) {
+                    println("error: TEST FAILED ${d.className}.${d.name}: " + (r.exception?.toString() ?: "").replace("\n", " ").take(400))
+                }
+            }))
         }
     }
 }
