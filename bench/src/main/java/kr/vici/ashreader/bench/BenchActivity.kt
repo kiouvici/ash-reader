@@ -170,6 +170,14 @@ private fun BenchScreen() {
                             )
                         }
                         Spacer(Modifier.width(8.dp))
+                        if (exp.screens.isNotEmpty()) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                exp.screens.forEach { (label, cls) ->
+                                    Button(onClick = { context.startActivity(android.content.Intent(context, cls)) }) { Text(label) }
+                                }
+                            }
+                            return@Row
+                        }
                         Button(
                             enabled = exp.ready && running == null,
                             onClick = {

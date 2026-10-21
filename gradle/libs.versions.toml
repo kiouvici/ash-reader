@@ -7,6 +7,8 @@ activityCompose = "1.13.0"
 core = "1.19.1"
 coroutines = "1.10.2"
 junit = "4.13.2"
+androidxTest = "1.7.0"
+androidxTestExtJunit = "1.3.0"
 
 [libraries]
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
@@ -17,10 +19,14 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-core = { group = "androidx.core", name = "core", version.ref = "core" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTest" }
+androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTest" }
+androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
 # AGP 9 내장 Kotlin을 쓰므로 kotlin-android는 적용하지 않는다. 루트에서 apply false로 KGP 버전만 고정.
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

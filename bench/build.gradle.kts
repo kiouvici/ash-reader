@@ -20,6 +20,7 @@ android {
         targetSdk = 36
         versionCode = ashVersionCode()
         versionName = "0.1.0-bench"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GIT_SHA", "\"${ashGitSha()}\"")
     }
 
@@ -68,8 +69,14 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(project(":pagecurl"))
 
     testImplementation(libs.junit)
+
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.junit)
 }
 
 // test-files/public → assets/testfiles/ (공개 시험 파일만. private 은 커밋하지 않으므로 SAF 폴더 선택으로 읽는다)

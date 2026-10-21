@@ -18,3 +18,4 @@ dependencyResolutionManagement {
 rootProject.name = "ash-reader"
 include(":app")
 include(":bench") // 1단계 기술 검증 측정 앱 (ASH 측정)
+include(":pagecurl") // 책 넘김 효과 (실험 ③)

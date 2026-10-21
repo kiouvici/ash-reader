@@ -29,6 +29,15 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".CurlBenchActivity"
+            android:exported="false"
+            android:label="③ 넘김" />
+        <activity
+            android:name=".TapWaitActivity"
+            android:exported="false"
+            android:label="③ 탭 대기" />
+
         <!-- CSV 공유용. 앱 캐시의 exports/ 폴더만 노출 -->
         <provider
             android:name="androidx.core.content.FileProvider"

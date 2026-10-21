@@ -11,6 +11,9 @@ interface Experiment {
     val description: String
     val ready: Boolean
 
+    /** 측정 대신 별도 화면을 여는 실험 (화면 → 결과는 ResultStore 로) */
+    val screens: List<Pair<String, Class<*>>> get() = emptyList()
+
     suspend fun run(context: Context, files: List<TestFile>): List<Measurement>
 }
 
@@ -64,8 +67,22 @@ object Experiments {
         ReadCheck,
         Placeholder("1", "① HWP/HWPX 원본 렌더", "rhwp 첫 쪽 시간(N-01 5초), 쪽 수 비교"),
         Placeholder("2", "② Word(DOCX/DOC)", "DOCX→XHTML 조판 첫 화면, DOC 추출"),
-        Placeholder("3", "③ 책 넘김 효과", "GL 스레드 지연 프레임 비율(N-06), 형식별 20회"),
+        CurlExperiment,
         Placeholder("4", "④ 한국어 줄바꿈·금칙", "낱말 중간 줄바꿈·금칙 위반 자동 검사, 조판 시간"),
         Placeholder("5", "⑤ 만화 칸 인식·AI 화질", "칸 인식 1초·화질 향상 5초(N-10), 발열"),
     )
+}
+
+/** ③ 책 넘김: 화면 두 개 (넘김 시연·자동 측정, 탭 대기 체감) */
+private object CurlExperiment : Experiment {
+    override val id = "3"
+    override val title = "③ 책 넘김 효과"
+    override val description = "합성 쪽 넘김 시연, GL 스레드 지연 프레임 자동 20회(N-06), 탭 대기 200/250/300ms"
+    override val ready = true
+    override val screens: List<Pair<String, Class<*>>> = listOf(
+        "넘김" to CurlBenchActivity::class.java,
+        "탭 대기" to TapWaitActivity::class.java,
+    )
+
+    override suspend fun run(context: Context, files: List<TestFile>): List<Measurement> = emptyList()
 }
