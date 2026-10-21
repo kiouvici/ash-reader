@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import com.android.build.api.artifact.SingleArtifact
 import javax.xml.parsers.DocumentBuilderFactory
 import org.w3c.dom.Element
@@ -8,10 +9,14 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// CI에서 GITHUB_RUN_NUMBER 로 versionCode 자동 증가. 로컬 빌드는 1.
-val ciRunNumber: Int = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 1
+// versionCode = 1000 + GITHUB_RUN_NUMBER (CI). 로컬 빌드는 1000.
+val ciRunNumber: Int = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 0
 
-// 릴리스 서명: 환경변수(워크플로가 시크릿에서 설정)가 모두 있으면 사용, 없으면 debug 서명으로 대체.
+// N-05 음성 시험 전용: -Pash.negativeTest=true 일 때만 INTERNET 권한을 넣은 빌드 유형(negativeProbe)을 만든다.
+val negativeTest: Boolean = providers.gradleProperty("ash.negativeTest").orNull == "true"
+
+// 서명: 환경변수(워크플로가 시크릿에서 설정)가 모두 있으면 release·debug 모두 그 키로 서명.
+// 없으면 AGP 기본 debug 키. main·태그 빌드에서 키가 없으면 워크플로가 실패시킨다.
 val releaseKeystorePath: String? = providers.environmentVariable("ASH_KEYSTORE_FILE").orNull
 val releaseKeystorePassword: String? = providers.environmentVariable("ASH_KEYSTORE_PASSWORD").orNull
 val releaseKeyAlias: String? = providers.environmentVariable("ASH_KEY_ALIAS").orNull
@@ -28,7 +33,7 @@ android {
         applicationId = "kr.vici.ashreader"
         minSdk = 26
         targetSdk = 36
-        versionCode = ciRunNumber
+        versionCode = 1000 + ciRunNumber
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -36,7 +41,7 @@ android {
 
     signingConfigs {
         if (hasReleaseSigning) {
-            create("release") {
+            create("ash") {
                 storeFile = file(releaseKeystorePath!!)
                 storePassword = releaseKeystorePassword
                 keyAlias = releaseKeyAlias
@@ -46,6 +51,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("ash")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -54,9 +62,17 @@ android {
                 "proguard-rules.pro",
             )
             signingConfig = if (hasReleaseSigning) {
-                signingConfigs.getByName("release")
+                signingConfigs.getByName("ash")
             } else {
                 signingConfigs.getByName("debug")
+            }
+        }
+        if (negativeTest) {
+            // src/negativeProbe/AndroidManifest.xml 이 INTERNET 권한을 추가한다. 배포 금지.
+            create("negativeProbe") {
+                initWith(getByName("debug"))
+                signingConfig = signingConfigs.getByName("debug")
+                applicationIdSuffix = ".negativeprobe"
             }
         }
     }
@@ -119,8 +135,8 @@ abstract class CheckNoInternetPermissionTask : DefaultTask() {
                 "N-05 위반 [${variantName.get()}]: 병합된 매니페스트에 금지 권한이 있습니다.\n" +
                     found.joinToString("\n") { "  - $it" } +
                     "\n매니페스트: ${manifestFile.absolutePath}\n" +
-                    "INTERNET 권한을 끌어온 라이브러리를 찾아 제거하거나, " +
-                    "src/main/AndroidManifest.xml 에 tools:node=\"remove\" 로 명시 제거하세요.",
+                    "INTERNET 권한을 끌어온 라이브러리를 찾아 의존성에서 제거하세요. " +
+                    "tools:node=\"remove\" 로 숨기지 않습니다 (M-14).",
             )
         }
         out.writeText("OK: ${forbidden.joinToString()} 없음\n")
@@ -141,13 +157,14 @@ androidComponents {
     }
 }
 
-// assembleDebug / assembleRelease 및 check 에 연결 (태스크 이름으로 지연 연결)
+// 모든 변형의 assemble<Variant> 와 check 에 연결 (태스크 이름으로 지연 연결)
 tasks.configureEach {
-    val match = Regex("^assemble(Debug|Release)$").find(name)
+    val match = Regex("^assemble([A-Z][A-Za-z0-9]*)$").find(name)
     if (match != null) {
-        dependsOn("check${match.groupValues[1]}NoInternetPermission")
+        val checkName = "check${match.groupValues[1]}NoInternetPermission"
+        dependsOn(tasks.matching { it.name == checkName })
     }
     if (name == "check") {
-        dependsOn("checkDebugNoInternetPermission", "checkReleaseNoInternetPermission")
+        dependsOn(tasks.matching { it.name.endsWith("NoInternetPermission") })
     }
 }

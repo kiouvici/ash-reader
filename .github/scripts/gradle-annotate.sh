@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Gradle을 실행하고, 실패하면 핵심 오류 줄을 GitHub 주석(annotation)과 실행 요약에 남긴다.
 # (로그 파일을 받을 수 없는 환경에서도 API로 실패 원인을 확인하기 위함)
 set -uo pipefail

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- N-05 ②: 클라우드 백업과 기기 이전 모두에서 앱 데이터 전체 제외 (Android 12+) -->
 <data-extraction-rules>
     <cloud-backup>

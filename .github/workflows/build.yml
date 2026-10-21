@@ -1,8 +1,10 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 name: Build
 
 on:
   push:
     branches: ["**"]
+    tags: ["**"]
   pull_request:
   workflow_dispatch:
 
@@ -13,55 +15,72 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+# 외부 액션은 커밋 SHA로 고정 (주석은 해당 태그). 모두 Node 24 런타임.
+#   actions/checkout          v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1
+#   actions/setup-java        v6.1.0  b843ebf9b913146b38da2eaa7aeddf76074ae1ad
+#   android-actions/setup-android v4.0.4 be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+#   gradle/actions/setup-gradle v6.4.0 3f5f9adaf7d9fecd50b5935e54106014257a94e6
+#   actions/upload-artifact   v7.0.2  cf430e030ddbb5b0abf93d22962f4752f3646cd9
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
-    env:
-      ASH_KEYSTORE_BASE64: ${{ secrets.ASH_KEYSTORE_BASE64 }}
-      ASH_KEYSTORE_PASSWORD: ${{ secrets.ASH_KEYSTORE_PASSWORD }}
-      ASH_KEY_ALIAS: ${{ secrets.ASH_KEY_ALIAS }}
-      ASH_KEY_PASSWORD: ${{ secrets.ASH_KEY_PASSWORD }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          # 플랫폼·빌드 도구는 AGP가 compileSdk에 맞춰 자동 설치(라이선스는 이 단계에서 수락됨)
-          packages: "platform-tools"
+          packages: "platform-tools build-tools;36.0.0"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-provider: basic
 
-      - name: Prepare release signing
+      # P4/P9: 시크릿은 이 단계와 빌드 단계에만 노출한다.
+      - name: Prepare signing key
         id: signing
         shell: bash
+        env:
+          ASH_KEYSTORE_BASE64: ${{ secrets.ASH_KEYSTORE_BASE64 }}
+          ASH_KEYSTORE_PASSWORD: ${{ secrets.ASH_KEYSTORE_PASSWORD }}
+          ASH_KEY_ALIAS: ${{ secrets.ASH_KEY_ALIAS }}
+          ASH_KEY_PASSWORD: ${{ secrets.ASH_KEY_PASSWORD }}
+          IS_PROTECTED_REF: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
         run: |
           if [ -n "$ASH_KEYSTORE_BASE64" ] && [ -n "$ASH_KEYSTORE_PASSWORD" ] && [ -n "$ASH_KEY_ALIAS" ] && [ -n "$ASH_KEY_PASSWORD" ]; then
             KS="$RUNNER_TEMP/ash-release.jks"
-            echo "$ASH_KEYSTORE_BASE64" | base64 -d > "$KS"
-            echo "ASH_KEYSTORE_FILE=$KS" >> "$GITHUB_ENV"
+            printf '%s' "$ASH_KEYSTORE_BASE64" | base64 -d > "$KS"
+            echo "keystore=$KS" >> "$GITHUB_OUTPUT"
             echo "mode=release" >> "$GITHUB_OUTPUT"
-            echo "### 릴리스 서명: 릴리스 키 사용" >> "$GITHUB_STEP_SUMMARY"
+            echo "### 서명: 릴리스 키 (release·debug 모두)" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$IS_PROTECTED_REF" = "true" ]; then
+            echo "::error title=릴리스 서명 키 없음::main 브랜치·태그 빌드는 ASH_KEYSTORE_* 시크릿이 필요합니다."
+            echo "### 실패: main·태그 빌드인데 서명 키 시크릿이 없습니다" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
           else
+            echo "keystore=" >> "$GITHUB_OUTPUT"
             echo "mode=debug" >> "$GITHUB_OUTPUT"
-            echo "::warning title=릴리스 서명 키 없음::ASH_KEYSTORE_* 시크릿이 없어 release APK를 debug 키로 서명했습니다. 배포용으로 쓰지 마세요."
+            echo "::warning title=릴리스 서명 키 없음::ASH_KEYSTORE_* 시크릿이 없어 debug 키로 서명했습니다. 배포용으로 쓰지 마세요."
             {
-              echo "### 경고: release APK가 debug 키로 서명됨"
+              echo "### 경고: APK가 debug 키로 서명됨"
               echo ""
-              echo "시크릿 ASH_KEYSTORE_BASE64 / ASH_KEYSTORE_PASSWORD / ASH_KEY_ALIAS / ASH_KEY_PASSWORD 가 설정되지 않았습니다."
+              echo "시크릿 ASH_KEYSTORE_BASE64 / ASH_KEYSTORE_PASSWORD / ASH_KEY_ALIAS / ASH_KEY_PASSWORD 가 없습니다."
               echo "이 APK는 시험용이며, 릴리스 키로 서명한 APK와 덮어 설치되지 않습니다."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Permission check (N-05 ①)
+      - name: Permission check, merged manifest (N-05 ①)
         shell: bash
         run: .github/scripts/gradle-annotate.sh :app:checkDebugNoInternetPermission :app:checkReleaseNoInternetPermission
 
@@ -71,35 +90,55 @@ jobs:
 
       - name: Assemble debug & release
         shell: bash
+        env:
+          ASH_KEYSTORE_FILE: ${{ steps.signing.outputs.keystore }}
+          ASH_KEYSTORE_PASSWORD: ${{ secrets.ASH_KEYSTORE_PASSWORD }}
+          ASH_KEY_ALIAS: ${{ secrets.ASH_KEY_ALIAS }}
+          ASH_KEY_PASSWORD: ${{ secrets.ASH_KEY_PASSWORD }}
         run: .github/scripts/gradle-annotate.sh :app:assembleDebug :app:assembleRelease
 
-      - name: Rename APKs
+      - name: Remove keystore
+        if: always()
         shell: bash
+        run: rm -f "$RUNNER_TEMP/ash-release.jks"
+
+      - name: Permission check, final APK (aapt2)
+        shell: bash
+        run: .github/scripts/check-apk-permissions.sh app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk
+
+      # P5: 릴리스 APK와 같은 커밋의 소스(source.zip)를 함께 올린다 (AGPL-3.0 소스 제공).
+      - name: Package APKs and source
+        shell: bash
+        env:
+          SIGN_MODE: ${{ steps.signing.outputs.mode }}
         run: |
           mkdir -p dist
-          VC="${GITHUB_RUN_NUMBER}"
+          VC=$((1000 + GITHUB_RUN_NUMBER))
           SHA="${GITHUB_SHA::7}"
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/ash-reader-${VC}-${SHA}-debug.apk"
-          cp app/build/outputs/apk/release/app-release.apk "dist/ash-reader-${VC}-${SHA}-release-${{ steps.signing.outputs.mode }}signed.apk"
+          SUFFIX=""
+          [ "$SIGN_MODE" = "debug" ] && SUFFIX="-debugsigned"
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/ash-reader-${VC}-${SHA}-debug${SUFFIX}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "dist/ash-reader-${VC}-${SHA}-release${SUFFIX}.apk"
+          git archive --format=zip --prefix="ash-reader-${SHA}/" -o "dist/ash-reader-${VC}-${SHA}-source.zip" "$GITHUB_SHA"
           {
             echo ""
-            echo "### APK (versionCode ${VC})"
+            echo "### 산출물 (versionCode ${VC}, 커밋 ${GITHUB_SHA})"
             echo '```'
-            (cd dist && sha256sum *.apk)
+            (cd dist && sha256sum *)
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload APKs
-        uses: actions/upload-artifact@v4
+      - name: Upload APKs and source
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ash-reader-apk-${{ github.run_number }}
-          path: dist/*.apk
+          name: ash-reader-${{ github.run_number }}
+          path: dist/*
           if-no-files-found: error
           retention-days: 30
 
       - name: Upload reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: reports-${{ github.run_number }}
           path: |
@@ -108,7 +147,56 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Remove keystore
-        if: always()
+  # P8: 음성 시험. INTERNET 권한을 넣은 시험용 빌드에서 두 검사가 모두 '실패'해야 이 job이 성공한다.
+  permission-negative-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: "platform-tools build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-provider: basic
+
+      - name: Merged-manifest check must fail
         shell: bash
-        run: rm -f "$RUNNER_TEMP/ash-release.jks"
+        run: |
+          set -o pipefail
+          if ./gradlew --console=plain -Pash.negativeTest=true :app:assembleNegativeProbe 2>&1 | tee neg1.log; then
+            echo "::error title=음성 시험 실패::INTERNET 권한이 있는데 병합 매니페스트 검사가 빌드를 막지 못했습니다"
+            exit 1
+          fi
+          if ! grep -q "N-05 위반 \[negativeProbe\]" neg1.log; then
+            echo "::error title=음성 시험 판정 불가::빌드는 실패했지만 N-05 검사 때문이 아닙니다"
+            grep -E "What went wrong|^> |^e: " neg1.log | head -20
+            exit 1
+          fi
+          echo "기대대로 실패: 병합 매니페스트 검사가 INTERNET 권한을 잡았습니다" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Final-APK (aapt2) check must fail
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew --console=plain -Pash.negativeTest=true :app:assembleNegativeProbe -x :app:checkNegativeProbeNoInternetPermission
+          APK=$(ls app/build/outputs/apk/negativeProbe/*.apk | head -1)
+          if .github/scripts/check-apk-permissions.sh "$APK" > neg2.log 2>&1; then
+            cat neg2.log
+            echo "::error title=음성 시험 실패::INTERNET 권한이 있는 APK를 aapt2 검사가 통과시켰습니다"
+            exit 1
+          fi
+          grep -q "android.permission.INTERNET" neg2.log || { cat neg2.log; echo "::error::aapt2 검사 실패 원인이 INTERNET이 아닙니다"; exit 1; }
+          echo "기대대로 실패: aapt2 최종 APK 검사가 INTERNET 권한을 잡았습니다" | tee -a "$GITHUB_STEP_SUMMARY"
