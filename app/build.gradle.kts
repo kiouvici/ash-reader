@@ -15,15 +15,26 @@ val ciRunNumber: Int = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull
 // N-05 음성 시험 전용: -Pash.negativeTest=true 일 때만 INTERNET 권한을 넣은 빌드 유형(negativeProbe)을 만든다.
 val negativeTest: Boolean = providers.gradleProperty("ash.negativeTest").orNull == "true"
 
-// 서명: 환경변수(워크플로가 시크릿에서 설정)가 모두 있으면 release·debug 모두 그 키로 서명.
-// 없으면 AGP 기본 debug 키. main·태그 빌드에서 키가 없으면 워크플로가 실패시킨다.
-val releaseKeystorePath: String? = providers.environmentVariable("ASH_KEYSTORE_FILE").orNull
-val releaseKeystorePassword: String? = providers.environmentVariable("ASH_KEYSTORE_PASSWORD").orNull
-val releaseKeyAlias: String? = providers.environmentVariable("ASH_KEY_ALIAS").orNull
-val releaseKeyPassword: String? = providers.environmentVariable("ASH_KEY_PASSWORD").orNull
+// 서명 (P4): 워크플로가 시크릿에서 환경변수를 설정한다.
+//  - release: ASH_KEYSTORE_FILE / ASH_KEYSTORE_PASSWORD / ASH_KEY_ALIAS / ASH_KEY_PASSWORD
+//  - debug  : ASH_DEBUG_KEYSTORE_FILE / ASH_DEBUG_KEYSTORE_PASSWORD / ASH_DEBUG_KEY_ALIAS (키 비밀번호 = 저장소 비밀번호)
+// 값이 없으면 AGP 기본 debug 키로 대체한다. main·태그 빌드에서 키가 없으면 워크플로가 실패시킨다.
+fun env(name: String): String? = providers.environmentVariable(name).orNull?.takeIf { it.isNotBlank() }
+
+val releaseKeystorePath = env("ASH_KEYSTORE_FILE")
+val releaseKeystorePassword = env("ASH_KEYSTORE_PASSWORD")
+val releaseKeyAlias = env("ASH_KEY_ALIAS")
+val releaseKeyPassword = env("ASH_KEY_PASSWORD")
 val hasReleaseSigning: Boolean =
-    listOf(releaseKeystorePath, releaseKeystorePassword, releaseKeyAlias, releaseKeyPassword)
-        .all { !it.isNullOrBlank() } && file(releaseKeystorePath!!).exists()
+    listOf(releaseKeystorePath, releaseKeystorePassword, releaseKeyAlias, releaseKeyPassword).all { it != null } &&
+        file(releaseKeystorePath!!).exists()
+
+val debugKeystorePath = env("ASH_DEBUG_KEYSTORE_FILE")
+val debugKeystorePassword = env("ASH_DEBUG_KEYSTORE_PASSWORD")
+val debugKeyAlias = env("ASH_DEBUG_KEY_ALIAS")
+val hasDebugSigning: Boolean =
+    listOf(debugKeystorePath, debugKeystorePassword, debugKeyAlias).all { it != null } &&
+        file(debugKeystorePath!!).exists()
 
 android {
     namespace = "kr.vici.ashreader"
@@ -41,18 +52,26 @@ android {
 
     signingConfigs {
         if (hasReleaseSigning) {
-            create("ash") {
+            create("ashRelease") {
                 storeFile = file(releaseKeystorePath!!)
                 storePassword = releaseKeystorePassword
                 keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword
             }
         }
+        if (hasDebugSigning) {
+            create("ashDebug") {
+                storeFile = file(debugKeystorePath!!)
+                storePassword = debugKeystorePassword
+                keyAlias = debugKeyAlias
+                keyPassword = debugKeystorePassword
+            }
+        }
     }
 
     buildTypes {
         debug {
-            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("ash")
+            if (hasDebugSigning) signingConfig = signingConfigs.getByName("ashDebug")
         }
         release {
             isMinifyEnabled = true
@@ -62,7 +81,7 @@ android {
                 "proguard-rules.pro",
             )
             signingConfig = if (hasReleaseSigning) {
-                signingConfigs.getByName("ash")
+                signingConfigs.getByName("ashRelease")
             } else {
                 signingConfigs.getByName("debug")
             }

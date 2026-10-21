@@ -48,7 +48,10 @@ jobs:
           cache-provider: basic
 
       # P4/P9: 시크릿은 이 단계와 빌드 단계에만 노출한다.
-      - name: Prepare signing key
+      # release = ASH_KEYSTORE_BASE64/ASH_KEYSTORE_PASSWORD/ASH_KEY_ALIAS/ASH_KEY_PASSWORD
+      # debug   = ASH_DEBUG_KEYSTORE_BASE64/ASH_DEBUG_KEYSTORE_PASSWORD/ASH_DEBUG_KEY_ALIAS (키 비밀번호 = 저장소 비밀번호)
+      # main·태그: 두 키 중 하나라도 없으면 실패. 그 밖의 브랜치: 경고 후 AGP 기본 debug 키로 대체.
+      - name: Prepare signing keys
         id: signing
         shell: bash
         env:
@@ -56,27 +59,46 @@ jobs:
           ASH_KEYSTORE_PASSWORD: ${{ secrets.ASH_KEYSTORE_PASSWORD }}
           ASH_KEY_ALIAS: ${{ secrets.ASH_KEY_ALIAS }}
           ASH_KEY_PASSWORD: ${{ secrets.ASH_KEY_PASSWORD }}
+          ASH_DEBUG_KEYSTORE_BASE64: ${{ secrets.ASH_DEBUG_KEYSTORE_BASE64 }}
+          ASH_DEBUG_KEYSTORE_PASSWORD: ${{ secrets.ASH_DEBUG_KEYSTORE_PASSWORD }}
+          ASH_DEBUG_KEY_ALIAS: ${{ secrets.ASH_DEBUG_KEY_ALIAS }}
           IS_PROTECTED_REF: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
         run: |
+          missing=()
           if [ -n "$ASH_KEYSTORE_BASE64" ] && [ -n "$ASH_KEYSTORE_PASSWORD" ] && [ -n "$ASH_KEY_ALIAS" ] && [ -n "$ASH_KEY_PASSWORD" ]; then
             KS="$RUNNER_TEMP/ash-release.jks"
             printf '%s' "$ASH_KEYSTORE_BASE64" | base64 -d > "$KS"
-            echo "keystore=$KS" >> "$GITHUB_OUTPUT"
-            echo "mode=release" >> "$GITHUB_OUTPUT"
-            echo "### 서명: 릴리스 키 (release·debug 모두)" >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$IS_PROTECTED_REF" = "true" ]; then
-            echo "::error title=릴리스 서명 키 없음::main 브랜치·태그 빌드는 ASH_KEYSTORE_* 시크릿이 필요합니다."
-            echo "### 실패: main·태그 빌드인데 서명 키 시크릿이 없습니다" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
+            echo "release_keystore=$KS" >> "$GITHUB_OUTPUT"
+            echo "release_mode=release" >> "$GITHUB_OUTPUT"
+            echo "- release: 릴리스 키 (ASH_KEY*)" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "keystore=" >> "$GITHUB_OUTPUT"
-            echo "mode=debug" >> "$GITHUB_OUTPUT"
-            echo "::warning title=릴리스 서명 키 없음::ASH_KEYSTORE_* 시크릿이 없어 debug 키로 서명했습니다. 배포용으로 쓰지 마세요."
+            missing+=("release(ASH_KEYSTORE_BASE64/ASH_KEYSTORE_PASSWORD/ASH_KEY_ALIAS/ASH_KEY_PASSWORD)")
+            echo "release_keystore=" >> "$GITHUB_OUTPUT"
+            echo "release_mode=fallback" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "$ASH_DEBUG_KEYSTORE_BASE64" ] && [ -n "$ASH_DEBUG_KEYSTORE_PASSWORD" ] && [ -n "$ASH_DEBUG_KEY_ALIAS" ]; then
+            KS="$RUNNER_TEMP/ash-debug.jks"
+            printf '%s' "$ASH_DEBUG_KEYSTORE_BASE64" | base64 -d > "$KS"
+            echo "debug_keystore=$KS" >> "$GITHUB_OUTPUT"
+            echo "debug_mode=fixed" >> "$GITHUB_OUTPUT"
+            echo "- debug: 고정 디버그 키 (ASH_DEBUG_*)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            missing+=("debug(ASH_DEBUG_KEYSTORE_BASE64/ASH_DEBUG_KEYSTORE_PASSWORD/ASH_DEBUG_KEY_ALIAS)")
+            echo "debug_keystore=" >> "$GITHUB_OUTPUT"
+            echo "debug_mode=fallback" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "${#missing[@]}" -gt 0 ]; then
+            if [ "$IS_PROTECTED_REF" = "true" ]; then
+              echo "::error title=서명 키 없음::main 브랜치·태그 빌드에 필요한 시크릿이 없습니다: ${missing[*]}"
+              echo "### 실패: main·태그 빌드인데 서명 키 시크릿이 없습니다: ${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            echo "::warning title=서명 키 없음::시크릿이 없어 AGP 기본 debug 키로 대체 서명했습니다: ${missing[*]}. 배포용으로 쓰지 마세요."
             {
-              echo "### 경고: APK가 debug 키로 서명됨"
               echo ""
-              echo "시크릿 ASH_KEYSTORE_BASE64 / ASH_KEYSTORE_PASSWORD / ASH_KEY_ALIAS / ASH_KEY_PASSWORD 가 없습니다."
-              echo "이 APK는 시험용이며, 릴리스 키로 서명한 APK와 덮어 설치되지 않습니다."
+              echo "### 경고: 일부 APK가 AGP 기본 debug 키로 서명됨"
+              echo "없는 시크릿: ${missing[*]}"
+              echo "이 APK는 시험용이며, 정식 키로 서명한 APK와 덮어 설치되지 않습니다."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -91,16 +113,19 @@ jobs:
       - name: Assemble debug & release
         shell: bash
         env:
-          ASH_KEYSTORE_FILE: ${{ steps.signing.outputs.keystore }}
+          ASH_KEYSTORE_FILE: ${{ steps.signing.outputs.release_keystore }}
           ASH_KEYSTORE_PASSWORD: ${{ secrets.ASH_KEYSTORE_PASSWORD }}
           ASH_KEY_ALIAS: ${{ secrets.ASH_KEY_ALIAS }}
           ASH_KEY_PASSWORD: ${{ secrets.ASH_KEY_PASSWORD }}
+          ASH_DEBUG_KEYSTORE_FILE: ${{ steps.signing.outputs.debug_keystore }}
+          ASH_DEBUG_KEYSTORE_PASSWORD: ${{ secrets.ASH_DEBUG_KEYSTORE_PASSWORD }}
+          ASH_DEBUG_KEY_ALIAS: ${{ secrets.ASH_DEBUG_KEY_ALIAS }}
         run: .github/scripts/gradle-annotate.sh :app:assembleDebug :app:assembleRelease
 
       - name: Remove keystore
         if: always()
         shell: bash
-        run: rm -f "$RUNNER_TEMP/ash-release.jks"
+        run: rm -f "$RUNNER_TEMP/ash-release.jks" "$RUNNER_TEMP/ash-debug.jks"
 
       - name: Permission check, final APK (aapt2)
         shell: bash
@@ -110,15 +135,17 @@ jobs:
       - name: Package APKs and source
         shell: bash
         env:
-          SIGN_MODE: ${{ steps.signing.outputs.mode }}
+          RELEASE_MODE: ${{ steps.signing.outputs.release_mode }}
+          DEBUG_MODE: ${{ steps.signing.outputs.debug_mode }}
         run: |
           mkdir -p dist
           VC=$((1000 + GITHUB_RUN_NUMBER))
           SHA="${GITHUB_SHA::7}"
-          SUFFIX=""
-          [ "$SIGN_MODE" = "debug" ] && SUFFIX="-debugsigned"
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/ash-reader-${VC}-${SHA}-debug${SUFFIX}.apk"
-          cp app/build/outputs/apk/release/app-release.apk "dist/ash-reader-${VC}-${SHA}-release${SUFFIX}.apk"
+          RS=""; DS=""
+          [ "$RELEASE_MODE" = "fallback" ] && RS="-debugsigned"
+          [ "$DEBUG_MODE" = "fallback" ] && DS="-agpkey"
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/ash-reader-${VC}-${SHA}-debug${DS}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "dist/ash-reader-${VC}-${SHA}-release${RS}.apk"
           git archive --format=zip --prefix="ash-reader-${SHA}/" -o "dist/ash-reader-${VC}-${SHA}-source.zip" "$GITHUB_SHA"
           {
             echo ""
