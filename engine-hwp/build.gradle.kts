@@ -10,7 +10,7 @@ plugins {
 
 val rustDir = file("rust")
 val jniOut = layout.buildDirectory.dir("rustJniLibs").get().asFile
-val abis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+val abis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86") // x86: CI 에뮬레이터(API 26)용
 
 android {
     namespace = "kr.vici.ashreader.engine.hwp"

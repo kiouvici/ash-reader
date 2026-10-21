@@ -47,7 +47,7 @@ jobs:
         shell: bash
         run: |
           rustup toolchain install stable --profile minimal
-          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android
           cargo install cargo-ndk --version 4.1.2 --locked
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
 
@@ -83,8 +83,9 @@ jobs:
             ok=yes
             for a in $aligns; do [ "$a" = "2**14" ] || [ "$a" = "2**16" ] || ok=no; done
             # 32비트(armeabi-v7a)는 16KB 페이지 대상이 아니므로 정보만 표시
-            if [ "$ok" = no ] && [ "$abi" != "armeabi-v7a" ]; then fail=1; fi
+            if [ "$ok" = no ] && [ "$abi" != "armeabi-v7a" ] && [ "$abi" != "x86" ]; then fail=1; fi
             echo "| $abi | $sz | $gz | $aligns ($ok) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=so $abi::size=$sz gzip=$gz align=$aligns ok=$ok"
           done
           if [ "$fail" = 1 ]; then echo "::error title=16KB 정렬::64비트 .so의 LOAD 정렬이 16KB가 아닙니다"; exit 1; fi
 
@@ -98,7 +99,9 @@ jobs:
         uses: ReactiveCircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc # v2.38.0
         with:
           api-level: 26
-          arch: x86_64
+          arch: x86
+          emulator-boot-timeout: 1200
+          ram-size: 2048M
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
@@ -114,7 +117,7 @@ jobs:
           [ -f hwp.log ] || exit 0
           {
             echo "### 실험 ① API 26 에뮬레이터 결과"
-            grep -E "ASH-HWP\||device:" hwp.log | sed 's/^.*ASH-HWP: /- /'
+            grep -o 'ASH-HWP|.*' hwp.log | while read -r l; do echo "::notice title=HWP::$l"; done >&2; grep -E "ASH-HWP\||device:" hwp.log | sed 's/^.*ASH-HWP: /- /'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload reports
