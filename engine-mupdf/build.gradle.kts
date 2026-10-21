@@ -35,7 +35,7 @@ android {
         }
         ndk {
             // 배포는 arm64(M-10). armeabi-v7a는 최저 기기 시험용, x86_64는 에뮬레이터용.
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86") // x86: CI 에뮬레이터(API 26)용
         }
     }
 
