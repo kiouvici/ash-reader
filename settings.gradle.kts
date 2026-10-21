@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ash-reader"
 include(":app")
+include(":engine-mupdf") // MuPDF + 한국어 줄바꿈 패치 (실험 ④)
