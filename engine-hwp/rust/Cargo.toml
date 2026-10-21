@@ -22,6 +22,3 @@ lto = true
 codegen-units = 1
 panic = "unwind"
 strip = true
-
-[target.'cfg(target_os = "android")'.dependencies]
-ndk-sys = { version = "0.6", features = ["bitmap"] }

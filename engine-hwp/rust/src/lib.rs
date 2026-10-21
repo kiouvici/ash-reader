@@ -176,6 +176,27 @@ pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativePageSiz
     arr.into_raw()
 }
 
+// libjnigraphics (NDK android/bitmap.h) 최소 선언
+#[cfg(target_os = "android")]
+#[repr(C)]
+struct AndroidBitmapInfo {
+    width: u32,
+    height: u32,
+    stride: u32,
+    format: i32,
+    flags: u32,
+}
+#[cfg(target_os = "android")]
+const ANDROID_BITMAP_FORMAT_RGBA_8888: i32 = 1;
+
+#[cfg(target_os = "android")]
+#[link(name = "jnigraphics")]
+extern "C" {
+    fn AndroidBitmap_getInfo(env: *mut jni::sys::JNIEnv, bitmap: jni::sys::jobject, info: *mut AndroidBitmapInfo) -> i32;
+    fn AndroidBitmap_lockPixels(env: *mut jni::sys::JNIEnv, bitmap: jni::sys::jobject, addr: *mut *mut std::ffi::c_void) -> i32;
+    fn AndroidBitmap_unlockPixels(env: *mut jni::sys::JNIEnv, bitmap: jni::sys::jobject) -> i32;
+}
+
 #[cfg(target_os = "android")]
 #[no_mangle]
 pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeRenderPage(env: JNIEnv, _c: JClass, h: jlong, i: jint, bitmap: JObject) -> jint {
@@ -183,23 +204,23 @@ pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeRenderP
     unsafe {
         let raw_env = env.get_raw();
         let bmp = bitmap.as_raw();
-        let mut info: ndk_sys::AndroidBitmapInfo = std::mem::zeroed();
-        if ndk_sys::AndroidBitmap_getInfo(raw_env as *mut _, bmp as *mut _, &mut info) != 0 {
+        let mut info: AndroidBitmapInfo = std::mem::zeroed();
+        if AndroidBitmap_getInfo(raw_env, bmp, &mut info) != 0 {
             set_err("getInfo 실패".into());
             return -2;
         }
-        if info.format != ndk_sys::AndroidBitmapFormat::ANDROID_BITMAP_FORMAT_RGBA_8888.0 as _ {
+        if info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 {
             set_err("RGBA_8888 비트맵만 지원".into());
             return -3;
         }
         let mut ptr: *mut std::ffi::c_void = std::ptr::null_mut();
-        if ndk_sys::AndroidBitmap_lockPixels(raw_env as *mut _, bmp as *mut _, &mut ptr) != 0 {
+        if AndroidBitmap_lockPixels(raw_env, bmp, &mut ptr) != 0 {
             return -4;
         }
         let stride = info.stride as usize;
         let buf = std::slice::from_raw_parts_mut(ptr as *mut u8, stride * info.height as usize);
         let r = d.render_rgba(i as u32, info.width, info.height, buf, stride);
-        ndk_sys::AndroidBitmap_unlockPixels(raw_env as *mut _, bmp as *mut _);
+        AndroidBitmap_unlockPixels(raw_env, bmp);
         match r {
             Ok(()) => 0,
             Err(e) => {
