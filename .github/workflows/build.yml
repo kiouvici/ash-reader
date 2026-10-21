@@ -23,10 +23,10 @@ jobs:
       ASH_KEY_ALIAS: ${{ secrets.ASH_KEY_ALIAS }}
       ASH_KEY_PASSWORD: ${{ secrets.ASH_KEY_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -61,13 +61,16 @@ jobs:
           fi
 
       - name: Permission check (N-05 ①)
-        run: ./gradlew --stacktrace :app:checkDebugNoInternetPermission :app:checkReleaseNoInternetPermission
+        shell: bash
+        run: .github/scripts/gradle-annotate.sh :app:checkDebugNoInternetPermission :app:checkReleaseNoInternetPermission
 
       - name: Unit tests
-        run: ./gradlew --stacktrace :app:testDebugUnitTest
+        shell: bash
+        run: .github/scripts/gradle-annotate.sh :app:testDebugUnitTest
 
       - name: Assemble debug & release
-        run: ./gradlew --stacktrace :app:assembleDebug :app:assembleRelease
+        shell: bash
+        run: .github/scripts/gradle-annotate.sh :app:assembleDebug :app:assembleRelease
 
       - name: Rename APKs
         shell: bash
