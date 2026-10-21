@@ -19,9 +19,11 @@ class DocAndSnifferTest {
         val t = System.nanoTime()
         val doc = DocExtractor.convert(TestFiles.public("word97-structure.doc").readBytes())
         println("[측정] DOC 추출 %.0f ms (JVM, 첫 호출·클래스 로딩 포함)".format((System.nanoTime() - t) / 1e6))
-        val all = TestFiles.norm(doc.paragraphTexts.joinToString(""))
+        // 각주 번호(DOCX 쪽에만 글자로 들어감)는 비교에서 뺀다
+        fun key(x: String) = TestFiles.norm(x).replace(Regex("\\d"), "")
+        val all = key(doc.paragraphTexts.joinToString(""))
         val expected = DocxConverter().convert(TestFiles.public("word-structure.docx").readBytes()).stats.paragraphTexts
-        val missing = expected.filter { !all.contains(TestFiles.norm(it)) }
+        val missing = expected.filter { !all.contains(key(it)) }
         println("[대조] DOC 문단 ${doc.paragraphTexts.size}개, DOCX 기준 ${expected.size}개 중 누락 ${missing.size}: $missing; 표 ${doc.tableGrids}")
         assertTrue("누락: $missing", missing.isEmpty())
         assertTrue(doc.tableGrids.isNotEmpty())
