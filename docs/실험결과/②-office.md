@@ -48,4 +48,4 @@ XML 해석은 설계서의 `XmlPullParser` 대신 `javax.xml` DOM을 썼다(안�
 
 ## 5. 시험 파일
 
-`docs/시험파일목록.md` Word 절 참고. 실무 파일은 `test-files/private/`(커밋 안 함). 로컬에서 `ASH_PRIVATE_TEST_FILES` 또는 `test-files/private/` 에 `real-04.docx`와 `real-04.ref.txt`(`pdftotext -layout real-04.ref.pdf`)가 있으면 `PrivateFilesTest`가 돌고, 없으면 건너뛴다.
+`docs/시험파일목록.md` Word 절 참고. 실무 파일은 `test-files/private/`(커밋 안 함). 로컬에서 `ASH_PRIVATE_TEST_FILES` 또는 `test-files/private/` 에 `real-04.docx`와 `real-04.ref.txt`(`pdftotext real-04.ref.pdf`)가 있으면 `PrivateFilesTest`가 돌고, 없으면 건너뛴다.
