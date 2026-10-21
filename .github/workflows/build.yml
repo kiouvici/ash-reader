@@ -131,6 +131,15 @@ jobs:
         shell: bash
         run: .github/scripts/check-apk-permissions.sh app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk
 
+      # P4: 서명 인증서 지문 확인. release는 기대 지문과 다르면 실패, debug는 지문을 요약에 표시.
+      - name: Verify signing certificates
+        shell: bash
+        env:
+          EXPECTED_RELEASE_SHA256: "AE:6D:B1:29:FB:E2:1E:5B:F4:AA:56:41:55:BC:7C:4B:53:D1:F9:43:AA:86:50:D0:79:0A:E3:4D:2A:25:B6:F1"
+          RELEASE_MODE: ${{ steps.signing.outputs.release_mode }}
+          DEBUG_MODE: ${{ steps.signing.outputs.debug_mode }}
+        run: .github/scripts/verify-apk-signers.sh app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/debug/app-debug.apk
+
       # P5: 릴리스 APK와 같은 커밋의 소스(source.zip)를 함께 올린다 (AGPL-3.0 소스 제공).
       - name: Package APKs and source
         shell: bash
