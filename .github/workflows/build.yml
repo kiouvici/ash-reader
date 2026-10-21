@@ -34,7 +34,8 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: "platform-tools platforms;android-36 build-tools;36.0.0"
+          # 플랫폼·빌드 도구는 AGP가 compileSdk에 맞춰 자동 설치(라이선스는 이 단계에서 수락됨)
+          packages: "platform-tools"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4

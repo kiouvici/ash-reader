@@ -6,7 +6,7 @@ LOG="$(mktemp)"
 ./gradlew --stacktrace --console=plain "$@" 2>&1 | tee "$LOG"
 STATUS=${PIPESTATUS[0]}
 if [ "$STATUS" -ne 0 ]; then
-  EXCERPT="$(grep -E '^e: |error:|ERROR|FAILURE|What went wrong|> |Caused by|Exception|N-05' "$LOG" | grep -v '^\s*at ' | head -60)"
+  EXCERPT="$(grep -vE '^> Task |^\s+at |^\s*$' "$LOG" | grep -E -A3 '^e: |error:|ERROR|FAILURE|What went wrong|Caused by|Dependency |requires|N-05|issues were found' | grep -vE '^\s+at ' | head -80)"
   {
     echo "### Gradle 실패: $*"
     echo '```'

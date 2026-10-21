@@ -22,7 +22,7 @@ val hasReleaseSigning: Boolean =
 
 android {
     namespace = "kr.vici.ashreader"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "kr.vici.ashreader"
