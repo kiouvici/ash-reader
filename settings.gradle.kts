@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ash-reader"
 include(":app")
+include(":engine-office")
