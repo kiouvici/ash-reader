@@ -235,6 +235,7 @@ class DocxConverter(private val options: Options = Options()) {
                     if (id !in footnoteIds) footnoteIds += id
                     val n = footnoteIds.indexOf(id) + 1
                     body.append("<a epub:type=\"noteref\" class=\"noteref\" href=\"#fn").append(id).append("\">").append(n).append("</a>")
+                    text.append(n)
                 }
                 "footnoteRef" -> body.append("<span class=\"fnref\">").append(footnoteIds.indexOf(c.parentNode.let { findAncestorFootnoteId(it) }) + 1).append("</span>")
                 "drawing" -> drawing(c, rels, body)

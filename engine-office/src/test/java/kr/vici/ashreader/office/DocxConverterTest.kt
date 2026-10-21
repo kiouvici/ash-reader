@@ -62,7 +62,7 @@ class DocxConverterTest {
 
     @Test fun simplifiedModeDropsRunStyles() {
         val s = DocxConverter(DocxConverter.Options(simplified = true)).convert(TestFiles.public("word-structure.docx").readBytes())
-        assertTrue(!s.xhtml.contains("font-size:"))
+        assertTrue(!s.xhtml.contains("<span style="))
         assertEquals(result.stats.paragraphTexts, s.stats.paragraphTexts)
     }
 
