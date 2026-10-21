@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ash-reader"
 include(":app")
+include(":engine-hwp") // rhwp + resvg (실험 ①)
