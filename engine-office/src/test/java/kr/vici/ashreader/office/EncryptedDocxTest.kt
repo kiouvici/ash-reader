@@ -24,7 +24,7 @@ class EncryptedDocxTest {
     @Test fun selfImplementationDecryptsToOriginal() {
         val t = System.nanoTime()
         val r = AgileDecryptor.decrypt(enc, "ash1234")
-        println("[측정] Agile 해제(spinCount 100000) %.0f ms (JVM)".format((System.nanoTime() - t) / 1e6))
+        println("::notice title=실험②::[측정] Agile 해제(spinCount 100000) %.0f ms (JVM)".format((System.nanoTime() - t) / 1e6))
         assertTrue(r is AgileDecryptor.Result.Ok)
         val zip = (r as AgileDecryptor.Result.Ok).zip
         assertArrayEquals(TestFiles.public("word-structure.docx").readBytes(), zip)
@@ -38,7 +38,7 @@ class EncryptedDocxTest {
         val r = runCatching {
             POIFSFileSystem(ByteArrayInputStream(enc)).use { fs -> EncryptionInfo(fs).decryptor.verifyPassword("ash1234") }
         }
-        println("[POI] agile 클래스 있음=$hasAgile, EncryptionInfo 결과=${r.exceptionOrNull()?.javaClass?.simpleName ?: r.getOrNull()}")
+        println("::notice title=실험②::[POI] agile 클래스 있음=$hasAgile, EncryptionInfo 결과=${r.exceptionOrNull()?.javaClass?.simpleName ?: r.getOrNull()}")
         // 결과는 기록만 한다(판정은 결과 문서). 자체 구현이 1순위를 대신한다.
     }
 }

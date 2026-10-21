@@ -75,7 +75,7 @@ class DocxConverterTest {
         val b = TestFiles.public("word-structure.docx").readBytes()
         repeat(3) { DocxConverter().convert(b) }
         val t = System.nanoTime(); repeat(10) { DocxConverter().convert(b) }
-        println("[측정] word-structure.docx 변환 평균 %.1f ms (JVM, 참고값)".format((System.nanoTime() - t) / 10 / 1e6))
+        println("::notice title=실험②::[측정] word-structure.docx 변환 평균 %.1f ms (JVM, 참고값)".format((System.nanoTime() - t) / 10 / 1e6))
     }
 
     companion object {
@@ -93,7 +93,7 @@ class DocxConverterTest {
                     else -> pos = i + k.length
                 }
             }
-            println("[대조] 문단 ${paras.size}개, 누락 ${missing.size}, 순서 어긋남 $outOfOrder")
+            println("::notice title=실험②::[대조] 문단 ${paras.size}개, 누락 ${missing.size}, 순서 어긋남 $outOfOrder")
             assertTrue("누락 문단: $missing", missing.isEmpty())
             assertEquals(0, outOfOrder)
         }
