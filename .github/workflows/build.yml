@@ -77,7 +77,7 @@ jobs:
         continue-on-error: true
         run: ./gradlew --console=plain --no-configuration-cache :app:ashThirdPartyDeps
 
-      # 아티팩트·로그를 못 받는 환경에서도 목록을 읽을 수 있게 압축본을 주석(annotation)으로 남긴다.
+      # 아티팩트·로그를 못 받는 환경에서도 목록을 읽을 수 있게 압축본(tgz, base64)을 주석(annotation)으로 남긴다.
       - name: Third-party list as annotations
         continue-on-error: true
         shell: bash

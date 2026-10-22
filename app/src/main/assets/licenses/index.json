@@ -2375,13 +2375,1483 @@
   },
   {
    "group": "자바·코틀린 라이브러리",
+   "name": "androidx.activity:activity",
+   "version": "1.13.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Activity",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.activity:activity-compose",
+   "version": "1.13.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Activity Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.activity:activity-ktx",
+   "version": "1.13.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Activity Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.annotation:annotation",
+   "version": "1.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Annotation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.annotation:annotation-experimental",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Experimental annotation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.annotation:annotation-jvm",
+   "version": "1.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Annotation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.arch.core:core-common",
+   "version": "2.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Android Arch-Common",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.arch.core:core-runtime",
+   "version": "2.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Android Arch-Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.autofill:autofill",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "AndroidX Autofill",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.collection:collection",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "collections",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.collection:collection-jvm",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "collections",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.collection:collection-ktx",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Collections Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.animation:animation",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Animation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.animation:animation-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Animation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.animation:animation-core",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Animation Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.animation:animation-core-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Animation Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.foundation:foundation",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Foundation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.foundation:foundation-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Foundation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.foundation:foundation-layout",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Layouts",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.foundation:foundation-layout-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Layouts",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.material3:material3",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Material3 Components",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.material3:material3-android",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Material3 Components",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.material:material-ripple",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Material Ripple",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.material:material-ripple-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Material Ripple",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-annotation",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Runtime Annotation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-annotation-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Runtime Annotation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-retain",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Runtime Retain",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-retain-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Runtime Retain",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-saveable",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Saveable",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-saveable-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Saveable",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose UI",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose UI",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-geometry",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Geometry",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-geometry-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Geometry",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-graphics",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Graphics",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-graphics-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Graphics",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-text",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose UI Text",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-text-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose UI Text",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-tooling-preview",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose UI Preview Tooling",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-tooling-preview-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose UI Preview Tooling",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-unit",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Unit",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-unit-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Unit",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-util",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Util",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-util-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Util",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose:compose-bom",
+   "version": "2026.09.00",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Jetpack Compose Libraries BOM",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.concurrent:concurrent-futures",
+   "version": "1.1.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "AndroidX Futures",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.core:core",
+   "version": "1.19.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.core:core-ktx",
+   "version": "1.19.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Core Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.core:core-viewtree",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "androidx.core:core-viewtree",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.customview:customview-poolingcontainer",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "androidx.customview:poolingcontainer",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "DataStore",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-android",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "DataStore",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-core",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "DataStore Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-core-android",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "DataStore Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-core-okio",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "DataStore Core Okio",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-core-okio-jvm",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "DataStore Core Okio",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-preferences",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Preferences DataStore",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-preferences-android",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Preferences DataStore",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-preferences-core",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Preferences DataStore Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-preferences-core-android",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Preferences DataStore Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-preferences-external-protobuf",
+   "version": "1.2.0",
+   "license": "BSD-3-Clause",
+   "copyright": "",
+   "note": "Preferences External Protobuf",
+   "texts": [
+    "texts/a2103031c679.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-preferences-proto",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Preferences DataStore Proto",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.emoji2:emoji2",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Emoji2",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.graphics:graphics-path",
+   "version": "1.0.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Android Graphics Path",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.interpolator:interpolator",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Android Support Library Interpolators",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-common",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle-Common",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-common-java8",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle-Common for Java 8",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-common-jvm",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle-Common",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-livedata-core",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle LiveData Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-process",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Process",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-runtime",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-runtime-android",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-runtime-compose",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Runtime Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-runtime-compose-android",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Runtime Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-runtime-ktx",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-runtime-ktx-android",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel-android",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel-compose",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel-compose-android",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel-ktx",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel-savedstate",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel with SavedState",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel-savedstate-android",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel with SavedState",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.navigationevent:navigationevent",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Navigation Event",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.navigationevent:navigationevent-android",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Navigation Event",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.navigationevent:navigationevent-compose",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "NavigationEvent Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.navigationevent:navigationevent-compose-android",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "NavigationEvent Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.profileinstaller:profileinstaller",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Profile Installer",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.room:room-common",
+   "version": "2.8.4",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Room-Common",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.room:room-common-jvm",
+   "version": "2.8.4",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Room-Common",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.room:room-ktx",
+   "version": "2.8.4",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Room Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.room:room-runtime",
+   "version": "2.8.4",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Room-Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.room:room-runtime-android",
+   "version": "2.8.4",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Room-Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.savedstate:savedstate",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Saved State",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.savedstate:savedstate-android",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Saved State",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.savedstate:savedstate-compose",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Saved State Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.savedstate:savedstate-compose-android",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Saved State Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.savedstate:savedstate-ktx",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "SavedState Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.sqlite:sqlite",
+   "version": "2.6.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "SQLite",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.sqlite:sqlite-android",
+   "version": "2.6.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "SQLite",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.sqlite:sqlite-framework",
+   "version": "2.6.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "SQLite Framework Integration",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.sqlite:sqlite-framework-android",
+   "version": "2.6.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "SQLite Framework Integration",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.startup:startup-runtime",
+   "version": "1.1.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Android App Startup Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.tracing:tracing",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Android Tracing",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.versionedparcelable:versionedparcelable",
+   "version": "1.1.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "VersionedParcelable",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.window:window",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "WindowManager",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.window:window-core",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "WindowManager Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.window:window-core-android",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "WindowManager Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "com.google.guava:listenablefuture",
+   "version": "1.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Guava ListenableFuture only",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "com.squareup.okio:okio",
+   "version": "3.9.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "okio",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "com.squareup.okio:okio-jvm",
+   "version": "3.9.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "okio",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "com.zaxxer:SparseBitSet",
+   "version": "1.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "SparseBitSet",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "commons-codec:commons-codec",
+   "version": "1.20.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Apache Commons Codec",
+   "texts": [
+    "texts/dd797d66fe6f.txt",
+    "texts/d6eb90e47181.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "commons-io:commons-io",
+   "version": "2.21.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Apache Commons IO",
+   "texts": [
+    "texts/dd797d66fe6f.txt",
+    "texts/6a9d93037a98.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.apache.commons:commons-collections4",
+   "version": "4.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Apache Commons Collections",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/ff099075a7ea.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.apache.commons:commons-math3",
+   "version": "3.6.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Apache Commons Math",
+   "texts": [
+    "texts/2f5a276af3f8.txt",
+    "texts/20b3794b9058.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.apache.logging.log4j:log4j-api",
+   "version": "2.24.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Apache Log4j API",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/6cc94946d404.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
    "name": "org.apache.poi:poi",
+   "version": "5.5.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Apache POI - Common",
+   "texts": [
+    "texts/a5d47c5778dd.txt",
+    "texts/6f35aeb09afb.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.apache.poi:poi-scratchpad",
    "version": "5.5.1",
    "license": "Apache-2.0",
    "copyright": "",
    "note": "Apache POI",
    "texts": [
+    "texts/a5d47c5778dd.txt",
+    "texts/6f35aeb09afb.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlin:kotlin-stdlib",
+   "version": "2.4.21",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Kotlin Stdlib",
+   "texts": [
     "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-coroutines-android",
+   "version": "1.10.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-coroutines-android",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-coroutines-bom",
+   "version": "1.10.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-coroutines-bom",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-coroutines-core",
+   "version": "1.10.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-coroutines-core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm",
+   "version": "1.10.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-coroutines-core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-serialization-bom",
+   "version": "1.7.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-serialization-bom",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-serialization-core",
+   "version": "1.7.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-serialization-core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm",
+   "version": "1.7.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-serialization-core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-serialization-json",
+   "version": "1.7.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-serialization-json",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm",
+   "version": "1.7.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-serialization-json",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains:annotations",
+   "version": "23.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "JetBrains Java Annotations",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jspecify:jspecify",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "JSpecify annotations",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "글꼴",
+   "name": "MaruBuri",
+   "version": "2.000",
+   "license": "OFL-1.1",
+   "copyright": "© NAVER Corp. © NAVER Cultural Foundation Corp.",
+   "note": "앱에 넣은 파일: maruburi_bold.ttf, maruburi_regular.ttf",
+   "texts": [
+    "texts/4ebc375d84b0.txt"
    ]
   },
   {
@@ -2402,6 +3872,17 @@
    "license": "OFL-1.1",
    "copyright": "Copyright © 2010 NHN Corporation. All rights reserved. Font designed by FONTRIX.",
    "note": "앱에 넣은 파일: nanum_myeongjo_bold.ttf, nanum_myeongjo_regular.ttf",
+   "texts": [
+    "texts/4ebc375d84b0.txt"
+   ]
+  },
+  {
+   "group": "글꼴",
+   "name": "RIDIBatang",
+   "version": "1.0.1 Build 20191001",
+   "license": "OFL-1.1",
+   "copyright": "Copyright © 2019 RIDI & Sandoll. All rights reserved. Font designed by Sandoll Inc.",
+   "note": "앱에 넣은 파일: ridibatang.otf",
    "texts": [
     "texts/4ebc375d84b0.txt"
    ]

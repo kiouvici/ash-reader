@@ -255,6 +255,9 @@ def android(n, args):
         if "apache" in lic.lower() and apache and not any(n.texts[t][1].lstrip().startswith("Apache License") or
                                                           "Apache License" in n.texts[t][1][:200] for t in ids):
             ids.append(n.text(apache, "Apache License 2.0"))
+        # 저장소에 넣어 둔 원문(jar 에 원문이 없는 것): scripts/third-party/texts
+        if "protobuf" in aid and not ids:
+            ids.append(n.text(read(os.path.join(ROOT, "scripts/third-party/texts/protobuf-LICENSE")), "Protocol Buffers LICENSE"))
         spdx = "Apache-2.0" if "apache" in lic.lower() and "2" in lic else lic
         n.add(g, "%s:%s" % (gid, aid), ver, spdx, ids, "", pname)
 
@@ -284,7 +287,8 @@ def fonts(n, args):
         if not f.endswith((".ttf", ".otf")):
             continue
         nm = font_names(os.path.join(fd, f))
-        fam.setdefault(nm.get(1, f), []).append((f, nm))
+        family = nm.get(16) or re.sub(r"\s+(Regular|Bold|Light|ExtraBold|Heavy)$", "", nm.get(1, f))
+        fam.setdefault(family, []).append((f, nm))
     for family, files in fam.items():
         nm = files[0][1]
         ver = (nm.get(5) or "").replace("Version ", "").split(";")[0]

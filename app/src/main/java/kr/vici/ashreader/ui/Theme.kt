@@ -60,6 +60,15 @@ val Myeongjo = FontFamily(
     Font(R.font.nanum_myeongjo_bold, FontWeight.Bold),
 )
 
+/** 리디바탕(OFL 1.1, © RIDI & Sandoll) — Aa 미리보기. */
+val RidiBatang = FontFamily(Font(R.font.ridibatang, FontWeight.Normal))
+
+/** 마루부리(OFL 1.1, © NAVER Corp.) — Aa 미리보기. */
+val MaruBuri = FontFamily(
+    Font(R.font.maruburi_regular, FontWeight.Normal),
+    Font(R.font.maruburi_bold, FontWeight.Bold),
+)
+
 /** 읽기 테마 색 (화면 설계서 1.3, Reader·Curl 목업). ARGB Int 는 엔진 비트맵용. */
 data class ReadingColors(
     val bg: Int, val fg: Int, val sub: Int, val bar: Int, val line: Int, val accent: Int, val onAccent: Int,

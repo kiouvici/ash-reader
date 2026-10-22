@@ -9,7 +9,7 @@
     <!-- F-36·F-66: 패키지 조회는 필요한 것만 선언(QUERY_ALL_PACKAGES 금지) -->
     <queries>
         <package android:name="kr.vici.malgeul" />
-        <package android:name="com.yes24.ebook.fanbook" />
+        <package android:name="com.yes24.ebook.fourth" />
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />
             <data android:mimeType="text/plain" />

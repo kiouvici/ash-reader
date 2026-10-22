@@ -53,11 +53,17 @@ class OpenFailed(msg: String) : Exception(msg)
 
 /** 번들 글꼴(assets/fonts) → 내부 저장소 복사. 엔진은 파일 경로로 글꼴을 읽는다. */
 object BundledFonts {
-    /** 본문 글꼴 파일. 리디바탕·마루부리는 라이선스 원문 확인 전이라 아직 번들하지 않음(TODO C1) → 나눔명조로 대체. */
+    /** 본문 글꼴 파일(모두 SIL OFL 1.1, 고지는 라이선스 화면). 파일이 없으면 나눔명조로 대체. */
     private val files = mapOf(
         BodyFont.NANUM_MYEONGJO to "NanumMyeongjo-Regular.ttf",
         BodyFont.RIDI_BATANG to "RIDIBatang.otf",
         BodyFont.MARUBURI to "MaruBuri-Regular.ttf",
+    )
+
+    /** 굵은 글꼴 파일(있는 것만). 없으면 MuPDF 가 굵게를 흉내 낸다. */
+    private val boldFiles = mapOf(
+        BodyFont.NANUM_MYEONGJO to "NanumMyeongjo-Bold.ttf",
+        BodyFont.MARUBURI to "MaruBuri-Bold.ttf",
     )
 
     @Volatile private var installed = false
@@ -69,6 +75,9 @@ object BundledFonts {
         R.font.nanum_myeongjo_regular to "NanumMyeongjo-Regular.ttf",
         R.font.nanum_myeongjo_bold to "NanumMyeongjo-Bold.ttf",
         R.font.nanum_gothic_regular to "NanumGothic-Regular.ttf",
+        R.font.ridibatang to "RIDIBatang.otf",
+        R.font.maruburi_regular to "MaruBuri-Regular.ttf",
+        R.font.maruburi_bold to "MaruBuri-Bold.ttf",
     )
 
     @Synchronized
@@ -88,6 +97,12 @@ object BundledFonts {
     fun file(context: Context, f: BodyFont): File {
         val want = File(dir(context), files.getValue(f))
         return if (want.exists()) want else File(dir(context), files.getValue(BodyFont.NANUM_MYEONGJO))
+    }
+
+    /** 고른 글꼴의 굵은 파일. 없으면 null. 본문 글꼴이 대체됐으면(파일 없음) 대체 글꼴 기준. */
+    fun boldFile(context: Context, f: BodyFont): File? {
+        val base = if (available(context, f)) f else BodyFont.NANUM_MYEONGJO
+        return boldFiles[base]?.let { File(dir(context), it) }?.takeIf { it.exists() }
     }
 
     fun available(context: Context, f: BodyFont): Boolean = File(dir(context), files.getValue(f)).exists()
@@ -117,8 +132,11 @@ object DocOpener {
 
     fun css(context: Context, s: Settings): String {
         val font = BundledFonts.file(context, s.font).absolutePath
+        val bold = BundledFonts.boldFile(context, s.font)?.absolutePath
+        val boldFace = if (bold != null) "@font-face { font-family: ashbody; font-weight: bold; src: url(\"$bold\"); }" else ""
         return """
             @font-face { font-family: ashbody; src: url("$font"); }
+            $boldFace
             @page { margin: 0; }
             body { font-family: ashbody, serif; line-height: ${"%.2f".format(java.util.Locale.ROOT, s.lineHeight)};
                    margin: 1.4em 1.5em 2.2em 1.5em; text-align: justify; word-break: keep-all; color: #000; background: #fff; }
