@@ -273,6 +273,8 @@ jobs:
               ok=yes; for a in $al; do [ "$a" = "2**14" ] || [ "$a" = "2**16" ] || ok=no; done
               [ "$ok" = no ] && fail=1
               echo "| $(basename "$APK") | $abi | $n | $al ($ok) |" >> "$GITHUB_STEP_SUMMARY"
+              # 배치 간 크기 비교용: 배포 APK(release) arm64 .so 의 APK 안 크기를 주석으로
+              case "$APK" in *release*) [ "$abi" = arm64-v8a ] && echo "::notice title=앱 .so arm64::$n $(unzip -v "$APK" "lib/$abi/$n" | awk 'NR==4{print $3}') B (APK 안), LOAD $al ($ok)";; esac
             done
             if "$ZIPALIGN" -c -P 16 -v 4 "$APK" > /tmp/za.txt 2>&1; then
               echo "- $(basename "$APK"): zipalign -P 16 통과" >> "$GITHUB_STEP_SUMMARY"
