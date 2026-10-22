@@ -38,6 +38,7 @@ class FrameStatsRecorder {
     private var turns = 0
     private var turnStart = 0L
     private var activeNs = 0L
+    private var inTurn = false
     @Volatile var recording = false
         private set
 
@@ -52,6 +53,7 @@ class FrameStatsRecorder {
         turns = 0
         turnStart = 0L
         activeNs = 0L
+        inTurn = false
         recording = true
     }
 
@@ -61,7 +63,7 @@ class FrameStatsRecorder {
         val lat = swapDoneNs - vsyncNs
         latencies += lat
         if (lat > periodNs) late++
-        if (lastVsync == 0L) turnStart = vsyncNs
+        if (!inTurn) { turnStart = vsyncNs; inTurn = true }
         if (continuing && lastVsync != 0L) {
             val gap = vsyncNs - lastVsync
             val skipped = (gap.toDouble() / periodNs).roundToInt() - 1
@@ -75,7 +77,8 @@ class FrameStatsRecorder {
     fun onTurnEnd() {
         if (!recording) return
         turns++
-        if (lastVsync != 0L) activeNs += lastVsync - turnStart + periodNs
+        if (inTurn) activeNs += lastVsync - turnStart + periodNs
+        inTurn = false
         lastVsync = 0L
     }
 
