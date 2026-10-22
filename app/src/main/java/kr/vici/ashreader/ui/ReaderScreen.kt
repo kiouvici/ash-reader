@@ -70,6 +70,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kr.vici.ashreader.data.Bookmark
+import kr.vici.ashreader.data.Highlight
+import kr.vici.ashreader.doc.TextGeo
+import kr.vici.ashreader.doc.TextPage
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.FormatGroup
 import kr.vici.ashreader.data.Note
@@ -108,11 +111,22 @@ private sealed interface Load {
 }
 
 /** 닫힌 문서에 렌더 요청이 와도 죽지 않게 감싼다. */
-private class GuardedSource(private val doc: ReaderDoc, private val colors: ReadingColors) : PageSource {
+/** [marks] = 쪽마다 칠할 형광펜·검색 표시(없으면 글자 위치를 읽지 않는다). */
+private class GuardedSource(
+    private val doc: ReaderDoc,
+    private val colors: ReadingColors,
+    private val marks: (page: Int, tp: () -> TextPage?) -> List<Mark> = { _, _ -> emptyList() },
+) : PageSource {
     override val pageCount: Int = doc.pageCount
     override fun render(index: Int, width: Int, height: Int): Bitmap = synchronized(guard) {
         if (closed.contains(doc)) Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply { eraseColor(colors.bg) }
-        else runCatching { doc.render(index, width, height, colors) }.getOrElse {
+        else runCatching {
+            val bmp = doc.render(index, width, height, colors)
+            var tp: TextPage? = null
+            val ms = runCatching { marks(index) { doc.pageText(index).also { tp = it } } }.getOrDefault(emptyList())
+            tp?.let { t -> if (ms.isNotEmpty()) runCatching { paintMarks(bmp, t, ms) } }
+            bmp
+        }.getOrElse {
             Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply { eraseColor(colors.bg) }
         }
     }
@@ -142,6 +156,9 @@ fun ReaderScreen(
     notes: List<Note>,
     onToggleBookmark: (page: Int) -> Unit,
     onAddNote: (page: Int, text: String) -> Unit,
+    highlights: List<Highlight> = emptyList(),
+    onAddHighlight: (page: Int, start: Int, end: Int, text: String, color: Int, note: String) -> Unit = { _, _, _, _, _, _ -> },
+    onRemoveHighlight: (id: Long) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -156,11 +173,21 @@ fun ReaderScreen(
     var turnFwd by remember { mutableStateOf(true) }
     var curlView by remember { mutableStateOf<PageCurlView?>(null) }
     var pagesTurned by remember { mutableIntStateOf(0) }
+    var spreadNow by remember { mutableStateOf(false) }
+    var sel by remember { mutableStateOf<Selection?>(null) }
+    var selMemo by remember { mutableStateOf<Selection?>(null) }
+    var searchOpen by remember { mutableStateOf(false) }
+    var hit by remember { mutableStateOf<Hit?>(null) }
+    var jumpReq by remember { mutableStateOf<Int?>(null) }
+    var tocTab by remember { mutableIntStateOf(0) }
+    var openDoc by remember { mutableStateOf<ReaderDoc?>(null) }
     val fmt = target.format
 
     fun stub(msg: String) { scope.launch { snack.showSnackbar(msg) } }
 
-    BackHandler(enabled = menu) { menu = false }
+    BackHandler(enabled = menu || sel != null || hit != null) {
+        when { sel != null -> sel = null; menu -> menu = false; else -> hit = null }
+    }
 
     // 독서 기록(S-50)
     val sessionPages by rememberUpdatedState(pagesTurned)
@@ -196,6 +223,9 @@ fun ReaderScreen(
             }
             is Load.Ok -> {
                 val doc = l.doc
+                LaunchedEffect(doc) { openDoc = doc; sel = null; hit = null }
+                val pxW = constraints.maxWidth.toFloat()
+                val pxH = constraints.maxHeight.toFloat()
                 val count = doc.pageCount
                 LaunchedEffect(page, count) {
                     if (count > 0) {
@@ -213,7 +243,27 @@ fun ReaderScreen(
                         turnRequest = turnReq, turnForward = turnFwd,
                     )
                 } else {
-                    val source = remember(doc, s.theme) { GuardedSource(doc, colors) }
+                    val near = if (fmt.reflowable) 3 else 0
+                    val source = remember(doc, s.theme, highlights, hit) {
+                        val hl = highlights; val h = hit
+                        GuardedSource(doc, colors) { i, tpOf ->
+                            val cand = hl.filter { kotlin.math.abs(it.page - i) <= near }
+                            val tp = if (cand.isEmpty() && h?.page != i) null else tpOf()
+                            if (tp == null) emptyList<Mark>()
+                            else {
+                                cand.mapNotNull { x ->
+                                    val r = TextGeo.resolve(tp.text, x.startIdx, x.endIdx, x.text) ?: return@mapNotNull null
+                                    Mark(r.first, r.last + 1, HighlightColors[x.color.coerceIn(0, 3)])
+                                } + listOfNotNull(h?.takeIf { it.page == i }?.let { searchMark(it) })
+                            }
+                        }
+                    }
+                    LaunchedEffect(jumpReq, source) {
+                        val j = jumpReq ?: return@LaunchedEffect
+                        page = j.coerceIn(0, (count - 1).coerceAtLeast(0))
+                        curlView?.let { it.tag = source; it.setPageSource(source, page) }
+                        jumpReq = null
+                    }
                     val cfg = CurlConfig(
                         direction = if (doc.rtl) TurnDirection.RTL else TurnDirection.LTR,
                         effect = if (s.curl) TurnEffect.CURL else TurnEffect.SLIDE,
@@ -226,12 +276,26 @@ fun ReaderScreen(
                         factory = { ctx ->
                             PageCurlView(ctx).also { v ->
                                 curlView = v
-                                v.onPageChanged = { first, _ -> if (first != page) { page = first; pagesTurned++ } }
+                                v.onPageChanged = { first, sp -> spreadNow = sp; if (first != page) { page = first; pagesTurned++; sel = null } }
                             }
                         },
                         update = { v ->
+                            v.onLongPress = { xf, yf ->
+                                menu = false
+                                val slot = slotAt(xf * pxW, pxW, pxH, page, spreadNow, rtl)
+                                scope.launch {
+                                    val tp = withContext(Dispatchers.IO) { if (slot.page in 0 until count) doc.pageText(slot.page) else null }
+                                    if (tp == null || tp.text.isBlank()) { stub(noTextMsg(fmt)); return@launch }
+                                    val b = slot.content(tp)
+                                    val i = TextGeo.charAt(tp, (xf * pxW - b.l) / (b.r - b.l), (yf * pxH - b.t) / (b.b - b.t))
+                                    if (i < 0) return@launch
+                                    val w = TextGeo.wordAt(tp.text, i)
+                                    sel = Selection(slot, tp, w.first, w.last + 1)
+                                }
+                            }
                             v.onTap = { x, _ ->
                                 when {
+                                    sel != null -> sel = null
                                     menu -> menu = false
                                     x < 0.3f -> v.turn(next = rtl)
                                     x > 0.7f -> v.turn(next = !rtl)
@@ -248,7 +312,7 @@ fun ReaderScreen(
                 }
 
                 // 볼륨 키 (화면 설계서 4.5): 메뉴·시트가 열려 있으면 시스템 음량
-                val volOn = s.volumeKeys && !menu && !showAa && !showToc
+                val volOn = s.volumeKeys && !menu && !showAa && !showToc && sel == null && !searchOpen
                 DisposableEffect(volOn) {
                     val h: (Boolean) -> Boolean = { next -> turnFwd = next; turnReq++; true }
                     VolumeKeys.handler = if (volOn) h else null
@@ -264,18 +328,50 @@ fun ReaderScreen(
 
                 if (menu) {
                     TopBar(target.title, colors, bookmarked = bookmarks.any { it.page == page }, onBack = onBack,
-                        onBookmark = { onToggleBookmark(page) }, onSearch = { stub("본문 검색은 다음 판에서 열려요.") },
+                        onBookmark = { onToggleBookmark(page) },
+                        onSearch = { if (doc is kr.vici.ashreader.doc.MupdfReaderDoc) { menu = false; searchOpen = true } else stub(noTextMsg(fmt)) },
                         modifier = Modifier.align(Alignment.TopCenter))
                     BottomMenu(
                         page, count, colors, s.theme, Modifier.align(Alignment.BottomCenter),
-                        onSeek = { p -> page = p; curlView?.setPageSource(GuardedSource(doc, colors).also { curlView?.tag = it }, p) },
+                        onSeek = { p -> jumpReq = p },
                         onToc = { showToc = true },
                         onAa = { showAa = true },
                         onTheme = { onSettings { it.copy(theme = ReadTheme.entries[(it.theme.ordinal + 1) % 3]) } },
                         onListen = { speak(context, doc, page) { stub(it) } },
-                        onHighlight = { stub("글자를 길게 눌러 형광펜 칠하기는 다음 판에서 열려요.") },
+                        onHighlight = { menu = false; stub(if (doc is kr.vici.ashreader.doc.MupdfReaderDoc) "칠할 글자를 길게 눌러 고른 뒤 ‘형광펜’을 누르세요." else noTextMsg(fmt)) },
                         onMemo = { memoOpen = true },
                     )
+                }
+
+                hit?.let { h ->
+                    if (!menu && !searchOpen) Row(
+                        Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 8.dp)
+                            .background(colors.barC, RoundedCornerShape(24.dp)).padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(onClick = { searchOpen = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("검색 결과로", color = colors.accentC) }
+                        IconButton(onClick = { hit = null }, modifier = Modifier.size(48.dp)) { Icon(Icons.Close, "검색 표시 지우기", tint = colors.fgC) }
+                    }
+                }
+
+                sel?.let { cur ->
+                    SelectionLayer(
+                        sel = cur, c = colors,
+                        onChange = { sel = it },
+                        onDismiss = { sel = null },
+                        onCopy = { copyText(context, cur.text); sel = null; stub("복사했어요.") },
+                        onDict = { lookUp(context, cur.text) { stub(it) }; sel = null },
+                        onHighlight = { color ->
+                            if (target.once) stub("서재에 추가하면 형광펜을 남길 수 있어요.")
+                            else onAddHighlight(cur.slot.page, cur.start, cur.end, cur.text, color, "")
+                            sel = null
+                        },
+                        onMemo = { if (target.once) stub("서재에 추가하면 메모를 남길 수 있어요.") else selMemo = cur; sel = null },
+                    )
+                }
+
+                if (searchOpen) SearchPanel(doc, colors, onClose = { searchOpen = false }) { h ->
+                    searchOpen = false; hit = h; jumpReq = h.page
                 }
 
                 if (!s.tapGuideShown && !target.once) TapGuide(rtl = doc.rtl, panelMode = panelMode) { onSettings { it.copy(tapGuideShown = true) } }
@@ -285,22 +381,52 @@ fun ReaderScreen(
     }
 
     if (showAa) ViewSettingsSheet(s, fmt.reflowable, onSettings) { showAa = false }
+    val toc by produceState<List<kr.vici.ashreader.doc.TocEntry>?>(null, openDoc, showToc) {
+        val d = openDoc
+        value = if (d == null) emptyList() else withContext(Dispatchers.IO) { d.toc() }
+    }
     if (showToc) ModalBottomSheet(onDismissRequest = { showToc = false }) {
         LazyColumn(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-            item { Text("목차 · 책갈피 · 메모", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp)) }
-            // TODO(S-22): 문서 목차(outline) — 엔진 API(MupdfDoc 목차) 추가 후 연결
-            item { Text("목차는 다음 판에서 보여 줘요.", fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp)) }
-            items(bookmarks, key = { "b${it.id}" }) { b ->
-                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable {
-                    showToc = false; page = b.page; curlView?.setPageSource(curlView?.tag as? PageSource ?: return@clickable, b.page)
-                }, verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Bookmark, null, Modifier.size(20.dp)); Text("  ${b.page + 1}쪽", fontSize = 15.sp) }
-            }
-            items(notes, key = { "n${it.id}" }) { n ->
-                Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 6.dp)) {
-                    Text("${n.page + 1}쪽", fontSize = 12.sp)
-                    Text(n.text, fontSize = 15.sp)
+            item {
+                Row(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                    listOf("목차", "책갈피·메모·형광펜").forEachIndexed { i, label ->
+                        Column(Modifier.weight(1f).heightIn(min = 48.dp).clickable { tocTab = i }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Text(label, fontSize = 15.sp, fontWeight = if (tocTab == i) FontWeight.Bold else FontWeight.Normal, color = if (tocTab == i) colors.accentC else Color.Unspecified)
+                            if (tocTab == i) Box(Modifier.padding(top = 4.dp).size(width = 32.dp, height = 2.dp).background(colors.accentC))
+                        }
+                    }
                 }
-                HorizontalDivider()
+            }
+            if (tocTab == 0) {
+                item { TocList(toc, page) { p -> showToc = false; jumpReq = p } }
+            } else {
+                if (bookmarks.isEmpty() && notes.isEmpty() && highlights.isEmpty()) item {
+                    Text("책갈피·메모·형광펜이 아직 없어요. 글자를 길게 눌러 형광펜을 칠해 보세요.", fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
+                }
+                items(bookmarks, key = { "b${it.id}" }) { b ->
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { showToc = false; jumpReq = b.page },
+                        verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Bookmark, null, Modifier.size(20.dp)); Text("  ${b.page + 1}쪽", fontSize = 15.sp) }
+                }
+                items(notes, key = { "n${it.id}" }) { n ->
+                    Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { showToc = false; jumpReq = n.page }.padding(vertical = 6.dp)) {
+                        Text("${n.page + 1}쪽 · 메모", fontSize = 12.sp)
+                        Text(n.text, fontSize = 15.sp)
+                    }
+                    HorizontalDivider()
+                }
+                items(highlights, key = { "h${it.id}" }) { h ->
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { showToc = false; jumpReq = h.page }.padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(width = 6.dp, height = 36.dp).background(Color(HighlightColors[h.color.coerceIn(0, 3)])))
+                        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                            Text("${h.page + 1}쪽 · 형광펜", fontSize = 12.sp)
+                            Text(h.text, fontSize = 15.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                            if (h.note.isNotBlank()) Text("메모: ${h.note}", fontSize = 13.sp, color = colors.accentC)
+                        }
+                        IconButton(onClick = { onRemoveHighlight(h.id) }, modifier = Modifier.size(48.dp)) { Icon(Icons.Close, "형광펜 지우기") }
+                    }
+                    HorizontalDivider()
+                }
             }
         }
     }
@@ -312,6 +438,25 @@ fun ReaderScreen(
             text = { OutlinedTextField(text, { text = it }, minLines = 3) },
             confirmButton = { TextButton(onClick = { if (text.isNotBlank()) onAddNote(page, text.trim()); memoOpen = false }) { Text("저장") } },
             dismissButton = { TextButton(onClick = { memoOpen = false }) { Text("취소") } },
+        )
+    }
+    selMemo?.let { sm ->
+        var text by remember(sm) { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { selMemo = null },
+            title = { Text("${sm.slot.page + 1}쪽 메모") },
+            text = {
+                Column {
+                    Text("“${sm.text.take(80)}”", fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 8.dp))
+                    OutlinedTextField(text, { text = it }, minLines = 3)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onAddHighlight(sm.slot.page, sm.start, sm.end, sm.text, 0, text.trim()); selMemo = null
+                }) { Text("저장") }
+            },
+            dismissButton = { TextButton(onClick = { selMemo = null }) { Text("취소") } },
         )
     }
     DisposableEffect(Unit) { onDispose { Tts.stop() } }
@@ -425,4 +570,19 @@ private fun speak(context: Context, doc: ReaderDoc, page: Int, onError: (String)
     val lines = doc.pageLines(page)
     if (lines.isEmpty()) { onError("이 쪽에는 읽을 글자가 없어요."); return }
     Tts.say(context, lines.joinToString(" "), onError)
+}
+
+/** 화면 x(px)가 가리키는 쪽 칸. 두 쪽 펼침이면 왼쪽/오른쪽 반(표지 단독 배치 기준). */
+private fun slotAt(x: Float, w: Float, h: Float, first: Int, spread: Boolean, rtl: Boolean): PageSlot {
+    if (!spread) return PageSlot(first, 0f, 0f, w, h)
+    val leftHalf = x < w / 2f
+    val leftIdx = if (first == 0) -1 else first // 표지 단독: 첫 펼침 = 빈 왼쪽 + 0쪽
+    val idx = if (leftHalf != rtl) leftIdx else leftIdx + 1
+    return PageSlot(idx, if (leftHalf) 0f else w / 2f, 0f, w / 2f, h)
+}
+
+private fun noTextMsg(fmt: DocFormat): String = when (fmt.group) {
+    FormatGroup.HWP -> "한글 원본 보기는 아직 글자 선택·검색을 할 수 없어요."
+    FormatGroup.COMIC -> "만화는 그림이라 글자를 고를 수 없어요."
+    else -> "이 쪽에는 고를 수 있는 글자가 없어요. (그림으로 된 PDF일 수 있어요)"
 }
