@@ -309,6 +309,8 @@ jobs:
           cp bench/build/outputs/apk/release/bench-release.apk "dist-bench/ash-reader-bench-${VC}-${SHA}-release${DS}.apk"
           cp bench/build/outputs/apk/debug/bench-debug.apk "dist-bench/ash-reader-bench-${VC}-${SHA}-debug${DS}.apk"
           cp "dist/ash-reader-${VC}-${SHA}-source.zip" dist-bench/
+          # APK 크기(바이트)를 주석으로 남긴다(배치 간 비교용)
+          for f in dist/*.apk; do echo "::notice title=APK 크기::$(basename "$f") $(stat -c%s "$f") B"; done
           {
             echo ""
             echo "### 산출물 (versionCode ${VC}, 커밋 ${GITHUB_SHA})"
