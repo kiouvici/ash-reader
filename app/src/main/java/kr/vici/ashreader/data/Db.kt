@@ -56,7 +56,7 @@ fun locatorPage(page: Int, frac: Float, count: Int): Int =
 
 /** [page]쪽 안 [within](0..1) 지점의 비율 위치. */
 fun locatorFrac(page: Int, count: Int, within: Float = 0.5f): Float =
-    if (count <= 0) -1f else ((page + within.coerceIn(0f, 0.999f)) / count).coerceIn(0f, 1f)
+    if (count <= 0) -1f else ((page + within.coerceIn(0.01f, 0.99f)) / count).coerceIn(0f, 1f)
 
 /** 읽은 비율 0..1 (Room 열이 아니므로 확장 함수로 둔다). */
 fun Book.progress(): Float = if (status == Book.DONE) 1f else if (pageCount <= 0) 0f else ((lastPage + 1f) / pageCount).coerceIn(0f, 1f)
