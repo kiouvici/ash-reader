@@ -98,5 +98,15 @@ object ComicFormat {
         ZipFile(file, Charset.forName("x-windows-949"))
     }
 
-    fun readHead(input: InputStream, n: Int = 64): ByteArray = input.use { it.readNBytes(n) }
+    /** 앞 [n]바이트(파일이 짧으면 그만큼). InputStream.readNBytes 는 API 33 이라 직접 읽는다(minSdk 26). */
+    fun readHead(input: InputStream, n: Int = 64): ByteArray = input.use { s ->
+        val buf = ByteArray(n)
+        var off = 0
+        while (off < n) {
+            val r = s.read(buf, off, n - off)
+            if (r < 0) break
+            off += r
+        }
+        if (off == n) buf else buf.copyOf(off)
+    }
 }

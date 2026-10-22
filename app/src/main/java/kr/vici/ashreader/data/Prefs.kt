@@ -17,8 +17,11 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
-/** 본문 글꼴 (D-012). 파일이 없는 글꼴은 나눔명조로 대체한다(BodyFonts). */
-enum class BodyFont(val label: String) { NANUM_MYEONGJO("나눔명조 (기본)"), RIDI_BATANG("리디바탕"), MARUBURI("마루부리") }
+/**
+ * 본문 글꼴 (D-012). 파일이 없는 글꼴은 나눔명조로 대체한다(BodyFonts).
+ * 리디바탕·마루부리는 OFL 예약 글꼴 이름(RFN) 때문에 앱 화면에서는 'ASH 바탕'·'ASH 부리'로 부른다(원 글꼴 이름은 '기반'으로만 밝힘).
+ */
+enum class BodyFont(val label: String) { NANUM_MYEONGJO("나눔명조 (기본)"), RIDI_BATANG("ASH 바탕 (리디바탕 기반)"), MARUBURI("ASH 부리 (마루부리 기반)") }
 
 enum class ReadTheme(val label: String) { DAY("주간"), SEPIA("세피아"), NIGHT("야간") }
 
@@ -36,6 +39,8 @@ data class Settings(
     val aiUpscale: Boolean = false,
     val clearOnceOnExit: Boolean = true,
     val tapGuideShown: Boolean = false,
+    /** AI 화질 개선 캐시 상한(MB). 300 / 1024(기본) / 2048 (F-73). */
+    val upscaleCacheMb: Int = 1024,
 )
 
 class Prefs(private val context: Context) {
@@ -50,28 +55,34 @@ class Prefs(private val context: Context) {
         val ai = booleanPreferencesKey("ai_upscale")
         val once = booleanPreferencesKey("clear_once")
         val tap = booleanPreferencesKey("tap_guide_shown")
+        val upCache = intPreferencesKey("upscale_cache_mb")
     }
 
     val settings: Flow<Settings> = context.dataStore.data
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
-        .map { p ->
-            Settings(
-                font = BodyFont.entries.getOrElse(p[K.font] ?: 0) { BodyFont.NANUM_MYEONGJO },
-                fontSize = (p[K.size] ?: 18).coerceIn(MIN_SIZE, MAX_SIZE),
-                lineHeight = (p[K.lh] ?: 1.8f).coerceIn(1.2f, 2.4f),
-                theme = ReadTheme.entries.getOrElse(p[K.theme] ?: 0) { ReadTheme.DAY },
-                curl = p[K.curl] ?: true,
-                volumeKeys = p[K.vol] ?: true,
-                panelMode = PanelMode.entries.getOrElse(p[K.panel] ?: 0) { PanelMode.TAP_ZOOM },
-                aiUpscale = p[K.ai] ?: false,
-                clearOnceOnExit = p[K.once] ?: true,
-                tapGuideShown = p[K.tap] ?: false,
-            )
-        }
+        .map { p -> read(p) }
 
-    suspend fun update(f: (Settings) -> Settings, current: Settings) {
-        val s = f(current)
+    private fun read(p: Preferences) = Settings(
+        font = BodyFont.entries.getOrElse(p[K.font] ?: 0) { BodyFont.NANUM_MYEONGJO },
+        fontSize = (p[K.size] ?: 18).coerceIn(MIN_SIZE, MAX_SIZE),
+        lineHeight = (p[K.lh] ?: 1.8f).coerceIn(1.2f, 2.4f),
+        theme = ReadTheme.entries.getOrElse(p[K.theme] ?: 0) { ReadTheme.DAY },
+        curl = p[K.curl] ?: true,
+        volumeKeys = p[K.vol] ?: true,
+        panelMode = PanelMode.entries.getOrElse(p[K.panel] ?: 0) { PanelMode.TAP_ZOOM },
+        aiUpscale = p[K.ai] ?: false,
+        clearOnceOnExit = p[K.once] ?: true,
+        tapGuideShown = p[K.tap] ?: false,
+        upscaleCacheMb = (p[K.upCache] ?: 1024).let { v -> UPSCALE_CACHE_CHOICES.firstOrNull { it == v } ?: 1024 },
+    )
+
+    /**
+     * 설정 바꾸기. [f] 는 DataStore edit 안에서 '지금 저장된 값'에 적용한다
+     * (화면이 들고 있던 옛 값에 적용하면 빠르게 두 번 바꿀 때 앞의 변경이 사라진다).
+     */
+    suspend fun update(f: (Settings) -> Settings) {
         context.dataStore.edit { p ->
+            val s = f(read(p))
             p[K.font] = s.font.ordinal
             p[K.size] = s.fontSize
             p[K.lh] = s.lineHeight
@@ -82,11 +93,14 @@ class Prefs(private val context: Context) {
             p[K.ai] = s.aiUpscale
             p[K.once] = s.clearOnceOnExit
             p[K.tap] = s.tapGuideShown
+            p[K.upCache] = s.upscaleCacheMb
         }
     }
 
     companion object {
         const val MIN_SIZE = 12
         const val MAX_SIZE = 32
+        /** AI 화질 개선 캐시 상한 고르기(MB). */
+        val UPSCALE_CACHE_CHOICES = listOf(300, 1024, 2048)
     }
 }

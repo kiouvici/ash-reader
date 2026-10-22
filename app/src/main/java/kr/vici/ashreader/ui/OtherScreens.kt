@@ -35,7 +35,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -52,7 +54,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Calendar
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kr.vici.ashreader.AppInfo
 import kr.vici.ashreader.Links
 import kr.vici.ashreader.ash
@@ -60,9 +64,11 @@ import kr.vici.ashreader.data.Backup
 import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.PanelMode
+import kr.vici.ashreader.data.Prefs
 import kr.vici.ashreader.data.ReadingSession
 import kr.vici.ashreader.data.Settings
 import kr.vici.ashreader.data.progress
+import kr.vici.ashreader.doc.ComicUpscale
 
 @Composable
 fun ScreenTitle(t: String, onBack: (() -> Unit)? = null) {
@@ -147,6 +153,12 @@ fun AppSettingsScreen(s: Settings, onChange: ((Settings) -> Settings) -> Unit, o
     var backupOpen by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     val backup = remember { context.ash.let { Backup(context.applicationContext, it.db, it.prefs) } }
+    var upTick by remember { mutableIntStateOf(0) }
+    val upUsed by produceState<Long?>(null, upTick, s.upscaleCacheMb) {
+        // 상한을 바꾸면 앱(AshRoot)이 넘치는 만큼 지운다. 잠깐 기다렸다가 쓰는 양을 다시 잰다.
+        if (upTick > 0 || s.upscaleCacheMb != 1024) kotlinx.coroutines.delay(300)
+        value = withContext(Dispatchers.IO) { ComicUpscale.usedBytes(context.applicationContext) }
+    }
     // S-53 백업: 저장 위치·가져올 파일은 사용자가 고른다(SAF). 네트워크 없음.
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(Backup.MIME)) { uri ->
         if (uri != null) scope.launch {
@@ -178,7 +190,7 @@ fun AppSettingsScreen(s: Settings, onChange: ((Settings) -> Settings) -> Unit, o
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle("설정")
         Group("읽기") {
-            ValueRow("본문 글꼴", "나눔명조 · 리디바탕 · 마루부리", s.font.label.substringBefore(" (")) {
+            ValueRow("본문 글꼴", "나눔명조 · ASH 바탕 · ASH 부리", s.font.label.substringBefore(" (")) {
                 onChange { it.copy(font = kr.vici.ashreader.data.BodyFont.entries[(it.font.ordinal + 1) % 3]) }
             }
             SwitchRow("종이 넘김 효과", "끄면 밀어서 넘기기", s.curl) { v -> onChange { it.copy(curl = v) } }
@@ -189,8 +201,21 @@ fun AppSettingsScreen(s: Settings, onChange: ((Settings) -> Settings) -> Unit, o
             ValueRow("칸 단위 보기", "칸 누르면 확대 / 자동 순서", s.panelMode.label) {
                 onChange { it.copy(panelMode = PanelMode.entries[(it.panelMode.ordinal + 1) % PanelMode.entries.size]) }
             }
-            // TODO(F-73): Upscaler(Real-CUGAN) 연결. 지금은 설정값만 저장.
             SwitchRow("AI 화질 개선", "기기 안에서 처리 · 저화질 만화를 2배 선명하게 · 배터리 더 씀 · 절전 모드에서는 쉼", s.aiUpscale) { v -> onChange { it.copy(aiUpscale = v) } }
+            // F-73: 캐시 상한(300MB / 1GB / 2GB)과 캐시 지우기
+            ValueRow("AI 화질 캐시 상한", "넘으면 오래 안 본 쪽부터 지워요" + (upUsed?.let { " · 지금 ${mbLabel(it)}" } ?: ""), mbLabel(s.upscaleCacheMb.toLong() shl 20)) {
+                onChange { cur ->
+                    val ch = Prefs.UPSCALE_CACHE_CHOICES
+                    cur.copy(upscaleCacheMb = ch[(ch.indexOf(cur.upscaleCacheMb) + 1).mod(ch.size)])
+                }
+            }
+            ValueRow("AI 화질 캐시 지우기", "처리해 둔 쪽을 모두 지워요(다시 볼 때 새로 처리)", "") {
+                scope.launch {
+                    withContext(Dispatchers.IO) { ComicUpscale.clear(context.applicationContext) }
+                    upTick++
+                    info = "AI 화질 캐시를 지웠어요."
+                }
+            }
         }
         Group("연결") {
             ValueRow("사전", "단어 길게 눌러 찾기", "말글사전") {
@@ -336,5 +361,15 @@ fun TapGuide(rtl: Boolean, panelMode: Boolean, onOk: () -> Unit) {
 private fun Zone(label: String, modifier: Modifier, color: Color) {
     Box(modifier.fillMaxHeight().background(color), contentAlignment = Alignment.Center) {
         Text(label, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** 바이트 → "300MB"·"1GB"·"1.5GB". */
+private fun mbLabel(bytes: Long): String {
+    val mb = bytes / (1L shl 20)
+    return when {
+        mb < 1024 -> "${mb}MB"
+        mb % 1024 == 0L -> "${mb / 1024}GB"
+        else -> "%.1fGB".format(java.util.Locale.ROOT, mb / 1024.0)
     }
 }

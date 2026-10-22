@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader
 
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -23,18 +24,30 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.Bookmark
 import kr.vici.ashreader.data.DocFormat
@@ -43,6 +56,7 @@ import kr.vici.ashreader.data.Highlight
 import kr.vici.ashreader.data.Note
 import kr.vici.ashreader.data.ReadingSession
 import kr.vici.ashreader.data.Settings
+import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.ui.AppSettingsScreen
 import kr.vici.ashreader.ui.AshTheme
 import kr.vici.ashreader.ui.Icons
@@ -56,13 +70,78 @@ import kr.vici.ashreader.ui.StatsScreen
 import kr.vici.ashreader.ui.VolumeKeys
 import kr.vici.ashreader.ui.weekStart
 
-private sealed interface Screen {
+internal sealed interface Screen {
     data object Library : Screen
     data object Stats : Screen
     data object Settings : Screen
     data object Licenses : Screen
     data class Series(val key: String) : Screen
-    data class Reader(val target: ReaderTarget, val book: Book?, val once: LibraryRepo.Opened?) : Screen
+    data class Reader(val target: ReaderTarget, val once: LibraryRepo.Opened?) : Screen
+}
+
+/**
+ * 화면 이동 상태(필수 2). 화면 회전·프로세스 재시작에도 읽던 책·한 번만 보기 문서로 돌아오게 SavedStateHandle 에 둔다.
+ * 암호(PDF·Word)는 회전 때 다시 묻지 않도록 이 객체 메모리에만 두고 번들에는 넣지 않는다(저장 금지, F-34).
+ */
+internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
+    private val screenState = mutableStateOf(decode(h.get<Bundle>(K_SCREEN)) ?: Screen.Library)
+    private val tabState = mutableStateOf(decode(h.get<Bundle>(K_TAB))?.takeIf { it is Screen.Library || it is Screen.Stats || it is Screen.Settings } ?: Screen.Library)
+
+    var screen: Screen
+        get() = screenState.value
+        set(v) { screenState.value = v; h[K_SCREEN] = encode(v) }
+
+    var tab: Screen
+        get() = tabState.value
+        set(v) { tabState.value = v; h[K_TAB] = encode(v) }
+
+    val passwords: MutableMap<String, String> = HashMap()
+
+    companion object {
+        private const val K_SCREEN = "ash.screen"
+        private const val K_TAB = "ash.tab"
+
+        fun encode(sc: Screen): Bundle = Bundle().apply {
+            when (sc) {
+                Screen.Library -> putString("k", "library")
+                Screen.Stats -> putString("k", "stats")
+                Screen.Settings -> putString("k", "settings")
+                Screen.Licenses -> putString("k", "licenses")
+                is Screen.Series -> { putString("k", "series"); putString("key", sc.key) }
+                is Screen.Reader -> {
+                    putString("k", "reader")
+                    val t = sc.target
+                    putString("id", t.id); putString("title", t.title); putString("path", t.path); putString("format", t.format.name)
+                    putInt("startPage", t.startPage); putBoolean("once", t.once); putInt("viewMode", t.viewMode); putInt("startCount", t.startCount)
+                    sc.once?.let { o ->
+                        putString("oPath", o.file.path); putString("oTitle", o.title); putString("oFormat", o.format.name); putString("oId", o.id)
+                    }
+                }
+            }
+        }
+
+        fun decode(b: Bundle?): Screen? = when (b?.getString("k")) {
+            "library" -> Screen.Library
+            "stats" -> Screen.Stats
+            "settings" -> Screen.Settings
+            "licenses" -> Screen.Licenses
+            "series" -> b.getString("key")?.let { Screen.Series(it) }
+            "reader" -> {
+                val id = b.getString("id"); val path = b.getString("path")
+                if (id.isNullOrEmpty() || path.isNullOrEmpty()) null
+                else Screen.Reader(
+                    ReaderTarget(
+                        id, b.getString("title").orEmpty(), path, DocFormat.of(b.getString("format").orEmpty()),
+                        b.getInt("startPage"), b.getBoolean("once"), b.getInt("viewMode"), b.getInt("startCount"),
+                    ),
+                    b.getString("oPath")?.let { op ->
+                        LibraryRepo.Opened(File(op), b.getString("oTitle").orEmpty(), DocFormat.of(b.getString("oFormat").orEmpty()), b.getString("oId").orEmpty())
+                    },
+                )
+            }
+            else -> null
+        }
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -72,7 +151,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        if (savedInstanceState == null) incoming.value = uriOf(intent)
+        if (savedInstanceState == null) {
+            incoming.value = uriOf(intent)
+            // 필수 5: 앱 시작 때 쓸기 — 서재에 없는 문서의 변환 캐시 + (설정이 켜져 있으면) 한 번만 보기 사본.
+            // 회전·복원(savedInstanceState 있음)일 때는 열린 한 번만 보기 문서를 지우지 않도록 건너뛴다.
+            val app = ash
+            app.appScope.launch { runCatching { app.library.sweep(app.prefs.settings.first().clearOnceOnExit) } }
+        }
         setContent { AshTheme { AshRoot(incoming) } }
     }
 
@@ -85,6 +170,19 @@ class MainActivity : ComponentActivity() {
         Intent.ACTION_VIEW -> i.data
         Intent.ACTION_SEND -> streamOf(i)
         else -> null
+    }?.takeIf { safeIncoming(it) }
+
+    /**
+     * 받은 URI 검사(권장): content:// 만 받고, 이 앱 자신의 provider·앱 전용 폴더를 가리키는 것은 거부한다
+     * (다른 앱이 우리 내부 파일을 '열어 달라'고 넘겨 빼내는 것을 막음).
+     */
+    private fun safeIncoming(u: Uri): Boolean {
+        if (u.scheme != "content") return false
+        val auth = u.authority.orEmpty()
+        if (auth.startsWith(packageName)) return false
+        val p = Uri.decode(u.toString())
+        val priv = listOfNotNull(dataDir?.path, filesDir.path, cacheDir.path, "/data/data/$packageName", "/data/user/0/$packageName")
+        return priv.none { p.contains(it) }
     }
 
     @Suppress("DEPRECATION")
@@ -107,9 +205,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         if (isFinishing) {
-            // '한 번만 보기 기록 지우기'(기본 켬): 앱을 닫으면 캐시 사본 삭제
+            // 필수 5: 앱을 닫으면 서재에 없는 문서의 변환 캐시는 늘 지우고,
+            // '한 번만 보기 기록 지우기'(기본 켬)가 켜져 있을 때만 한 번만 보기 사본도 지운다.
             val app = ash
-            Thread { runCatching { app.library.clearOnce() } }.start()
+            app.appScope.launch { runCatching { app.library.sweep(app.prefs.settings.first().clearOnceOnExit) } }
         }
         super.onDestroy()
     }
@@ -124,16 +223,26 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
     val snack = remember { SnackbarHostState() }
     val settings by app.prefs.settings.collectAsState(initial = Settings())
     val books by remember { dao.recent() }.collectAsState(initial = emptyList())
-    var screen by remember { mutableStateOf<Screen>(Screen.Library) }
-    var tab by remember { mutableStateOf<Screen>(Screen.Library) }
+    // 필수 2: 화면 상태는 ViewModel(SavedStateHandle)에 — 회전해도 읽기 화면·한 번만 보기 문서가 유지된다
+    val nav: NavModel = viewModel { NavModel(createSavedStateHandle()) }
     var nextVol by remember { mutableStateOf<Pair<Book, Book>?>(null) }
     val pending by incoming.collectAsState()
 
-    fun change(f: (Settings) -> Settings) { scope.launch { app.prefs.update(f, settings) } }
+    fun change(f: (Settings) -> Settings) { scope.launch { app.prefs.update(f) } }
+
+    // AI 화질 캐시 상한(F-73): 설정값을 엔진에 넣고 넘치면 줄인다
+    // (화면의 settings 는 처음에 기본값이라, 저장된 값이 읽힌 뒤에만 반영하도록 DataStore 를 직접 본다)
+    LaunchedEffect(Unit) {
+        app.prefs.settings.map { it.upscaleCacheMb }.distinctUntilChanged().collect { mb ->
+            val limit = mb.toLong() shl 20
+            ComicUpscale.limitBytes = limit
+            withContext(Dispatchers.IO) { runCatching { ComicUpscale.trim(app, limit) } }
+        }
+    }
 
     fun open(b: Book) {
         val f = DocFormat.of(b.format)
-        screen = Screen.Reader(ReaderTarget(b.id, b.title, b.path, f, b.lastPage, once = false, viewMode = b.viewMode, startCount = b.pageCount), b, null)
+        nav.screen = Screen.Reader(ReaderTarget(b.id, b.title, b.path, f, b.lastPage, once = false, viewMode = b.viewMode, startCount = b.pageCount), null)
     }
 
     // 외부 인텐트 → 한 번만 보기 (서재에 이미 있으면 그 책으로 연다)
@@ -142,8 +251,8 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
         incoming.value = null
         runCatching { app.library.openOnce(uri) }.onSuccess { o ->
             val existing = dao.get(o.id)
-            screen = if (existing != null) Screen.Reader(ReaderTarget(existing.id, existing.title, existing.path, DocFormat.of(existing.format), existing.lastPage, false, existing.viewMode, existing.pageCount), existing, null)
-            else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true), null, o)
+            nav.screen = if (existing != null) Screen.Reader(ReaderTarget(existing.id, existing.title, existing.path, DocFormat.of(existing.format), existing.lastPage, false, existing.viewMode, existing.pageCount), null)
+            else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true), o)
         }.onFailure { snack.showSnackbar("파일을 열 수 없어요. ${it.message.orEmpty()}") }
     }
 
@@ -155,21 +264,33 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
         }
     }
 
-    when (val sc = screen) {
+    when (val sc = nav.screen) {
         is Screen.Reader -> {
-            BackHandler { screen = tab }
+            BackHandler { nav.screen = nav.tab }
             val bookId = sc.target.id
+            // 필수 5: 한 번만 보기 문서를 닫으면(회전은 제외) 변환 캐시·사본 정리. 암호도 메모리에서 지운다.
+            val activity = context as? Activity
+            val clearCopy by rememberUpdatedState(settings.clearOnceOnExit)
+            DisposableEffect(bookId, sc.once) {
+                val o = sc.once
+                onDispose {
+                    if (activity?.isChangingConfigurations != true) {
+                        nav.passwords.remove(bookId)
+                        if (o != null) app.appScope.launch { runCatching { app.library.closeOnce(o, clearCopy) } }
+                    }
+                }
+            }
             val bookmarks by remember(bookId) { dao.bookmarks(bookId) }.collectAsState(initial = emptyList<Bookmark>())
             val notes by remember(bookId) { dao.notes(bookId) }.collectAsState(initial = emptyList<Note>())
             val highlights by remember(bookId) { dao.highlights(bookId) }.collectAsState(initial = emptyList<Highlight>())
             ReaderScreen(
                 target = sc.target, s = settings, onSettings = ::change,
-                onBack = { screen = tab },
+                onBack = { nav.screen = nav.tab },
                 onAddToLibrary = {
                     sc.once?.let { o ->
                         scope.launch {
                             val b = app.library.addOpened(o)
-                            screen = Screen.Reader(sc.target.copy(path = b.path, once = false), b, null)
+                            nav.screen = Screen.Reader(sc.target.copy(path = b.path, once = false), null)
                             snack.showSnackbar("서재에 넣었어요.")
                         }
                     }
@@ -181,8 +302,9 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                     }
                 },
                 onFinished = {
-                    sc.book?.takeIf { it.seriesKey.isNotBlank() }?.let { b ->
-                        scope.launch { dao.volume(b.seriesKey, b.volume + 1)?.let { nextVol = b to it } }
+                    if (!sc.target.once) scope.launch {
+                        val b = dao.get(bookId)?.takeIf { it.seriesKey.isNotBlank() } ?: return@launch
+                        dao.volume(b.seriesKey, b.volume + 1)?.let { nextVol = b to it }
                     }
                 },
                 onSession = { start, dur, pages ->
@@ -205,10 +327,11 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                 },
                 onRemoveHighlight = { id -> scope.launch { dao.removeHighlight(id) } },
                 onViewMode = { mode -> if (!sc.target.once) scope.launch { dao.setViewMode(bookId, mode) } },
+                passwords = nav.passwords,
             )
             nextVol?.let { (done, next) ->
                 NextVolumeSheet(done, next,
-                    onLibrary = { nextVol = null; screen = Screen.Library },
+                    onLibrary = { nextVol = null; nav.screen = Screen.Library },
                     onOpenNext = { nextVol = null; open(next) },
                     onDismiss = { nextVol = null })
             }
@@ -217,9 +340,9 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
             snackbarHost = { SnackbarHost(snack) },
             bottomBar = {
                 NavigationBar {
-                    NavItem("서재", Icons.Library, tab == Screen.Library) { tab = Screen.Library; screen = Screen.Library }
-                    NavItem("독서 기록", Icons.Chart, tab == Screen.Stats) { tab = Screen.Stats; screen = Screen.Stats }
-                    NavItem("설정", Icons.Gear, tab == Screen.Settings) { tab = Screen.Settings; screen = Screen.Settings }
+                    NavItem("서재", Icons.Library, nav.tab == Screen.Library) { nav.tab = Screen.Library; nav.screen = Screen.Library }
+                    NavItem("독서 기록", Icons.Chart, nav.tab == Screen.Stats) { nav.tab = Screen.Stats; nav.screen = Screen.Stats }
+                    NavItem("설정", Icons.Gear, nav.tab == Screen.Settings) { nav.tab = Screen.Settings; nav.screen = Screen.Settings }
                 }
             },
         ) { pad ->
@@ -227,7 +350,7 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                 when (sc) {
                     Screen.Library -> LibraryScreen(
                         books = books, onOpen = ::open, onAdd = { picker.launch(arrayOf("*/*")) },
-                        onSeries = { screen = Screen.Series(it) },
+                        onSeries = { nav.screen = Screen.Series(it) },
                         onRemove = { b -> scope.launch { app.library.remove(b) } },
                     )
                     Screen.Stats -> {
@@ -237,15 +360,15 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                         val times by remember { dao.timeByBook() }.collectAsState(initial = emptyList())
                         StatsScreen(week, streakOf(days), books, times.associate { it.bookId to it.total })
                     }
-                    Screen.Settings -> AppSettingsScreen(settings, ::change, onClearOnce = { scope.launch { app.library.clearOnce() } }, onLicenses = { screen = Screen.Licenses })
+                    Screen.Settings -> AppSettingsScreen(settings, ::change, onClearOnce = { scope.launch { app.library.clearOnce() } }, onLicenses = { nav.screen = Screen.Licenses })
                     Screen.Licenses -> {
-                        BackHandler { screen = Screen.Settings }
-                        LicensesScreen(onBack = { screen = Screen.Settings })
+                        BackHandler { nav.screen = Screen.Settings }
+                        LicensesScreen(onBack = { nav.screen = Screen.Settings })
                     }
                     is Screen.Series -> {
-                        BackHandler { screen = Screen.Library }
+                        BackHandler { nav.screen = Screen.Library }
                         val vols by remember(sc.key) { dao.series(sc.key) }.collectAsState(initial = emptyList())
-                        SeriesScreen(sc.key, vols, onBack = { screen = Screen.Library }, onOpen = ::open)
+                        SeriesScreen(sc.key, vols, onBack = { nav.screen = Screen.Library }, onOpen = ::open)
                     }
                     is Screen.Reader -> Unit
                 }

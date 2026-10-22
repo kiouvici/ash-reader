@@ -28,7 +28,7 @@ class HwpException(msg: String) : Exception(msg)
  */
 class HwpDoc private constructor(private var handle: Long) : Closeable {
 
-    fun pageCount(): Int = HwpNative.nativePageCount(handle)
+    fun pageCount(): Int = HwpNative.nativePageCount(handle).also { if (it < 0) throw HwpException("쪽 수를 읽지 못했어요: ${HwpNative.nativeLastError()}") }
 
     /** 쪽을 폭 [widthPx]로 렌더(높이는 쪽 비율). */
     fun renderPage(i: Int, widthPx: Int): Bitmap {

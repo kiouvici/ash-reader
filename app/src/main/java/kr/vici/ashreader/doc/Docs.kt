@@ -3,6 +3,7 @@ package kr.vici.ashreader.doc
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
@@ -13,6 +14,7 @@ import java.io.Closeable
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.ZipFile
 import kr.vici.ashreader.R
 import kr.vici.ashreader.data.BodyFont
 import kr.vici.ashreader.data.DocFormat
@@ -25,7 +27,9 @@ import kr.vici.ashreader.engine.comic.ReadingDirection
 import kr.vici.ashreader.engine.hwp.HwpDoc
 import kr.vici.ashreader.engine.hwp.HwpHealth
 import kr.vici.ashreader.engine.mupdf.MupdfDoc
+import kr.vici.ashreader.engine.mupdf.PasswordException
 import kr.vici.ashreader.office.AgileDecryptor
+import kr.vici.ashreader.office.CfbFile
 import kr.vici.ashreader.office.DocExtractor
 import kr.vici.ashreader.office.DocxConverter
 import kr.vici.ashreader.office.FormatSniffer
@@ -123,20 +127,29 @@ object DocOpener {
      * [file]을 연다. 이북류는 [pageWdp]×[pageHdp] 쪽 크기(dp=pt)로 다시 배치한다.
      * [hwpEbook] = 한글 문서를 이북식(다시 배치)으로 연다(F-28). 무거운 작업이므로 백그라운드에서 부른다.
      */
+    /**
+     * [docId] = 문서 식별 해시(DocHash). 변환 캐시(office/·hwp-ebook/·upscale/) 폴더 이름으로 쓴다(닫을 때·시작할 때 정리 — 필수 5).
+     * [comic] = 그림만 든 PDF 를 만화 보기(칸 단위·AI 화질)로 연다.
+     */
     fun open(
         context: Context, file: File, format: DocFormat, pageWdp: Float, pageHdp: Float, s: Settings,
-        hwpEbook: Boolean = false, password: String? = null,
+        hwpEbook: Boolean = false, password: String? = null, docId: String = DocCaches.keyOf(file), comic: Boolean = false,
     ): ReaderDoc {
         BundledFonts.install(context)
         return when (format.engine) {
-            DocFormat.Engine.MUPDF -> MupdfReaderDoc(file, format, pageWdp, pageHdp, s, context)
-            DocFormat.Engine.HWP -> if (hwpEbook) {
-                val x = HwpXhtml.convert(context, file)
-                MupdfReaderDoc(x, format, pageWdp, pageHdp, s, context, reflow = true)
-            } else HwpReaderDoc(file, format)
-            DocFormat.Engine.COMIC -> ComicReaderDoc(file, format)
+            DocFormat.Engine.MUPDF -> if (comic && format == DocFormat.PDF) {
+                ComicReaderDoc(PdfComicPages(file, password), format, docId)
+            } else MupdfReaderDoc(file, format, pageWdp, pageHdp, s, context, password = password)
+            DocFormat.Engine.HWP -> {
+                HwpDiag.check(file)
+                if (hwpEbook) {
+                    val x = HwpXhtml.convert(context, file, docId)
+                    MupdfReaderDoc(x, format, pageWdp, pageHdp, s, context, reflow = true)
+                } else HwpReaderDoc(file, format)
+            }
+            DocFormat.Engine.COMIC -> ComicReaderDoc(ArchivePages(file), format, docId)
             DocFormat.Engine.OFFICE -> {
-                val x = OfficeXhtml.convert(context, file, format, password)
+                val x = OfficeXhtml.convert(context, file, format, password, docId)
                 val tmp = x.temp
                 val cleanup: (() -> Unit)? = if (tmp != null) { { tmp.deleteRecursively() } } else null
                 try {
@@ -205,6 +218,8 @@ class MupdfReaderDoc(
     reflow: Boolean = format.reflowable,
     /** 닫은 뒤 할 일(암호 문서 임시 폴더 지우기). */
     private val onClose: (() -> Unit)? = null,
+    /** 암호 PDF 암호(필수 7). 저장하지 않는다. */
+    password: String? = null,
 ) : ReaderDoc {
     private val lock = Any()
     private val doc: MupdfDoc = try {
@@ -212,7 +227,10 @@ class MupdfReaderDoc(
             file.absolutePath,
             if (reflow) MupdfDoc.LayoutSpec(pageWdp, pageHdp, s.fontSize.toFloat()) else null,
             if (reflow) DocOpener.css(context, s) else null,
+            password,
         )
+    } catch (e: PasswordException) {
+        throw PasswordNeeded(e.wrong)
     } catch (e: Exception) {
         throw OpenFailed("문서를 열 수 없어요. 파일이 손상되었거나 지원하지 않는 형식일 수 있어요.")
     }
@@ -237,8 +255,13 @@ class MupdfReaderDoc(
         runCatching { doc.outline().map { TocEntry(it.title, it.depth, it.page) } }.getOrDefault(emptyList())
     }
 
+    @Volatile private var closed = false
+
+    /** 그림만 든 PDF(스캔 만화)인지 — '만화로 보기' 제안용. 닫힌 뒤에는 false. */
+    fun isImageOnly(): Boolean = format == DocFormat.PDF && synchronized(lock) { !closed && doc.isImageOnly() }
+
     override fun close() {
-        synchronized(lock) { doc.close() }
+        synchronized(lock) { if (!closed) { closed = true; doc.close() } }
         onClose?.invoke()
     }
 }
@@ -247,7 +270,8 @@ class MupdfReaderDoc(
 class HwpReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
     private val lock = Any()
     private val doc: HwpDoc = try { HwpDoc.open(file.absolutePath) } catch (e: Exception) {
-        throw OpenFailed("한글 문서를 열 수 없어요. 배포용·암호 문서이거나 손상된 파일일 수 있어요.")
+        HwpDiag.check(file, afterFailure = true)
+        throw OpenFailed("한글 문서를 열 수 없어요. 손상되었거나 지원하지 않는 판의 파일일 수 있어요.")
     }
     override val pageCount: Int = synchronized(lock) { doc.pageCount() }
 
@@ -270,43 +294,37 @@ class HwpReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
     override fun close() = synchronized(lock) { doc.close() }
 }
 
-class ComicReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
+/**
+ * 만화 쪽 공급(압축 CBZ·CBR, 또는 그림만 든 PDF). 스레드 안전하게 구현한다.
+ * [size] = 원본 화소 크기(AI 화질 판단), [bitmap] = 폭 근처로 줄인 그림, [full] = 원본 크기 그림(AI 입력).
+ */
+interface ComicPages : Closeable {
+    val pageCount: Int
+    val rtl: Boolean
+    fun size(index: Int): Pair<Int, Int>
+    fun bitmap(index: Int, w: Int): Bitmap
+    fun full(index: Int): Bitmap?
+    fun toc(): List<TocEntry>
+}
+
+/** CBZ·CBR 압축 만화. */
+class ArchivePages(file: File) : ComicPages {
     private val lock = Any()
     private val arc: ComicArchive = try { ComicArchive.open(file) } catch (e: Exception) {
         throw OpenFailed(e.message ?: "만화 파일을 열 수 없어요.")
     }
-    private val detector = PanelDetector()
-    private val panelCache = HashMap<Int, PagePanels>()
     override val pageCount: Int = arc.pages.size
     override val rtl: Boolean get() = arc.direction == ReadingDirection.RTL
 
-    /** 파일별 캐시 열쇠(경로·크기·수정 시각 — 파일이 바뀌면 달라짐). */
-    val cacheKey: String = (file.absolutePath + ":" + file.length() + ":" + file.lastModified()).hashCode().toUInt().toString(16)
+    private fun bytes(index: Int): ByteArray = synchronized(lock) { arc.readPage(index) }
 
-    /** AI 화질 개선(F-73). 켜져 있으면 읽기 화면이 넣는다. */
-    @Volatile var upscale: ComicUpscale? = null
-    /** 넘김 화면에 2배 결과로 그린 쪽(바꿔 끼울 쪽 판단용). */
-    private val shownUpscaled: MutableSet<Int> = ConcurrentHashMap.newKeySet()
-    fun shownUpscaled(index: Int) = index in shownUpscaled
+    override fun size(index: Int): Pair<Int, Int> = PageDecoder.bounds(bytes(index))
 
-    /** 압축 안 쪽 그림 원본 바이트. */
-    fun pageBytes(index: Int): ByteArray = synchronized(lock) { arc.readPage(index) }
+    override fun bitmap(index: Int, w: Int): Bitmap = PageDecoder.decodeFit(bytes(index), w.coerceAtLeast(1))
 
-    /** 그림 원본 비트맵(폭 [w] 근처로 줄임). 만화 그림은 테마 색을 입히지 않는다. */
-    fun pageBitmap(index: Int, w: Int): Bitmap = PageDecoder.decodeFit(pageBytes(index), w.coerceAtLeast(1))
-
-    override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap {
-        val up = upscale?.load(index, w)
-        if (up != null) shownUpscaled += index else shownUpscaled -= index
-        return fitInto(up ?: pageBitmap(index, w), w, h, colors, applyTheme = false)
-    }
-
-    /** 칸 인식(F-72). 결과 좌표는 [pageBitmap] 과 같은 비율의 원본 기준(width/height 함께 줌). */
-    fun panels(index: Int, dir: ReadingDirection): PagePanels = synchronized(panelCache) {
-        panelCache.getOrPut(index) {
-            val b = pageBitmap(index, 1200)
-            try { detector.detect(PageDecoder.toGray(b), dir) } finally { b.recycle() }
-        }
+    override fun full(index: Int): Bitmap? {
+        val b = bytes(index)
+        return BitmapFactory.decodeByteArray(b, 0, b.size, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
     }
 
     /** 목차 = 압축 안 파일(쪽) 순서. 폴더가 여럿이면 폴더 → 파일 2단. */
@@ -327,19 +345,146 @@ class ComicReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
     override fun close() = synchronized(lock) { arc.close() }
 }
 
+/** 그림만 든 PDF 를 만화로(MuPDF 로 쪽을 비트맵으로 그린다). 원본 크기 = 쪽을 덮는 그림의 화소 크기. */
+class PdfComicPages(file: File, password: String?) : ComicPages {
+    private val lock = Any()
+    private val doc: MupdfDoc = try { MupdfDoc.open(file.absolutePath, null, null, password) } catch (e: PasswordException) {
+        throw PasswordNeeded(e.wrong)
+    } catch (e: Exception) {
+        throw OpenFailed("문서를 열 수 없어요. 파일이 손상되었거나 지원하지 않는 형식일 수 있어요.")
+    }
+    override val pageCount: Int = synchronized(lock) { doc.pageCount() }
+    override val rtl: Boolean = false
+    private val sizes = ConcurrentHashMap<Int, Pair<Int, Int>>()
+
+    override fun size(index: Int): Pair<Int, Int> = sizes.getOrPut(index) {
+        val info = synchronized(lock) { runCatching { doc.imageInfo(index) }.getOrNull() }
+        if (info != null && info.imageW > 0 && info.imageH > 0) info.imageW to info.imageH else 0 to 0
+    }
+
+    override fun bitmap(index: Int, w: Int): Bitmap = synchronized(lock) { doc.renderPage(index, w.coerceAtLeast(1)) }
+
+    override fun full(index: Int): Bitmap? {
+        val (w, h) = size(index)
+        if (w <= 0 || h <= 0) return null
+        return synchronized(lock) { doc.renderPage(index, w) }
+    }
+
+    override fun toc(): List<TocEntry> = synchronized(lock) {
+        runCatching { doc.outline().map { TocEntry(it.title, it.depth, it.page) } }.getOrDefault(emptyList())
+    }
+
+    override fun close() = synchronized(lock) { doc.close() }
+}
+
+/** 만화 보기 문서(CBZ·CBR·그림 PDF). [cacheKey] = 문서 식별 해시(AI 화질 캐시 폴더 이름). */
+class ComicReaderDoc(private val src: ComicPages, override val format: DocFormat, val cacheKey: String) : ReaderDoc {
+    private val detector = PanelDetector()
+    private val panelCache = HashMap<Int, PagePanels>()
+    override val pageCount: Int = src.pageCount
+    override val rtl: Boolean get() = src.rtl
+
+    /** AI 화질 개선(F-73). 켜져 있으면 읽기 화면이 넣는다. */
+    @Volatile var upscale: ComicUpscale? = null
+    /** 넘김 화면에 2배 결과로 그린 쪽(바꿔 끼울 쪽 판단용). */
+    private val shownUpscaled: MutableSet<Int> = ConcurrentHashMap.newKeySet()
+    fun shownUpscaled(index: Int) = index in shownUpscaled
+
+    /** 원본 화소 크기. */
+    fun pageSize(index: Int): Pair<Int, Int> = src.size(index)
+
+    /** AI 입력용 원본 크기 그림. */
+    fun fullBitmap(index: Int): Bitmap? = src.full(index)
+
+    /** 그림 원본 비트맵(폭 [w] 근처로 줄임). 만화 그림은 테마 색을 입히지 않는다. */
+    fun pageBitmap(index: Int, w: Int): Bitmap = src.bitmap(index, w.coerceAtLeast(1))
+
+    override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap {
+        val up = upscale?.load(index, w)
+        if (up != null) shownUpscaled += index else shownUpscaled -= index
+        return fitInto(up ?: pageBitmap(index, w), w, h, colors, applyTheme = false)
+    }
+
+    /** 칸 인식(F-72). 결과 좌표는 [pageBitmap] 과 같은 비율의 원본 기준(width/height 함께 줌). */
+    fun panels(index: Int, dir: ReadingDirection): PagePanels = synchronized(panelCache) {
+        panelCache.getOrPut(index) {
+            val b = pageBitmap(index, 1200)
+            try { detector.detect(PageDecoder.toGray(b), dir) } finally { b.recycle() }
+        }
+    }
+
+    override fun toc(): List<TocEntry> = src.toc()
+
+    override fun close() = src.close()
+}
+
+/**
+ * 한글 문서 암호·배포용 판별(필수 7). 해당하면 알맞은 안내로 [OpenFailed].
+ * 암호 문서는 열기 전에 막고, 배포용 문서는 엔진이 열지 못했을 때만([afterFailure]) 그 이유로 안내한다.
+ */
+object HwpDiag {
+    fun check(file: File, afterFailure: Boolean = false) {
+        val props = CfbFile.hwpProperties(file)
+        if (props != null) {
+            if (props and 0x2 != 0) throw OpenFailed("암호가 걸린 한글 문서예요. 한컴오피스 한글에서 문서 암호를 해제한 뒤 다시 열어 주세요.")
+            if (afterFailure && props and 0x4 != 0) throw OpenFailed("배포용 한글 문서(복사·인쇄 제한)를 열지 못했어요. 한컴오피스 한글에서 일반 문서로 저장한 뒤 열어 주세요.")
+            return
+        }
+        // HWPX: 암호 문서는 META-INF/manifest.xml 에 암호화 정보가 들어간다
+        val encrypted = runCatching {
+            ZipFile(file).use { z ->
+                val e = z.getEntry("META-INF/manifest.xml") ?: return@use false
+                if (e.size > (1L shl 20)) return@use false
+                z.getInputStream(e).use { it.readBytes() }.toString(Charsets.UTF_8).contains("encryption-data")
+            }
+        }.getOrDefault(false)
+        if (encrypted) throw OpenFailed("암호가 걸린 한글 문서(HWPX)예요. 한컴오피스 한글에서 문서 암호를 해제한 뒤 다시 열어 주세요.")
+    }
+}
+
+/**
+ * 문서별 변환 캐시(필수 5): office/<id>, hwp-ebook/<id>, upscale/<id>.
+ * 한 번만 보기 문서는 닫을 때 지우고, 앱 시작 때 서재에 없는 문서의 캐시를 쓸어 낸다.
+ */
+object DocCaches {
+    private val DIRS = listOf("office", "hwp-ebook", "upscale")
+
+    /** 파일 이름이 'id.확장자'(서재·한 번만 보기 사본 규칙)면 id, 아니면 경로 기반 SHA-256 앞부분. */
+    fun keyOf(file: File): String {
+        val n = file.nameWithoutExtension
+        if (n.length == 32 && n.all { it in '0'..'9' || it in 'a'..'f' }) return n
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        md.update((file.absolutePath + ":" + file.length() + ":" + file.lastModified()).toByteArray())
+        return md.digest().take(16).joinToString("") { "%02x".format(it) }
+    }
+
+    fun deleteFor(context: Context, id: String) {
+        if (id.isEmpty() || id.contains('/') || id.contains("..")) return
+        for (d in DIRS) File(context.cacheDir, "$d/$id").deleteRecursively()
+    }
+
+    /** [keep](서재 문서 id)에 없는 문서의 변환 캐시를 지운다. 서재 문서의 AI 화질 캐시는 상한으로만 관리한다(F-73). */
+    fun sweep(context: Context, keep: Set<String>) {
+        for (d in DIRS) {
+            File(context.cacheDir, d).listFiles()?.forEach { f -> if (f.name !in keep) f.deleteRecursively() }
+        }
+    }
+}
+
 /**
  * HWP·HWPX → XHTML(이북식 보기, F-28). rhwp 문서 모델에서 제목·문단·표·그림·각주를 옮긴다.
  * 결과는 파일 크기·수정 시각별로 캐시에 둔다(다시 열면 재사용).
  */
 object HwpXhtml {
-    fun convert(context: Context, file: File): File {
-        val key = (file.absolutePath + ":" + file.length() + ":" + file.lastModified()).hashCode().toUInt().toString(16)
+    /** [key] = 문서 식별 해시(DocHash). 같은 문서를 다시 열면 재사용한다. */
+    fun convert(context: Context, file: File, key: String = DocCaches.keyOf(file)): File {
         val dir = File(context.cacheDir, "hwp-ebook/$key")
         val out = File(dir, "doc.xhtml")
         if (out.exists() && out.length() > 0) return out
         val xhtml = try {
             HwpDoc.open(file.absolutePath).use { it.toXhtml(dir, file.nameWithoutExtension) }
         } catch (e: Exception) {
+            HwpDiag.check(file, afterFailure = true)
             throw OpenFailed("한글 문서를 이북식으로 바꾸지 못했어요. 원본 보기로 읽어 주세요.")
         }
         out.writeText(xhtml)
@@ -356,7 +501,7 @@ object OfficeXhtml {
     /** [temp] = 닫을 때 지울 폴더(암호 문서만). */
     class Converted(val file: File, val temp: File?)
 
-    fun convert(context: Context, file: File, format: DocFormat, password: String? = null): Converted {
+    fun convert(context: Context, file: File, format: DocFormat, password: String? = null, key: String = DocCaches.keyOf(file)): Converted {
         val raw = file.readBytes()
         val sniffed = FormatSniffer.sniff(raw)
         var temp: File? = null
@@ -376,7 +521,7 @@ object OfficeXhtml {
                 throw OpenFailed("암호가 걸린 DOC(Word 97-2003) 문서는 아직 열 수 없어요. Word에서 암호를 풀거나 DOCX로 저장한 뒤 열어 주세요.")
             else -> raw
         }
-        val dir = (temp ?: File(context.cacheDir, "office/" + file.nameWithoutExtension)).apply { mkdirs() }
+        val dir = (temp ?: File(context.cacheDir, "office/$key")).apply { mkdirs() }
         val xhtml = try {
             when {
                 sniffed == SniffedFormat.RTF -> RtfConverter.convert(bytes).xhtml

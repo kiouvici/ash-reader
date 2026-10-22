@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.BitmapRegionDecoder
 import android.graphics.Rect
+import android.os.Build
 
 /** 쪽 이미지 디코딩. 한 변이 4096px 를 넘으면 타일(BitmapRegionDecoder)로 나눠 필요한 영역만 디코딩한다. */
 object PageDecoder {
@@ -29,7 +30,9 @@ object PageDecoder {
 
     /** 원본 좌표 [rect] 영역만 디코딩 (큰 이미지 확대 시 타일). */
     fun decodeRegion(bytes: ByteArray, rect: Rect, sample: Int = 1): Bitmap {
-        val d = BitmapRegionDecoder.newInstance(bytes, 0, bytes.size)
+        // newInstance(bytes, off, len) 는 API 31. 그 아래는 (isShareable) 판을 쓴다(minSdk 26).
+        val d = (if (Build.VERSION.SDK_INT >= 31) BitmapRegionDecoder.newInstance(bytes, 0, bytes.size)
+        else @Suppress("DEPRECATION") BitmapRegionDecoder.newInstance(bytes, 0, bytes.size, false)) ?: error("디코딩 실패")
         try {
             val o = BitmapFactory.Options().apply { inSampleSize = sample; inPreferredConfig = Bitmap.Config.ARGB_8888 }
             return d.decodeRegion(rect, o)

@@ -70,7 +70,13 @@ jobs:
 
       # 앱 코드가 컴파일되는지만 먼저 본다. 실패하면 뒤 작업(빌드·권한·넘김 검사)은 돌지 않는다.
       - name: Compile app (Kotlin)
-        run: ./gradlew --console=plain :app:compileDebugKotlin
+        shell: bash
+        run: .github/scripts/gradle-annotate.sh :app:compileDebugKotlin
+
+      # 필수 1: minSdk 26 보다 새 API(NewApi)를 쓰면 실패. app·엔진 모듈 모두 (lint 설정은 각 모듈 build.gradle.kts)
+      - name: Lint NewApi (app + engines)
+        shell: bash
+        run: .github/scripts/gradle-annotate.sh :app:lintDebug :engine-comic:lintDebug :engine-hwp:lintDebug :engine-mupdf:lintDebug :engine-office:lintDebug :pagecurl:lintDebug
 
       # C1: 배포 APK 에 들어가는 외부 모듈·라이선스 목록(THIRD_PARTY_NOTICES 갱신 근거). 실패해도 빌드는 계속.
       - name: List third-party Android dependencies
@@ -247,6 +253,34 @@ jobs:
           echo "- Real-CUGAN 모델 assets 합계: $A 바이트" >> "$GITHUB_STEP_SUMMARY"
           echo "::notice title=Real-CUGAN assets::$A B"
           [ "$fail" = 0 ] || { echo "::error title=16KB 정렬::64비트 .so LOAD 정렬이 16KB가 아닙니다"; exit 1; }
+
+      # 앱 APK(배포본)의 모든 64비트 .so 도 16KB 정렬이어야 한다 + zip 정렬(zipalign -P 16)
+      - name: App APK 16KB alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          OBJDUMP="$ANDROID_SDK_ROOT/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-objdump"
+          ZIPALIGN="$(ls -1d "$ANDROID_HOME"/build-tools/*/zipalign | sort -V | tail -1)"
+          fail=0
+          echo "### 앱 APK 16KB 정렬" >> "$GITHUB_STEP_SUMMARY"
+          echo "| APK | ABI | .so | LOAD 정렬 |" >> "$GITHUB_STEP_SUMMARY"; echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          for APK in app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/debug/app-debug.apk; do
+            rm -rf so-app && mkdir so-app && unzip -q -o "$APK" 'lib/*' -d so-app || true
+            for so in so-app/lib/arm64-v8a/*.so so-app/lib/x86_64/*.so; do
+              [ -f "$so" ] || continue
+              abi=$(basename "$(dirname "$so")"); n=$(basename "$so")
+              al=$("$OBJDUMP" -p "$so" | awk '/LOAD/{print $NF}' | sort -u | tr '\n' ' ')
+              ok=yes; for a in $al; do [ "$a" = "2**14" ] || [ "$a" = "2**16" ] || ok=no; done
+              [ "$ok" = no ] && fail=1
+              echo "| $(basename "$APK") | $abi | $n | $al ($ok) |" >> "$GITHUB_STEP_SUMMARY"
+            done
+            if "$ZIPALIGN" -c -P 16 -v 4 "$APK" > /tmp/za.txt 2>&1; then
+              echo "- $(basename "$APK"): zipalign -P 16 통과" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- $(basename "$APK"): zipalign -P 16 실패" >> "$GITHUB_STEP_SUMMARY"; grep -i "bad\|BAD" /tmp/za.txt | head -5 || true; fail=1
+            fi
+          done
+          [ "$fail" = 0 ] || { echo "::error title=앱 APK 16KB 정렬::앱 APK 의 64비트 .so 또는 zip 정렬이 16KB가 아닙니다"; exit 1; }
 
       - name: Remove keystore
         if: always()

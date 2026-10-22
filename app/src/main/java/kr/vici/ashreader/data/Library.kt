@@ -11,6 +11,9 @@ import java.util.zip.ZipFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kr.vici.ashreader.doc.Covers
+import kr.vici.ashreader.doc.DocCaches
+import kr.vici.ashreader.office.Cfb
+import kr.vici.ashreader.office.CfbFile
 import kr.vici.ashreader.office.FormatSniffer
 import kr.vici.ashreader.office.SniffedFormat
 
@@ -57,9 +60,9 @@ object FormatDetector {
         val isZip = head.size >= 4 && head[0] == 'P'.code.toByte() && head[1] == 'K'.code.toByte() && head[2] == 3.toByte() && head[3] == 4.toByte()
         if (isZip) return zipKind(file, ext)
         if (head.size >= 7 && String(head, 0, 7, Charsets.US_ASCII).startsWith("Rar!")) return DocFormat.CBR
-        // OLE(HWP5·DOC)는 디렉터리 판별에 전체 바이트가 필요. 64MB 넘는 OLE 는 확장자로 판단.
-        val sniffBytes = if (file.length() <= (64L shl 20)) file.readBytes() else head
-        return when (FormatSniffer.sniff(sniffBytes)) {
+        // 필수 4: 머리 표본(8KB)만 본다. OLE(HWP5·DOC·암호 DOCX)는 디렉터리 섹터만 파일에서 읽어 가린다.
+        val sniffed = if (Cfb.isCfb(head)) CfbFile.sniff(file) else FormatSniffer.sniff(head)
+        return when (sniffed) {
             SniffedFormat.PDF -> DocFormat.PDF
             SniffedFormat.HWP5, SniffedFormat.HWP3 -> DocFormat.HWP
             SniffedFormat.DOC -> DocFormat.DOC
@@ -195,14 +198,51 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
     }
 
     fun clearOnce() {
-        onceDir.listFiles()?.forEach { it.delete() }
+        onceDir.listFiles()?.forEach { it.deleteRecursively() }
         // 암호 문서를 풀어 둔 임시 폴더(읽기 화면을 닫을 때 지우지만, 비정상 종료 대비)
         File(context.cacheDir, "office-enc").deleteRecursively()
     }
 
+    /**
+     * 한 번만 보기 문서를 닫을 때(F-06, 필수 5). 서재에 없는 문서면 변환 캐시(office·hwp-ebook·upscale)를 지우고,
+     * '한 번만 보기 기록 지우기'([clearCopy])가 켜져 있으면 캐시 사본도 지운다. 꺼져 있으면 사본(기록)은 남긴다.
+     */
+    suspend fun closeOnce(o: Opened, clearCopy: Boolean) = withContext(Dispatchers.IO) {
+        if (dao.get(o.id) == null) DocCaches.deleteFor(context, o.id)
+        if (clearCopy) {
+            val f = runCatching { o.file.canonicalFile }.getOrNull()
+            if (f != null && f.parentFile == onceDir.canonicalFile) f.delete()
+        }
+    }
+
+    /**
+     * 앱 시작·종료 때 쓸기(필수 5): 서재에 없는 문서의 변환 캐시는 늘 지우고,
+     * [clearCopies](설정 '한 번만 보기 기록 지우기')가 켜져 있으면 한 번만 보기 사본도 지운다.
+     */
+    suspend fun sweep(clearCopies: Boolean) = withContext(Dispatchers.IO) {
+        val keep = dao.allBooks().map { it.id }.toSet()
+        DocCaches.sweep(context, keep)
+        if (clearCopies) clearOnce() else File(context.cacheDir, "office-enc").deleteRecursively()
+        onceDir.listFiles()?.filter { it.name.startsWith("tmp-") }?.forEach { it.delete() }
+    }
+
     suspend fun remove(b: Book) = withContext(Dispatchers.IO) {
         dao.delete(b.id)
-        File(b.path).delete()
+        // 필수 6: 서재 폴더 안의 파일만 지운다(DB 경로가 바깥을 가리키면 지우지 않음)
+        insideBooks(booksDir, b.path)?.delete()
         Covers.delete(context, b.id)
+        DocCaches.deleteFor(context, b.id)
+    }
+
+    companion object {
+        /** [path] 가 [booksDir] 안의 파일이면 정규화한 파일, 아니면 null(../·심볼릭 링크로 밖을 가리키는 경로 거부). */
+        fun insideBooks(booksDir: File, path: String): File? {
+            if (path.isEmpty()) return null
+            return runCatching {
+                val root = booksDir.canonicalFile
+                val f = File(path).canonicalFile
+                if (f.parentFile == root) f else null
+            }.getOrNull()
+        }
     }
 }

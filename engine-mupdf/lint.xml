@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- MuPDF 원본 Java 바인딩(build/mupdf-src)은 우리가 고치지 않는 외부 소스라 NewApi 검사에서 뺀다. -->
+<lint>
+    <issue id="NewApi">
+        <ignore path="**/mupdf-src/**" />
+        <ignore path="build/**" />
+    </issue>
+</lint>

@@ -167,6 +167,14 @@ def comic(n, args):
     n.add(g, "Real-CUGAN 2x 모델 (realcugan-ncnn-vulkan)", rcsha.group(1) if rcsha else "", "MIT", [n.text(rc, "realcugan-ncnn-vulkan LICENSE")],
           "Copyright (c) 2019 nihui",
           "모델 파일(se-up2x-conservative, nose-up2x-no-denoise)을 앱에 넣음. 원래 가중치: bilibili/ailab Real-CUGAN (MIT)")
+    # 원래 모델 가중치(bilibili/ailab Real-CUGAN)의 고지: MIT 표준 원문에 저작권자를 넣어 싣는다
+    mit = canon(args, "MIT")
+    if mit:
+        body = re.sub(r"Copyright \(c\) <year> <copyright holders>", "Copyright (c) bilibili / ailab", mit)
+        n.add(g, "Real-CUGAN 원래 모델 가중치 (bilibili/ailab Real-CUGAN)", "", "MIT",
+              [n.text(body, "Real-CUGAN (bilibili / ailab) MIT License")],
+              "Real-CUGAN © bilibili / ailab, MIT License",
+              "realcugan-ncnn-vulkan 모델 파일이 바탕으로 한 원래 가중치")
     agpl = read(os.path.join(ROOT, "LICENSE"))
     n.add(g, "Kumiko (칸 인식 방식)", "1.5", "AGPL-3.0", [n.text(agpl, "GNU AGPL 3.0")],
           "", "njean42/kumiko 의 처리 순서를 순수 Kotlin 으로 옮겨 씀(engine-comic PanelDetector)")

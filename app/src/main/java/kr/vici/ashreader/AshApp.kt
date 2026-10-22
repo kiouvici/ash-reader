@@ -6,11 +6,16 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kr.vici.ashreader.data.AshDb
 import kr.vici.ashreader.data.LibraryRepo
 import kr.vici.ashreader.data.Prefs
 
 class AshApp : Application() {
+    /** 화면과 상관없이 끝까지 해야 하는 정리 작업(캐시 지우기 등). */
+    val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val db: AshDb by lazy { AshDb.get(this) }
     val prefs: Prefs by lazy { Prefs(this) }
     val library: LibraryRepo by lazy { LibraryRepo(this, db) }

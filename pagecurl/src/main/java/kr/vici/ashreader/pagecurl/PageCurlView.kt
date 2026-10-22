@@ -16,6 +16,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.ViewConfiguration
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -436,8 +437,10 @@ class PageCurlView @JvmOverloads constructor(
         // 가까운 쪽부터
         range.sortedBy { abs(it - position) }.forEach { idx ->
             if (idx in textures || idx in loading) return@forEach
+            // release() 뒤(shutdownNow)에는 새 작업을 넣지 않는다(RejectedExecutionException 방지)
+            if (loader.isShutdown) return@forEach
             loading += idx
-            loader.execute {
+            try { loader.execute {
                 val bmp: Bitmap? = try {
                     src.render(idx, pw, ph)
                 } catch (e: Throwable) {
@@ -453,6 +456,8 @@ class PageCurlView @JvmOverloads constructor(
                     }
                     bmp.recycle()
                 }
+            } } catch (e: RejectedExecutionException) {
+                loading -= idx
             }
         }
     }
