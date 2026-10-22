@@ -273,52 +273,7 @@ jobs:
           retention-days: 14
 
   # 실험 ②: POI(poi + poi-scratchpad)를 넣었을 때 R8 후 release APK 증가량 측정. 서명은 AGP 기본 debug 키(크기만 봄).
-  office-apk-size:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
-        with:
-          packages: "platform-tools build-tools;36.0.0"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
-        with:
-          cache-provider: basic
-
-      - name: Measure APK size with and without engine-office
-        shell: bash
-        run: |
-          set -euo pipefail
-          .github/scripts/gradle-annotate.sh :app:assembleRelease
-          BASE=$(stat -c %s app/build/outputs/apk/release/app-release.apk)
-          cp app/build/outputs/apk/release/app-release.apk base.apk
-          .github/scripts/gradle-annotate.sh -Pash.withOffice=true :app:assembleRelease
-          WITH=$(stat -c %s app/build/outputs/apk/release/app-release.apk)
-          DEX_BASE=$(unzip -l base.apk | awk '/classes[0-9]*\.dex/{s+=$1} END{print s}')
-          DEX_WITH=$(unzip -l app/build/outputs/apk/release/app-release.apk | awk '/classes[0-9]*\.dex/{s+=$1} END{print s}')
-          DIFF=$((WITH - BASE))
-          {
-            echo "### 실험 ② APK 크기 (release, R8 켬)"
-            echo "| | APK(B) | dex 합계(B) |"
-            echo "|---|---|---|"
-            echo "| 기본 | $BASE | $DEX_BASE |"
-            echo "| + engine-office(POI HWPF) | $WITH | $DEX_WITH |"
-            echo "| 증가 | $DIFF ($(awk "BEGIN{printf \"%.2f\", $DIFF/1048576}") MiB) | $((DEX_WITH - DEX_BASE)) |"
-          } | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "::notice title=POI APK 증가::$DIFF bytes"
-          if [ "$DIFF" -gt 6291456 ]; then echo "::warning title=실험 ② 기준 초과::POI 추가로 6MB 초과 증가"; fi
+  # office-apk-size(실험 ②) 제거: 2단계부터 :engine-office 가 앱에 항상 들어가므로 비교 대상이 없음
 
   # P8: 음성 시험. INTERNET 권한을 넣은 시험용 빌드에서 두 검사가 모두 '실패'해야 이 job이 성공한다.
   permission-negative-test:

@@ -76,6 +76,8 @@ android {
                 initWith(getByName("debug"))
                 signingConfig = signingConfigs.getByName("debug")
                 applicationIdSuffix = ".negativeprobe"
+                // 엔진 라이브러리 모듈에는 이 빌드 유형이 없으므로 debug 로 맞춘다
+                matchingFallbacks += listOf("debug")
             }
         }
     }
