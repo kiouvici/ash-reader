@@ -491,17 +491,34 @@ class DocxConverter(private val options: Options = Options()) {
             return b.toString()
         }
 
+        /** 항목 하나의 압축 해제 상한(메모리 안에서 풀므로). */
+        const val MAX_ENTRY_BYTES = 64L shl 20
+        /** 전체 압축 해제 상한. */
+        const val MAX_TOTAL_BYTES = 256L shl 20
+
+        /**
+         * DOCX(zip)를 메모리에서 푼다. 항목마다 선언 크기를 먼저 보고, 실제로 풀면서도 [MAX_ENTRY_BYTES]·[MAX_TOTAL_BYTES]를
+         * 넘으면 멈춘다(압축 폭탄 — N-09).
+         */
         fun readZip(b: ByteArray): Map<String, ByteArray> {
             val m = HashMap<String, ByteArray>()
             var total = 0L
+            val buf = ByteArray(64 shl 10)
             ZipInputStream(ByteArrayInputStream(b)).use { z ->
                 while (true) {
                     val e = z.nextEntry ?: break
                     if (e.isDirectory) continue
-                    val bytes = z.readBytes()
-                    total += bytes.size
-                    require(total < 512L * 1024 * 1024) { "압축 해제 크기 초과(N-09)" }
-                    m[e.name.removePrefix("/")] = bytes
+                    require(e.size <= MAX_ENTRY_BYTES) { "압축 항목이 너무 큼(N-09)" }
+                    val out = java.io.ByteArrayOutputStream(if (e.size in 1..MAX_ENTRY_BYTES) e.size.toInt() else 8192)
+                    while (true) {
+                        val n = z.read(buf)
+                        if (n < 0) break
+                        out.write(buf, 0, n)
+                        total += n
+                        require(out.size() <= MAX_ENTRY_BYTES) { "압축 항목이 너무 큼(N-09)" }
+                        require(total <= MAX_TOTAL_BYTES) { "압축 해제 크기 초과(N-09)" }
+                    }
+                    m[e.name.removePrefix("/")] = out.toByteArray()
                 }
             }
             return m

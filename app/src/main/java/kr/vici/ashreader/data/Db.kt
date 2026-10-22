@@ -44,6 +44,8 @@ data class Book(
         const val DONE = 2
         const val VIEW_ORIGINAL = 0
         const val VIEW_EBOOK = 1
+        /** 그림만 든 PDF 를 만화 보기로(칸 단위·AI 화질). */
+        const val VIEW_COMIC = 2
     }
 }
 

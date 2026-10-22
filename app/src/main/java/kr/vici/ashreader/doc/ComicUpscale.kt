@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kr.vici.ashreader.engine.comic.PageDecoder
 import kr.vici.ashreader.engine.comic.Upscaler
 
 /** WebP 저장 형식(API 30+ 는 WEBP_LOSSY). */
@@ -99,15 +98,15 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
         try {
             currentCoroutineContext().ensureActive()
             if (closed || powerSave()) return
-            val bytes = doc.pageBytes(i)
-            val (w, h) = PageDecoder.bounds(bytes)
+            val (w, h) = doc.pageSize(i)
             if (w <= 0 || h <= 0 || !Upscaler.shouldUpscale(w, h, sw, sh) || w.toLong() * h > MAX_INPUT_PIXELS) { skipped += i; return }
-            val src = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+            val src = doc.fullBitmap(i)
             if (src == null) { skipped += i; return }
             currentCoroutineContext().ensureActive()
             busyState.value = i
             val out = try { runEngine(src) } finally { src.recycle() }
             try {
+                dir.mkdirs() // 설정에서 캐시를 지웠을 수 있다
                 val tmp = File(dir, "$i.tmp")
                 tmp.outputStream().use { o -> out.compress(webpFormat(), 90, o) }
                 if (!tmp.renameTo(file(i))) { tmp.delete(); return }
@@ -157,20 +156,30 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
     companion object {
         /** 입력 쪽 최대 화소(2배 결과 메모리 제한). */
         const val MAX_INPUT_PIXELS = 4_000_000L
-        /** 디스크 캐시 상한. */
-        const val CACHE_LIMIT = 300L shl 20
+        /** 디스크 캐시 상한(바이트). 설정(300MB/1GB/2GB, 기본 1GB — F-73)을 앱이 넣는다. */
+        @Volatile var limitBytes: Long = 1L shl 30
 
         fun root(c: Context) = File(c.cacheDir, "upscale")
 
-        /** 오래 안 쓴 파일부터 지워 [CACHE_LIMIT] 이하로. */
-        fun trim(c: Context) {
+        /** 오래 안 쓴 파일부터 지워 [limit] 이하로. */
+        @Synchronized
+        fun trim(c: Context, limit: Long = limitBytes) {
             val files = root(c).walkTopDown().filter { it.isFile }.sortedBy { it.lastModified() }.toList()
             var total = files.sumOf { it.length() }
             for (f in files) {
-                if (total <= CACHE_LIMIT) break
+                if (total <= limit) break
                 total -= f.length()
                 f.delete()
             }
         }
+
+        fun usedBytes(c: Context): Long = root(c).walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
+        /** 설정의 '캐시 지우기'. */
+        @Synchronized
+        fun clear(c: Context) { root(c).deleteRecursively() }
+
+        /** 문서 하나의 캐시(한 번만 보기 문서를 닫을 때). */
+        fun deleteFor(c: Context, key: String) { if (key.isNotEmpty()) File(root(c), key).deleteRecursively() }
     }
 }

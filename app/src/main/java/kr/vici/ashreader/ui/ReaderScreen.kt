@@ -52,6 +52,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -181,13 +182,16 @@ fun ReaderScreen(
     onRemoveHighlight: (id: Long) -> Unit = {},
     /** 한글 보기 방식이 바뀜(사용자 전환·자동 전환) → 책에 저장. */
     onViewMode: (mode: Int) -> Unit = {},
+    /** 문서 id → 암호. 회전해도 다시 묻지 않게 화면 바깥(ViewModel 메모리)에 둔다. 디스크·번들에는 저장하지 않는다. */
+    passwords: MutableMap<String, String> = remember { HashMap() },
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
     val colors = s.theme.colors()
     var menu by remember { mutableStateOf(false) }
-    var page by remember { mutableIntStateOf(target.startPage) }
+    // 필수 2: 회전·복원에도 읽던 쪽 유지
+    var page by rememberSaveable(target.id) { mutableIntStateOf(target.startPage) }
     var showAa by remember { mutableStateOf(false) }
     var showToc by remember { mutableStateOf(false) }
     var memoOpen by remember { mutableStateOf(false) }
@@ -206,14 +210,21 @@ fun ReaderScreen(
     val fmt = target.format
     // 한글 문서 보기 방식(F-28): false = 원본(쪽 그림), true = 이북식(다시 배치 — 글꼴·크기·테마·글자 선택·검색·목차)
     val isHwp = fmt.group == FormatGroup.HWP
-    var hwpEbook by remember(target.id) { mutableStateOf(target.viewMode == Book.VIEW_EBOOK) }
+    var hwpEbook by rememberSaveable(target.id) { mutableStateOf(target.viewMode == Book.VIEW_EBOOK) }
+    /** 그림만 든 PDF 를 만화 보기로 연 상태. */
+    var pdfComic by rememberSaveable(target.id) { mutableStateOf(fmt == DocFormat.PDF && target.viewMode == Book.VIEW_COMIC) }
+    /** 그림만 든 PDF 로 판정됨('만화로 보기' 제안). null = 아직 모름. */
+    var imageOnly by rememberSaveable(target.id) { mutableStateOf<Boolean?>(null) }
+    var comicOfferClosed by rememberSaveable(target.id) { mutableStateOf(false) }
     /** 첫 문서를 연 뒤 할 일(저장된 쪽 수 비교·F-28 자동 전환 검사)을 한 번만 하기 위한 표시. */
-    var firstLoadDone by remember(target.id) { mutableStateOf(false) }
+    var firstLoadDone by rememberSaveable(target.id) { mutableStateOf(false) }
+    /** [page] 를 정할 때의 쪽 수. 회전 등으로 다시 배치돼 쪽 수가 바뀌면 비율로 옮긴다. */
+    var pageCountSeen by rememberSaveable(target.id) { mutableIntStateOf(0) }
     val reflow = fmt.reflowable || (isHwp && hwpEbook)
     /** 보기 방식을 바꾼 뒤 새 문서에서 이어 볼 위치(읽은 비율). */
     var pendingFrac by remember { mutableStateOf<Float?>(null) }
-    /** 암호 걸린 Word 의 암호. 이 화면 메모리에만 두고 저장하지 않는다. */
-    var password by remember(target.id) { mutableStateOf<String?>(null) }
+    /** 암호 걸린 Word·PDF 의 암호. 메모리에만 두고 저장하지 않는다. */
+    var password by remember(target.id) { mutableStateOf(passwords[target.id]) }
     var pwTry by remember(target.id) { mutableIntStateOf(0) }
 
     fun stub(msg: String) { scope.launch { snack.showSnackbar(msg) } }
@@ -234,13 +245,15 @@ fun ReaderScreen(
         val hDp = maxHeight.value
         val spread = wDp > hDp && minOf(wDp, hDp) >= 600f
         val pageWdp = if (spread) wDp / 2f else wDp
-        val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook) else listOf(spread, hwpEbook)
+        val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook) else listOf(spread, hwpEbook, pdfComic)
 
         val load by produceState<Load>(Load.Loading, target.path, layoutKey, pwTry) {
             value = Load.Loading
             val pw = password
             val r = withContext(Dispatchers.IO) {
-                runCatching { DocOpener.open(context, File(target.path), fmt, pageWdp, hDp, s, hwpEbook = isHwp && hwpEbook, password = pw) }
+                runCatching {
+                    DocOpener.open(context, File(target.path), fmt, pageWdp, hDp, s, hwpEbook = isHwp && hwpEbook, password = pw, docId = target.id, comic = pdfComic)
+                }
             }
             value = r.fold({ Load.Ok(it) }, { e -> if (e is PasswordNeeded) Load.Locked(e.wrong) else Load.Err(e.message ?: "문서를 열 수 없어요.") })
             awaitDispose { r.getOrNull()?.let { d -> Thread { GuardedSource.close(d) }.start() } }
@@ -258,7 +271,7 @@ fun ReaderScreen(
                 }
                 Button(onClick = onBack, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("서재로") }
             }
-            is Load.Locked -> PasswordDialog(wrong = l.wrong, onSubmit = { password = it; pwTry++ }, onCancel = onBack)
+            is Load.Locked -> PasswordDialog(wrong = l.wrong, pdf = fmt == DocFormat.PDF, onSubmit = { password = it; passwords[target.id] = it; pwTry++ }, onCancel = onBack)
             is Load.Ok -> {
                 val doc = l.doc
                 LaunchedEffect(doc) {
@@ -273,6 +286,14 @@ fun ReaderScreen(
                     } else if (first && target.startCount > 0 && n > 0 && n != target.startCount) {
                         // 저장할 때와 쪽 수가 다름(글꼴·크기·보기 방식) → 읽은 비율로 옮긴다
                         jumpReq = locatorPage(target.startPage, locatorFrac(target.startPage, target.startCount), n)
+                    } else if (!first && pageCountSeen > 0 && n > 0 && n != pageCountSeen) {
+                        // 회전·글꼴 변경으로 다시 배치돼 쪽 수가 바뀜 → 읽던 비율로 옮긴다
+                        jumpReq = locatorPage(page, locatorFrac(page, pageCountSeen), n)
+                    }
+                    if (n > 0) pageCountSeen = n
+                    // 그림만 든 PDF 인지 한 번 본다('만화로 보기' 제안)
+                    if (doc is MupdfReaderDoc && fmt == DocFormat.PDF && imageOnly == null) {
+                        imageOnly = withContext(Dispatchers.IO) { doc.isImageOnly() }
                     }
                     // F-28: 원본 첫 쪽이 비어 보이거나 렌더에 실패하면 이북식으로 자동 전환(처음 열 때 한 번만)
                     if (first && doc is HwpReaderDoc) {
@@ -418,6 +439,27 @@ fun ReaderScreen(
                     hwpEbook = !hwpEbook
                     onViewMode(if (hwpEbook) Book.VIEW_EBOOK else Book.VIEW_ORIGINAL)
                 }
+                // 그림만 든 PDF ↔ 만화 보기(칸 단위·AI 화질)
+                fun togglePdfComic() {
+                    menu = false; sel = null; hit = null
+                    comicOfferClosed = true
+                    pdfComic = !pdfComic
+                    onViewMode(if (pdfComic) Book.VIEW_COMIC else Book.VIEW_ORIGINAL)
+                }
+                val pdfToggle = fmt == DocFormat.PDF && (pdfComic || imageOnly == true)
+                if (fmt == DocFormat.PDF && imageOnly == true && !pdfComic && !comicOfferClosed && !menu && hit == null) {
+                    Row(
+                        Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 8.dp, start = 12.dp, end = 12.dp)
+                            .background(colors.barC, RoundedCornerShape(24.dp)).padding(start = 16.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("그림으로 된 PDF예요", fontSize = 14.sp, color = colors.fgC)
+                        TextButton(onClick = { togglePdfComic() }, modifier = Modifier.heightIn(min = 48.dp)) {
+                            Text("만화로 보기", color = colors.accentC, fontWeight = FontWeight.Bold)
+                        }
+                        IconButton(onClick = { comicOfferClosed = true }, modifier = Modifier.size(48.dp)) { Icon(Icons.Close, "안내 닫기", tint = colors.fgC) }
+                    }
+                }
                 val curBookmark = bookmarks.firstOrNull { locatorPage(it.page, it.frac, count) == page }
                 if (target.once) OnceBar(fmt, page, count, colors, ebook = hwpEbook, onAdd = onAddToLibrary, onEbookView = { toggleHwpView() },
                     modifier = Modifier.align(if (menu) Alignment.Center else Alignment.BottomCenter).padding(bottom = if (menu) 0.dp else 28.dp))
@@ -426,8 +468,16 @@ fun ReaderScreen(
                     TopBar(target.title, colors, bookmarked = curBookmark != null, onBack = onBack,
                         onBookmark = { onToggleBookmark(page, locatorFrac(page, count), curBookmark?.id) },
                         onSearch = { if (doc is MupdfReaderDoc) { menu = false; searchOpen = true } else stub(noTextMsg(fmt)) },
-                        viewToggle = if (isHwp && !target.once) (if (hwpEbook) "원본" else "이북식") else null,
-                        onViewToggle = { toggleHwpView() },
+                        viewToggle = when {
+                            isHwp && !target.once -> if (hwpEbook) "원본" else "이북식"
+                            pdfToggle -> if (pdfComic) "PDF" else "만화"
+                            else -> null
+                        },
+                        viewToggleDesc = when {
+                            isHwp -> if (hwpEbook) "원본으로 보기" else "이북식으로 보기"
+                            else -> if (pdfComic) "PDF 쪽 보기로" else "만화로 보기"
+                        },
+                        onViewToggle = { if (isHwp) toggleHwpView() else togglePdfComic() },
                         modifier = Modifier.align(Alignment.TopCenter))
                     BottomMenu(
                         page, count, colors, s.theme, Modifier.align(Alignment.BottomCenter),
@@ -588,14 +638,14 @@ private fun clockText(context: Context): String {
 @Composable
 private fun TopBar(
     title: String, c: ReadingColors, bookmarked: Boolean, onBack: () -> Unit, onBookmark: () -> Unit, onSearch: () -> Unit,
-    modifier: Modifier, viewToggle: String? = null, onViewToggle: () -> Unit = {},
+    modifier: Modifier, viewToggle: String? = null, viewToggleDesc: String = "", onViewToggle: () -> Unit = {},
 ) {
     Column(modifier.fillMaxWidth().background(c.barC).statusBarsPadding()) {
         Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) { Icon(Icons.Back, "뒤로", tint = c.fgC) }
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = c.fgC, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            // 한글 문서: 원본 ↔ 이북식 전환 (라벨 = 바꿀 대상)
-            if (viewToggle != null) TextButton(onClick = onViewToggle, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "${viewToggle}으로 보기" }) {
+            // 한글 문서: 원본 ↔ 이북식, 그림 PDF: PDF ↔ 만화 전환 (라벨 = 바꿀 대상)
+            if (viewToggle != null) TextButton(onClick = onViewToggle, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = viewToggleDesc }) {
                 Text(viewToggle, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = c.accentC)
             }
             IconButton(onClick = onBookmark, modifier = Modifier.size(48.dp)) { Icon(Icons.Bookmark, if (bookmarked) "책갈피 빼기" else "책갈피", tint = if (bookmarked) Color(0xFF8C5A2B) else c.fgC) }
@@ -707,9 +757,9 @@ private fun noTextMsg(fmt: DocFormat): String = when (fmt.group) {
     else -> "이 쪽에는 고를 수 있는 글자가 없어요. (그림으로 된 PDF일 수 있어요)"
 }
 
-/** 암호 걸린 Word 문서 암호 입력(S-42). 틀리면 다시 묻는다. 입력값은 저장하지 않는다. */
+/** 암호 걸린 Word·PDF 문서 암호 입력(S-42). 틀리면 다시 묻는다. 입력값은 저장하지 않는다. */
 @Composable
-private fun PasswordDialog(wrong: Boolean, onSubmit: (String) -> Unit, onCancel: () -> Unit) {
+private fun PasswordDialog(wrong: Boolean, pdf: Boolean, onSubmit: (String) -> Unit, onCancel: () -> Unit) {
     var text by remember(wrong) { mutableStateOf("") }
     val submit = { if (text.isNotEmpty()) { val t = text; text = ""; onSubmit(t) } }
     AlertDialog(
@@ -718,7 +768,7 @@ private fun PasswordDialog(wrong: Boolean, onSubmit: (String) -> Unit, onCancel:
         text = {
             Column {
                 Text(
-                    if (wrong) "암호가 맞지 않아요. 다시 입력해 주세요." else "이 Word 문서를 열려면 암호를 입력하세요. 암호는 저장하지 않아요.",
+                    if (wrong) "암호가 맞지 않아요. 다시 입력해 주세요." else "이 ${if (pdf) "PDF" else "Word"} 문서를 열려면 암호를 입력하세요. 암호는 저장하지 않아요.",
                     fontSize = 14.sp, color = if (wrong) Color(0xFFB3261E) else Color.Unspecified,
                     modifier = Modifier.padding(bottom = 12.dp),
                 )

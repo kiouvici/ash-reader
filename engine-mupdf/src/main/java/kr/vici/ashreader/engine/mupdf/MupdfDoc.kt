@@ -5,7 +5,12 @@ import android.graphics.Bitmap
 import com.artifex.mupdf.fitz.Context
 import com.artifex.mupdf.fitz.Document
 import com.artifex.mupdf.fitz.Font
+import com.artifex.mupdf.fitz.Image
 import com.artifex.mupdf.fitz.Matrix
+import com.artifex.mupdf.fitz.Point
+import com.artifex.mupdf.fitz.Quad
+import com.artifex.mupdf.fitz.Rect
+import com.artifex.mupdf.fitz.StructuredTextWalker
 import com.artifex.mupdf.fitz.android.AndroidDrawDevice
 import java.io.Closeable
 import java.io.File
@@ -125,6 +130,57 @@ class MupdfDoc private constructor(private val doc: Document) : Closeable {
         return out
     }
 
+    /** 쪽에 든 그림 요약(만화 PDF 판정용). [chars] = 공백 아닌 글자 수, [cover] = 가장 큰 그림이 쪽을 덮는 비율. */
+    class ImageInfo(val chars: Int, val images: Int, val cover: Float, val imageW: Int, val imageH: Int)
+
+    fun imageInfo(i: Int): ImageInfo {
+        val page = doc.loadPage(i)
+        try {
+            val pb = page.bounds
+            val pageArea = ((pb.x1 - pb.x0) * (pb.y1 - pb.y0)).takeIf { it > 0f } ?: 1f
+            var chars = 0; var images = 0; var best = 0f; var bw = 0; var bh = 0
+            val st = page.toStructuredText("preserve-images")
+            try {
+                st.walk(object : StructuredTextWalker {
+                    override fun onImageBlock(bbox: Rect?, transform: Matrix?, image: Image?) {
+                        if (bbox == null) return
+                        val x0 = maxOf(bbox.x0, pb.x0); val y0 = maxOf(bbox.y0, pb.y0)
+                        val x1 = minOf(bbox.x1, pb.x1); val y1 = minOf(bbox.y1, pb.y1)
+                        val a = if (x1 > x0 && y1 > y0) (x1 - x0) * (y1 - y0) / pageArea else 0f
+                        if (a >= 0.05f) images++
+                        if (a > best) { best = a; bw = image?.width ?: 0; bh = image?.height ?: 0 }
+                    }
+                    override fun beginTextBlock(bbox: Rect?, flags: Int) {}
+                    override fun endTextBlock() {}
+                    override fun beginLine(bbox: Rect?, wmode: Int, dir: Point?) {}
+                    override fun endLine() {}
+                    override fun onChar(c: Int, origin: Point?, font: Font?, size: Float, q: Quad?, argb: Int, flags: Int, bidi: Int) {
+                        if (!Character.isWhitespace(c)) chars++
+                    }
+                    override fun beginStruct(standard: String?, raw: String?, index: Int) {}
+                    override fun endStruct() {}
+                    override fun onVector(bbox: Rect?, info: StructuredTextWalker.VectorInfo?, argb: Int) {}
+                })
+            } finally {
+                st.destroy()
+            }
+            return ImageInfo(chars, images, best, bw, bh)
+        } finally {
+            page.destroy()
+        }
+    }
+
+    /**
+     * 그림만 든 PDF(스캔 만화 등)인지: 고르게 뽑은 쪽(최대 [samples]쪽)이 모두 '글자 없음 + 쪽을 거의 다 덮는 그림 1장'.
+     * 판정 실패(예외)는 false.
+     */
+    fun isImageOnly(samples: Int = 6): Boolean = runCatching {
+        val n = pageCount()
+        if (n <= 0) return false
+        val idx = if (n <= samples) (0 until n).toList() else (0 until samples).map { it * (n - 1) / (samples - 1) }.distinct()
+        idx.all { i -> imageInfo(i).let { it.chars == 0 && it.images == 1 && it.cover >= 0.85f } }
+    }.getOrDefault(false)
+
     override fun close() = doc.destroy()
 
     companion object {
@@ -152,11 +208,26 @@ class MupdfDoc private constructor(private val doc: Document) : Closeable {
             }
         }
 
-        fun open(path: String, spec: LayoutSpec? = null, userCss: String? = null): MupdfDoc {
+        /**
+         * 문서를 연다. 암호 PDF 는 [password] 로 푼다(필수 7). 암호가 없거나 틀리면 [PasswordException].
+         * 암호는 저장하지 않는다.
+         */
+        fun open(path: String, spec: LayoutSpec? = null, userCss: String? = null, password: String? = null): MupdfDoc {
             if (userCss != null) Context.setUserCSS(userCss)
             val d = Document.openDocument(path)
-            if (spec != null && d.isReflowable) d.layout(spec.widthPt, spec.heightPt, spec.emPt)
+            try {
+                if (d.needsPassword()) {
+                    if (password.isNullOrEmpty()) throw PasswordException(wrong = false)
+                    if (!d.authenticatePassword(password)) throw PasswordException(wrong = true)
+                }
+                if (spec != null && d.isReflowable) d.layout(spec.widthPt, spec.heightPt, spec.emPt)
+            } catch (e: Throwable) {
+                d.destroy(); throw e
+            }
             return MupdfDoc(d)
         }
     }
 }
+
+/** 암호 걸린 문서: 암호 없음([wrong]=false) 또는 틀림([wrong]=true). */
+class PasswordException(val wrong: Boolean) : Exception(if (wrong) "암호가 맞지 않아요." else "암호가 필요해요.")

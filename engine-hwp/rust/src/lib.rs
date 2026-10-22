@@ -30,16 +30,47 @@ pub struct Doc {
 static FONTDB: OnceLock<Mutex<Arc<resvg::usvg::fontdb::Database>>> = OnceLock::new();
 static LAST_ERROR: OnceLock<Mutex<String>> = OnceLock::new();
 
+/// 잠금이 패닉으로 오염돼도(poisoned) 값은 그대로 쓴다(JNI 경계에서 다시 패닉하지 않게).
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 fn set_err(s: String) {
-    *LAST_ERROR.get_or_init(|| Mutex::new(String::new())).lock().unwrap() = s;
+    *lock(LAST_ERROR.get_or_init(|| Mutex::new(String::new()))) = s;
+}
+
+fn last_err() -> String {
+    lock(LAST_ERROR.get_or_init(|| Mutex::new(String::new()))).clone()
 }
 
 fn fontdb() -> Arc<resvg::usvg::fontdb::Database> {
-    FONTDB
-        .get_or_init(|| Mutex::new(Arc::new(resvg::usvg::fontdb::Database::new())))
-        .lock()
-        .unwrap()
-        .clone()
+    lock(FONTDB.get_or_init(|| Mutex::new(Arc::new(resvg::usvg::fontdb::Database::new())))).clone()
+}
+
+fn panic_msg(p: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = p.downcast_ref::<&str>() {
+        format!("네이티브 패닉: {s}")
+    } else if let Some(s) = p.downcast_ref::<String>() {
+        format!("네이티브 패닉: {s}")
+    } else {
+        "네이티브 패닉".to_string()
+    }
+}
+
+/// 모든 JNI 진입점의 경계(필수 3): 패닉을 잡아 자바 예외(IllegalStateException)로 바꾸고 [default]를 돌려준다.
+/// 패닉이 JNI 경계를 넘으면 정의되지 않은 동작(앱 강제 종료)이므로 진입점마다 반드시 이 함수로 감싼다.
+fn guarded<'l, R>(env: &mut JNIEnv<'l>, default: R, f: impl FnOnce(&mut JNIEnv<'l>) -> R) -> R {
+    match catch_unwind(AssertUnwindSafe(|| f(env))) {
+        Ok(v) => v,
+        Err(p) => {
+            let msg = panic_msg(p);
+            set_err(msg.clone());
+            if !env.exception_check().unwrap_or(false) {
+                let _ = env.throw_new("java/lang/IllegalStateException", msg);
+            }
+            default
+        }
+    }
 }
 
 /// 글꼴 폴더 등록(앱 번들 글꼴 + 기기 CJK 글꼴 폴더). 여러 폴더는 ':'로 구분.
@@ -50,7 +81,7 @@ pub fn init_fonts(dirs: &str) {
     }
     db.set_serif_family("NanumMyeongjo");
     db.set_sans_serif_family("NanumGothic");
-    *FONTDB.get_or_init(|| Mutex::new(Arc::new(resvg::usvg::fontdb::Database::new()))).lock().unwrap() = Arc::new(db);
+    *lock(FONTDB.get_or_init(|| Mutex::new(Arc::new(resvg::usvg::fontdb::Database::new())))) = Arc::new(db);
 }
 
 pub fn open(path: &str) -> Result<Doc, String> {
@@ -63,8 +94,8 @@ pub fn open(path: &str) -> Result<Doc, String> {
 }
 
 impl Doc {
-    pub fn page_count(&self) -> u32 {
-        self.core.page_count()
+    pub fn page_count(&self) -> Result<u32, String> {
+        catch_unwind(AssertUnwindSafe(|| self.core.page_count())).map_err(|_| "쪽 수 패닉".to_string())
     }
 
     fn tree(&self, i: u32) -> Result<resvg::usvg::Tree, String> {
@@ -74,7 +105,9 @@ impl Doc {
         let mut opt = resvg::usvg::Options::default();
         opt.fontdb = fontdb();
         opt.font_family = "NanumMyeongjo".into();
-        resvg::usvg::Tree::from_str(&svg, &opt).map_err(|e| format!("usvg: {e:?}"))
+        catch_unwind(AssertUnwindSafe(|| resvg::usvg::Tree::from_str(&svg, &opt)))
+            .map_err(|_| "SVG 해석 패닉".to_string())?
+            .map_err(|e| format!("usvg: {e:?}"))
     }
 
     /// 96dpi 기준 쪽 크기(px)
@@ -110,10 +143,13 @@ impl Doc {
     }
 
     pub fn page_text_chars(&self, i: u32) -> u32 {
-        self.core
-            .extract_page_text_native(i)
-            .map(|t| t.chars().filter(|c| !c.is_whitespace()).count() as u32)
-            .unwrap_or(0)
+        catch_unwind(AssertUnwindSafe(|| {
+            self.core
+                .extract_page_text_native(i)
+                .map(|t| t.chars().filter(|c| !c.is_whitespace()).count() as u32)
+                .unwrap_or(0)
+        }))
+        .unwrap_or(0)
     }
 }
 
@@ -145,44 +181,59 @@ fn doc<'a>(h: jlong) -> Option<&'a Doc> {
 
 #[no_mangle]
 pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeInitFonts(mut env: JNIEnv, _c: JClass, dirs: JString) {
-    let d = jstr(&mut env, &dirs);
-    init_fonts(&d);
+    guarded(&mut env, (), |env| {
+        let d = jstr(env, &dirs);
+        init_fonts(&d);
+    })
 }
 
 #[no_mangle]
 pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeOpen(mut env: JNIEnv, _c: JClass, path: JString) -> jlong {
-    let p = jstr(&mut env, &path);
-    match open(&p) {
-        Ok(d) => Box::into_raw(Box::new(d)) as jlong,
-        Err(e) => {
-            set_err(e);
-            0
+    guarded(&mut env, 0, |env| {
+        let p = jstr(env, &path);
+        match open(&p) {
+            Ok(d) => Box::into_raw(Box::new(d)) as jlong,
+            Err(e) => {
+                set_err(e);
+                0
+            }
         }
-    }
+    })
 }
 
 #[no_mangle]
-pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeLastError(env: JNIEnv, _c: JClass) -> jstring {
-    let s = LAST_ERROR.get_or_init(|| Mutex::new(String::new())).lock().unwrap().clone();
-    env.new_string(s).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut())
+pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeLastError(mut env: JNIEnv, _c: JClass) -> jstring {
+    guarded(&mut env, std::ptr::null_mut(), |env| {
+        let s = last_err();
+        env.new_string(s).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut())
+    })
 }
 
 #[no_mangle]
-pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativePageCount(_e: JNIEnv, _c: JClass, h: jlong) -> jint {
-    doc(h).map(|d| d.page_count() as jint).unwrap_or(-1)
+pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativePageCount(mut env: JNIEnv, _c: JClass, h: jlong) -> jint {
+    guarded(&mut env, -1, |_| match doc(h).map(|d| d.page_count()) {
+        Some(Ok(n)) => n as jint,
+        Some(Err(e)) => {
+            set_err(e);
+            -1
+        }
+        None => -1,
+    })
 }
 
 #[no_mangle]
-pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativePageTextChars(_e: JNIEnv, _c: JClass, h: jlong, i: jint) -> jint {
-    doc(h).map(|d| d.page_text_chars(i as u32) as jint).unwrap_or(0)
+pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativePageTextChars(mut env: JNIEnv, _c: JClass, h: jlong, i: jint) -> jint {
+    guarded(&mut env, 0, |_| doc(h).map(|d| d.page_text_chars(i as u32) as jint).unwrap_or(0))
 }
 
 #[no_mangle]
-pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativePageSizePx96(env: JNIEnv, _c: JClass, h: jlong, i: jint) -> jintArray {
-    let (w, hh) = doc(h).and_then(|d| d.page_size_px96(i as u32).map_err(set_err).ok()).unwrap_or((0.0, 0.0));
-    let arr = env.new_int_array(2).unwrap();
-    env.set_int_array_region(&arr, 0, &[w.round() as i32, hh.round() as i32]).ok();
-    arr.into_raw()
+pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativePageSizePx96(mut env: JNIEnv, _c: JClass, h: jlong, i: jint) -> jintArray {
+    guarded(&mut env, std::ptr::null_mut(), |env| {
+        let (w, hh) = doc(h).and_then(|d| d.page_size_px96(i as u32).map_err(set_err).ok()).unwrap_or((0.0, 0.0));
+        let Ok(arr) = env.new_int_array(2) else { return std::ptr::null_mut() };
+        env.set_int_array_region(&arr, 0, &[w.round() as i32, hh.round() as i32]).ok();
+        arr.into_raw()
+    })
 }
 
 // libjnigraphics (NDK android/bitmap.h) 최소 선언
@@ -208,55 +259,63 @@ extern "C" {
 
 #[cfg(target_os = "android")]
 #[no_mangle]
-pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeRenderPage(env: JNIEnv, _c: JClass, h: jlong, i: jint, bitmap: JObject) -> jint {
-    let Some(d) = doc(h) else { return -1 };
-    unsafe {
-        let raw_env = env.get_raw();
-        let bmp = bitmap.as_raw();
-        let mut info: AndroidBitmapInfo = std::mem::zeroed();
-        if AndroidBitmap_getInfo(raw_env, bmp, &mut info) != 0 {
-            set_err("getInfo 실패".into());
-            return -2;
-        }
-        if info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 {
-            set_err("RGBA_8888 비트맵만 지원".into());
-            return -3;
-        }
-        let mut ptr: *mut std::ffi::c_void = std::ptr::null_mut();
-        if AndroidBitmap_lockPixels(raw_env, bmp, &mut ptr) != 0 {
-            return -4;
-        }
-        let stride = info.stride as usize;
-        let buf = std::slice::from_raw_parts_mut(ptr as *mut u8, stride * info.height as usize);
-        let r = d.render_rgba(i as u32, info.width, info.height, buf, stride);
-        AndroidBitmap_unlockPixels(raw_env, bmp);
-        match r {
-            Ok(()) => 0,
-            Err(e) => {
-                set_err(e);
-                -5
+pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeRenderPage(mut env: JNIEnv, _c: JClass, h: jlong, i: jint, bitmap: JObject) -> jint {
+    guarded(&mut env, -6, |env| {
+        let Some(d) = doc(h) else { return -1 };
+        unsafe {
+            let raw_env = env.get_raw();
+            let bmp = bitmap.as_raw();
+            let mut info: AndroidBitmapInfo = std::mem::zeroed();
+            if AndroidBitmap_getInfo(raw_env, bmp, &mut info) != 0 {
+                set_err("getInfo 실패".into());
+                return -2;
+            }
+            if info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 {
+                set_err("RGBA_8888 비트맵만 지원".into());
+                return -3;
+            }
+            let mut ptr: *mut std::ffi::c_void = std::ptr::null_mut();
+            if AndroidBitmap_lockPixels(raw_env, bmp, &mut ptr) != 0 {
+                return -4;
+            }
+            let stride = info.stride as usize;
+            let buf = std::slice::from_raw_parts_mut(ptr as *mut u8, stride * info.height as usize);
+            // 그리는 중 패닉이 나도 비트맵 잠금은 반드시 푼다
+            let r = catch_unwind(AssertUnwindSafe(|| d.render_rgba(i as u32, info.width, info.height, buf, stride)))
+                .unwrap_or_else(|_| Err("렌더 패닉".to_string()));
+            AndroidBitmap_unlockPixels(raw_env, bmp);
+            match r {
+                Ok(()) => 0,
+                Err(e) => {
+                    set_err(e);
+                    -5
+                }
             }
         }
-    }
+    })
 }
 
 #[no_mangle]
 pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeToXhtml(mut env: JNIEnv, _c: JClass, h: jlong, dir: JString, title: JString) -> jstring {
-    let d = jstr(&mut env, &dir);
-    let t = jstr(&mut env, &title);
-    let Some(doc) = doc(h) else { return std::ptr::null_mut() };
-    match doc.to_xhtml(&d, &t) {
-        Ok(x) => env.new_string(x).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut()),
-        Err(e) => {
-            set_err(e);
-            std::ptr::null_mut()
+    guarded(&mut env, std::ptr::null_mut(), |env| {
+        let d = jstr(env, &dir);
+        let t = jstr(env, &title);
+        let Some(doc) = doc(h) else { return std::ptr::null_mut() };
+        match doc.to_xhtml(&d, &t) {
+            Ok(x) => env.new_string(x).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut()),
+            Err(e) => {
+                set_err(e);
+                std::ptr::null_mut()
+            }
         }
-    }
+    })
 }
 
 #[no_mangle]
-pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeClose(_e: JNIEnv, _c: JClass, h: jlong) {
-    if h != 0 {
-        unsafe { drop(Box::from_raw(h as *mut Doc)) };
-    }
+pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeClose(mut env: JNIEnv, _c: JClass, h: jlong) {
+    guarded(&mut env, (), |_| {
+        if h != 0 {
+            unsafe { drop(Box::from_raw(h as *mut Doc)) };
+        }
+    })
 }

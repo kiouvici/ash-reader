@@ -2364,6 +2364,17 @@
   },
   {
    "group": "만화 엔진 (C·C++)",
+   "name": "Real-CUGAN 원래 모델 가중치 (bilibili/ailab Real-CUGAN)",
+   "version": "",
+   "license": "MIT",
+   "copyright": "Real-CUGAN © bilibili / ailab, MIT License",
+   "note": "realcugan-ncnn-vulkan 모델 파일이 바탕으로 한 원래 가중치",
+   "texts": [
+    "texts/4249df3fd000.txt"
+   ]
+  },
+  {
+   "group": "만화 엔진 (C·C++)",
    "name": "Kumiko (칸 인식 방식)",
    "version": "1.5",
    "license": "AGPL-3.0",

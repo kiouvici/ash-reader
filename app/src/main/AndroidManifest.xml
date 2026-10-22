@@ -35,13 +35,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- S-40: 다른 앱(카톡·파일 앱)에서 연 문서 = 한 번만 보기 -->
+            <!-- S-40: 다른 앱(카톡·파일 앱)에서 연 문서 = 한 번만 보기.
+                 content:// 만 받는다(file:// 은 다른 앱의 경로 노출·우리 내부 파일 지정 위험, 웹 링크용 BROWSABLE 도 받지 않음).
+                 앱 전용 폴더를 가리키는 URI 는 MainActivity.safeIncoming 에서 거부한다. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="content" />
-                <data android:scheme="file" />
                 <data android:mimeType="application/epub+zip" />
                 <data android:mimeType="application/pdf" />
                 <data android:mimeType="text/plain" />

@@ -8,6 +8,14 @@ plugins {
 android {
     namespace = "kr.vici.ashreader.pagecurl"
     compileSdk = 37
+    // 필수 1: minSdk(26)보다 새 API 호출은 오류로 본다. CI compile job 의 lintDebug 가 검사한다.
+    lint {
+        checkOnly += "NewApi"
+        error += "NewApi"
+        abortOnError = true
+        checkDependencies = false
+        checkReleaseBuilds = false
+    }
 
     defaultConfig {
         minSdk = 26

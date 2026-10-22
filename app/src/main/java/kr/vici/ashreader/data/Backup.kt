@@ -18,6 +18,7 @@ import org.json.JSONObject
  */
 class Backup(private val context: Context, private val db: AshDb, private val prefs: Prefs) {
     private val dao get() = db.books()
+    private val booksDir: File get() = File(context.filesDir, "books")
 
     data class ExportResult(val books: Int, val bookmarks: Int, val notes: Int, val highlights: Int, val sessions: Int)
 
@@ -74,7 +75,9 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
                 val cur = dao.get(id)
                 val inc = bookOf(o)
                 if (cur == null) {
-                    if (inc.path.isNotEmpty() && File(inc.path).exists()) { dao.upsert(inc); updated++ } else missing++
+                    // 필수 6: 백업 안의 경로는 믿지 않는다. 이 앱 서재 폴더(booksDir) 안의 실제 파일만 받는다.
+                    val safe = LibraryRepo.insideBooks(booksDir, inc.path)
+                    if (safe != null && safe.isFile) { dao.upsert(inc.copy(path = safe.path)); updated++ } else missing++
                 } else if (inc.lastOpenedAt > cur.lastOpenedAt) {
                     dao.upsert(cur.copy(lastPage = inc.lastPage, pageCount = inc.pageCount, status = inc.status, lastOpenedAt = inc.lastOpenedAt, viewMode = inc.viewMode))
                     updated++
@@ -108,8 +111,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
         // 설정은 백업 값으로 바꾼다(한 사람이 쓰는 앱이라 합칠 대상이 없음).
         val so = root.optJSONObject("settings")
         if (so != null) {
-            val cur = prefs.settings.first()
-            prefs.update({ settingsOf(so, it) }, cur)
+            prefs.update { settingsOf(so, it) }
         }
         ImportResult(updated, missing, nb, nn, nh, ns, so != null)
     }
@@ -155,7 +157,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
         private fun Settings.toJson() = JSONObject()
             .put("font", font.name).put("fontSize", fontSize).put("lineHeight", lineHeight.toDouble()).put("theme", theme.name)
             .put("curl", curl).put("volumeKeys", volumeKeys).put("panelMode", panelMode.name).put("aiUpscale", aiUpscale)
-            .put("clearOnceOnExit", clearOnceOnExit).put("tapGuideShown", tapGuideShown)
+            .put("clearOnceOnExit", clearOnceOnExit).put("tapGuideShown", tapGuideShown).put("upscaleCacheMb", upscaleCacheMb)
 
         private fun settingsOf(o: JSONObject, base: Settings) = Settings(
             font = BodyFont.entries.firstOrNull { it.name == o.optString("font") } ?: base.font,
@@ -168,6 +170,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             aiUpscale = o.optBoolean("aiUpscale", base.aiUpscale),
             clearOnceOnExit = o.optBoolean("clearOnceOnExit", base.clearOnceOnExit),
             tapGuideShown = o.optBoolean("tapGuideShown", base.tapGuideShown),
+            upscaleCacheMb = o.optInt("upscaleCacheMb", base.upscaleCacheMb).let { v -> if (v in Prefs.UPSCALE_CACHE_CHOICES) v else base.upscaleCacheMb },
         )
     }
 }

@@ -17,6 +17,16 @@ val mupdfSrc = layout.buildDirectory.dir("mupdf-src").get().asFile
 android {
     namespace = "kr.vici.ashreader.engine.mupdf"
     compileSdk = 37
+    // 필수 1: minSdk(26)보다 새 API 호출은 오류로 본다. CI compile job 의 lintDebug 가 검사한다.
+    lint {
+        checkOnly += "NewApi"
+        error += "NewApi"
+        abortOnError = true
+        checkDependencies = false
+        checkReleaseBuilds = false
+        // MuPDF 원본 Java 바인딩(build/mupdf-src)은 lint.xml 에서 뺀다
+        lintConfig = file("lint.xml")
+    }
     ndkVersion = "28.2.13676358"
 
     defaultConfig {
