@@ -3,7 +3,7 @@ package kr.vici.ashreader.pagecurl
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.SurfaceTexture
+import android.graphics.PixelFormat
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
@@ -12,7 +12,8 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.Choreographer
 import android.view.MotionEvent
-import android.view.TextureView
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import android.view.ViewConfiguration
 import java.util.concurrent.Executors
 import kotlin.math.abs
@@ -23,15 +24,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * 책 넘김 표면 (기술 설계서 4.2). TextureView + 전용 GL 스레드(EGL14, GLES 2.0).
+ * 책 넘김 표면 (기술 설계서 4.2). SurfaceView + 전용 GL 스레드(EGL14, GLES 2.0).
  * 정보줄 등 고정 층은 이 뷰 위에 따로 겹친다(M-03: 정보줄 고정).
+ *
+ * TextureView → SurfaceView (배치 3A): TB375FC(144Hz, Mali-G615) 실측에서 GL 작업은 p50 3.4ms 로 주기(6.9ms) 안인데
+ * 늦음+건너뜀이 약 11%였다. TextureView 는 매 프레임 앱 RenderThread 가 한 번 더 합성해야 하고(UI 스레드·GPU 를 함께 씀),
+ * 그 합성이 밀리면 eglSwapBuffers 가 버퍼를 못 받아 다음 vsync 를 놓친다. SurfaceView 는 SurfaceFlinger 에 바로 내므로
+ * 이 의존이 없고, Surface.setFrameRate 로 넘김 중 주사율 투표도 할 수 있다(HighRefresh).
  *
  * 스레드: 공개 메서드는 메인 스레드에서 부른다. 그리기 상태는 모두 GL 스레드가 가진다.
  */
 class PageCurlView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
-) : TextureView(context, attrs), TextureView.SurfaceTextureListener {
+) : SurfaceView(context, attrs), SurfaceHolder.Callback {
 
     /** 탭 (0..1 정규화 좌표, 화면 기준). 탭 영역 판정은 바깥(앱)이 한다. */
     var onTap: ((xFrac: Float, yFrac: Float) -> Unit)? = null
@@ -99,8 +105,9 @@ class PageCurlView @JvmOverloads constructor(
     private var rawDownX = 0f
 
     init {
-        surfaceTextureListener = this
-        isOpaque = true
+        holder.addCallback(this)
+        // 불투명 층(합성기가 아래를 섞지 않음). 실제 버퍼 형식은 EGL 설정(RGBA8888)이 정한다.
+        holder.setFormat(PixelFormat.OPAQUE)
     }
 
     fun setPageSource(src: PageSource, startPage: Int = 0) {
@@ -173,9 +180,10 @@ class PageCurlView @JvmOverloads constructor(
     }
 
     // ------------------------------------------------------------------
-    // TextureView
+    // SurfaceView
     // ------------------------------------------------------------------
-    override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        val surface = holder.surface
         gl.post {
             val core = EglCore()
             if (!core.init(surface)) {
@@ -185,16 +193,15 @@ class PageCurlView @JvmOverloads constructor(
             egl = core
             renderer.init()
             choreographer = Choreographer.getInstance()
-            onResize(width, height)
         }
     }
 
-    override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         gl.post { onResize(width, height) }
     }
 
-    override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
-        // GL 스레드에서 EGL 을 정리한 뒤 SurfaceTexture 를 놓아야 하므로 끝날 때까지 기다린다.
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        // GL 스레드에서 EGL 을 정리한 뒤 Surface 를 놓아야 하므로 끝날 때까지 기다린다.
         val done = java.util.concurrent.CountDownLatch(1)
         gl.post {
             clearTextures()
@@ -204,10 +211,7 @@ class PageCurlView @JvmOverloads constructor(
             done.countDown()
         }
         done.await(2, java.util.concurrent.TimeUnit.SECONDS)
-        return true
     }
-
-    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
 
     private fun onResize(w: Int, h: Int) {
         val spreadBefore = isSpread()
@@ -369,7 +373,7 @@ class PageCurlView @JvmOverloads constructor(
         phase = Phase.ANIM
         animFrom = t
         animTo = target
-        animStartNs = System.nanoTime()
+        animStartNs = 0L // 다음 프레임의 vsync 시각에서 시작
         animDurNs = max(1L, (config.turnDurationMs * 1_000_000L * abs(target - t)).toLong())
         requestFrame()
     }
@@ -487,7 +491,9 @@ class PageCurlView @JvmOverloads constructor(
         if (viewW <= 0f) return
         var ended = false
         if (phase == Phase.ANIM) {
-            val k = ((System.nanoTime() - animStartNs).toFloat() / animDurNs).coerceIn(0f, 1f)
+            // 넘김 진행은 vsync 시각 기준(그리기 시작이 조금 밀려도 프레임 간격이 고르다)
+            if (animStartNs == 0L) animStartNs = vsyncNs
+            val k = ((vsyncNs - animStartNs).toFloat() / animDurNs).coerceIn(0f, 1f)
             val e = 1f - (1f - k) * (1f - k) // 감속
             t = animFrom + (animTo - animFrom) * e
             if (k >= 1f) ended = true

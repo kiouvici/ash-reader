@@ -69,7 +69,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.Bookmark
+import kr.vici.ashreader.data.locatorFrac
+import kr.vici.ashreader.data.locatorPage
 import kr.vici.ashreader.data.Highlight
 import kr.vici.ashreader.doc.TextGeo
 import kr.vici.ashreader.doc.TextPage
@@ -81,6 +84,7 @@ import kr.vici.ashreader.data.ReadTheme
 import kr.vici.ashreader.data.Settings
 import kr.vici.ashreader.doc.ComicReaderDoc
 import kr.vici.ashreader.doc.DocOpener
+import kr.vici.ashreader.doc.HwpReaderDoc
 import kr.vici.ashreader.doc.MupdfReaderDoc
 import kr.vici.ashreader.doc.ReaderDoc
 import kr.vici.ashreader.pagecurl.CurlConfig
@@ -98,6 +102,10 @@ data class ReaderTarget(
     val format: DocFormat,
     val startPage: Int,
     val once: Boolean,
+    /** 한글 문서 보기 방식([Book.VIEW_ORIGINAL]/[Book.VIEW_EBOOK]). 지난번 방식으로 다시 연다. */
+    val viewMode: Int = Book.VIEW_ORIGINAL,
+    /** [startPage]를 저장할 때의 쪽 수. 지금 쪽 수와 다르면(글꼴·크기·보기 방식 변경) 비율로 옮긴다. */
+    val startCount: Int = 0,
 )
 
 /** 볼륨 키 → 읽기 화면 (MainActivity 가 연결). 반환 true = 키를 소비. */
@@ -155,11 +163,14 @@ fun ReaderScreen(
     onSession: (startedAt: Long, durationMs: Long, pages: Int) -> Unit,
     bookmarks: List<Bookmark>,
     notes: List<Note>,
-    onToggleBookmark: (page: Int) -> Unit,
-    onAddNote: (page: Int, text: String) -> Unit,
+    /** [existingId] = 이 쪽에 이미 있는 책갈피(있으면 지운다). */
+    onToggleBookmark: (page: Int, frac: Float, existingId: Long?) -> Unit,
+    onAddNote: (page: Int, text: String, frac: Float) -> Unit,
     highlights: List<Highlight> = emptyList(),
-    onAddHighlight: (page: Int, start: Int, end: Int, text: String, color: Int, note: String) -> Unit = { _, _, _, _, _, _ -> },
+    onAddHighlight: (page: Int, start: Int, end: Int, text: String, color: Int, note: String, frac: Float) -> Unit = { _, _, _, _, _, _, _ -> },
     onRemoveHighlight: (id: Long) -> Unit = {},
+    /** 한글 보기 방식이 바뀜(사용자 전환·자동 전환) → 책에 저장. */
+    onViewMode: (mode: Int) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -185,7 +196,9 @@ fun ReaderScreen(
     val fmt = target.format
     // 한글 문서 보기 방식(F-28): false = 원본(쪽 그림), true = 이북식(다시 배치 — 글꼴·크기·테마·글자 선택·검색·목차)
     val isHwp = fmt.group == FormatGroup.HWP
-    var hwpEbook by remember(target.id) { mutableStateOf(false) }
+    var hwpEbook by remember(target.id) { mutableStateOf(target.viewMode == Book.VIEW_EBOOK) }
+    /** 첫 문서를 연 뒤 할 일(저장된 쪽 수 비교·F-28 자동 전환 검사)을 한 번만 하기 위한 표시. */
+    var firstLoadDone by remember(target.id) { mutableStateOf(false) }
     val reflow = fmt.reflowable || (isHwp && hwpEbook)
     /** 보기 방식을 바꾼 뒤 새 문서에서 이어 볼 위치(읽은 비율). */
     var pendingFrac by remember { mutableStateOf<Float?>(null) }
@@ -235,7 +248,29 @@ fun ReaderScreen(
                 val doc = l.doc
                 LaunchedEffect(doc) {
                     openDoc = doc; sel = null; hit = null
-                    pendingFrac?.let { f -> pendingFrac = null; if (doc.pageCount > 0) jumpReq = (f * doc.pageCount).toInt().coerceIn(0, doc.pageCount - 1) }
+                    val first = !firstLoadDone
+                    firstLoadDone = true
+                    val n = doc.pageCount
+                    val pf = pendingFrac
+                    if (pf != null) {
+                        pendingFrac = null
+                        if (n > 0) jumpReq = (pf * n).toInt().coerceIn(0, n - 1)
+                    } else if (first && target.startCount > 0 && n > 0 && n != target.startCount) {
+                        // 저장할 때와 쪽 수가 다름(글꼴·크기·보기 방식) → 읽은 비율로 옮긴다
+                        jumpReq = locatorPage(target.startPage, locatorFrac(target.startPage, target.startCount), n)
+                    }
+                    // F-28: 원본 첫 쪽이 비어 보이거나 렌더에 실패하면 이북식으로 자동 전환(처음 열 때 한 번만)
+                    if (first && doc is HwpReaderDoc) {
+                        val failed = withContext(Dispatchers.IO) {
+                            synchronized(GuardedSource.guard) { !GuardedSource.closed.contains(doc) && doc.firstPageFailed() }
+                        }
+                        if (failed) {
+                            pendingFrac = if (n > 0) (page + 0.5f) / n else 0f
+                            hwpEbook = true
+                            onViewMode(Book.VIEW_EBOOK)
+                            stub("원본 보기가 비어 보여 이북식으로 열었어요.") // 문서가 바뀌며 이 효과가 취소되므로 바깥 범위에서 띄운다
+                        }
+                    }
                 }
                 val pxW = constraints.maxWidth.toFloat()
                 val pxH = constraints.maxHeight.toFloat()
@@ -260,7 +295,8 @@ fun ReaderScreen(
                     val source = remember(doc, s.theme, highlights, hit) {
                         val hl = highlights; val h = hit
                         GuardedSource(doc, colors) { i, tpOf ->
-                            val cand = hl.filter { kotlin.math.abs(it.page - i) <= near }
+                            // 쪽 수가 바뀌어도(이북식 글꼴·크기) 위치 비율로 근처 쪽을 찾은 뒤 글자로 다시 맞춘다
+                            val cand = hl.filter { kotlin.math.abs(locatorPage(it.page, it.frac, count) - i) <= near }
                             val tp = if (cand.isEmpty() && h?.page != i) null else tpOf()
                             if (tp == null) emptyList<Mark>()
                             else {
@@ -340,13 +376,15 @@ fun ReaderScreen(
                     pendingFrac = if (count > 0) (page + 0.5f) / count else 0f
                     menu = false; sel = null; hit = null
                     hwpEbook = !hwpEbook
+                    onViewMode(if (hwpEbook) Book.VIEW_EBOOK else Book.VIEW_ORIGINAL)
                 }
+                val curBookmark = bookmarks.firstOrNull { locatorPage(it.page, it.frac, count) == page }
                 if (target.once) OnceBar(fmt, page, count, colors, ebook = hwpEbook, onAdd = onAddToLibrary, onEbookView = { toggleHwpView() },
                     modifier = Modifier.align(if (menu) Alignment.Center else Alignment.BottomCenter).padding(bottom = if (menu) 0.dp else 28.dp))
 
                 if (menu) {
-                    TopBar(target.title, colors, bookmarked = bookmarks.any { it.page == page }, onBack = onBack,
-                        onBookmark = { onToggleBookmark(page) },
+                    TopBar(target.title, colors, bookmarked = curBookmark != null, onBack = onBack,
+                        onBookmark = { onToggleBookmark(page, locatorFrac(page, count), curBookmark?.id) },
                         onSearch = { if (doc is MupdfReaderDoc) { menu = false; searchOpen = true } else stub(noTextMsg(fmt)) },
                         viewToggle = if (isHwp && !target.once) (if (hwpEbook) "원본" else "이북식") else null,
                         onViewToggle = { toggleHwpView() },
@@ -383,7 +421,7 @@ fun ReaderScreen(
                         onDict = { lookUp(context, cur.text) { stub(it) }; sel = null },
                         onHighlight = { color ->
                             if (target.once) stub("서재에 추가하면 형광펜을 남길 수 있어요.")
-                            else onAddHighlight(cur.slot.page, cur.start, cur.end, cur.text, color, "")
+                            else onAddHighlight(cur.slot.page, cur.start, cur.end, cur.text, color, "", selFrac(cur, count))
                             sel = null
                         },
                         onMemo = { if (target.once) stub("서재에 추가하면 메모를 남길 수 있어요.") else selMemo = cur; sel = null },
@@ -405,6 +443,7 @@ fun ReaderScreen(
         val d = openDoc
         value = if (d == null) emptyList() else withContext(Dispatchers.IO) { d.toc() }
     }
+    val docCount = openDoc?.pageCount ?: 0
     if (showToc) ModalBottomSheet(onDismissRequest = { showToc = false }) {
         LazyColumn(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             item {
@@ -419,27 +458,34 @@ fun ReaderScreen(
             }
             if (tocTab == 0) {
                 item { TocList(toc, page) { p -> showToc = false; jumpReq = p } }
+
             } else {
                 if (bookmarks.isEmpty() && notes.isEmpty() && highlights.isEmpty()) item {
                     Text("책갈피·메모·형광펜이 아직 없어요. 글자를 길게 눌러 형광펜을 칠해 보세요.", fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
                 }
+                if (isHwp && !hwpEbook && highlights.isNotEmpty()) item {
+                    Text("형광펜은 이북식 보기에서 칠해져 보여요. 쪽은 원본 보기에 맞춰 대략 옮겼어요.", fontSize = 13.sp, color = colors.accentC, modifier = Modifier.padding(vertical = 8.dp))
+                }
                 items(bookmarks, key = { "b${it.id}" }) { b ->
-                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { showToc = false; jumpReq = b.page },
-                        verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Bookmark, null, Modifier.size(20.dp)); Text("  ${b.page + 1}쪽", fontSize = 15.sp) }
+                    val bp = locatorPage(b.page, b.frac, docCount)
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { showToc = false; jumpReq = bp },
+                        verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Bookmark, null, Modifier.size(20.dp)); Text("  ${bp + 1}쪽", fontSize = 15.sp) }
                 }
                 items(notes, key = { "n${it.id}" }) { n ->
-                    Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { showToc = false; jumpReq = n.page }.padding(vertical = 6.dp)) {
-                        Text("${n.page + 1}쪽 · 메모", fontSize = 12.sp)
+                    val np = locatorPage(n.page, n.frac, docCount)
+                    Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { showToc = false; jumpReq = np }.padding(vertical = 6.dp)) {
+                        Text("${np + 1}쪽 · 메모", fontSize = 12.sp)
                         Text(n.text, fontSize = 15.sp)
                     }
                     HorizontalDivider()
                 }
                 items(highlights, key = { "h${it.id}" }) { h ->
-                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { showToc = false; jumpReq = h.page }.padding(vertical = 6.dp),
+                    val hp = locatorPage(h.page, h.frac, docCount)
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { showToc = false; jumpReq = hp }.padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(width = 6.dp, height = 36.dp).background(Color(HighlightColors[h.color.coerceIn(0, 3)])))
                         Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                            Text("${h.page + 1}쪽 · 형광펜", fontSize = 12.sp)
+                            Text("${hp + 1}쪽 · 형광펜", fontSize = 12.sp)
                             Text(h.text, fontSize = 15.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
                             if (h.note.isNotBlank()) Text("메모: ${h.note}", fontSize = 13.sp, color = colors.accentC)
                         }
@@ -456,7 +502,7 @@ fun ReaderScreen(
             onDismissRequest = { memoOpen = false },
             title = { Text("${page + 1}쪽 메모") },
             text = { OutlinedTextField(text, { text = it }, minLines = 3) },
-            confirmButton = { TextButton(onClick = { if (text.isNotBlank()) onAddNote(page, text.trim()); memoOpen = false }) { Text("저장") } },
+            confirmButton = { TextButton(onClick = { if (text.isNotBlank()) onAddNote(page, text.trim(), locatorFrac(page, docCount)); memoOpen = false }) { Text("저장") } },
             dismissButton = { TextButton(onClick = { memoOpen = false }) { Text("취소") } },
         )
     }
@@ -473,7 +519,7 @@ fun ReaderScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    onAddHighlight(sm.slot.page, sm.start, sm.end, sm.text, 0, text.trim()); selMemo = null
+                    onAddHighlight(sm.slot.page, sm.start, sm.end, sm.text, 0, text.trim(), selFrac(sm, docCount)); selMemo = null
                 }) { Text("저장") }
             },
             dismissButton = { TextButton(onClick = { selMemo = null }) { Text("취소") } },
@@ -610,6 +656,10 @@ private fun slotAt(x: Float, w: Float, h: Float, first: Int, spread: Boolean, rt
     val idx = if (leftHalf != rtl) leftIdx else leftIdx + 1
     return PageSlot(idx, if (leftHalf) 0f else w / 2f, 0f, w / 2f, h)
 }
+
+/** 고른 글자의 보기 방식과 무관한 위치(문서 비율): 쪽 + 쪽 안 글자 위치. */
+private fun selFrac(sel: Selection, count: Int): Float =
+    locatorFrac(sel.slot.page, count, if (sel.tp.text.isEmpty()) 0.5f else sel.start.toFloat() / sel.tp.text.length)
 
 private fun noTextMsg(fmt: DocFormat): String = when (fmt.group) {
     FormatGroup.HWP -> "원본 보기에서는 글자를 고를 수 없어요. ‘이북식’으로 바꾸면 글자 선택·검색·형광펜을 쓸 수 있어요."

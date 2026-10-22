@@ -133,7 +133,7 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
 
     fun open(b: Book) {
         val f = DocFormat.of(b.format)
-        screen = Screen.Reader(ReaderTarget(b.id, b.title, b.path, f, b.lastPage, once = false), b, null)
+        screen = Screen.Reader(ReaderTarget(b.id, b.title, b.path, f, b.lastPage, once = false, viewMode = b.viewMode, startCount = b.pageCount), b, null)
     }
 
     // 외부 인텐트 → 한 번만 보기 (서재에 이미 있으면 그 책으로 연다)
@@ -142,7 +142,7 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
         incoming.value = null
         runCatching { app.library.openOnce(uri) }.onSuccess { o ->
             val existing = dao.get(o.id)
-            screen = if (existing != null) Screen.Reader(ReaderTarget(existing.id, existing.title, existing.path, DocFormat.of(existing.format), existing.lastPage, false), existing, null)
+            screen = if (existing != null) Screen.Reader(ReaderTarget(existing.id, existing.title, existing.path, DocFormat.of(existing.format), existing.lastPage, false, existing.viewMode, existing.pageCount), existing, null)
             else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true), null, o)
         }.onFailure { snack.showSnackbar("파일을 열 수 없어요. ${it.message.orEmpty()}") }
     }
@@ -189,21 +189,22 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                     if (!sc.target.once && dur > 5_000) scope.launch { dao.addSession(ReadingSession(bookId = bookId, startedAt = start, durationMs = dur, pagesTurned = pages)) }
                 },
                 bookmarks = bookmarks, notes = notes,
-                onToggleBookmark = { p ->
+                onToggleBookmark = { p, frac, existingId ->
                     scope.launch {
                         if (sc.target.once) { snack.showSnackbar("서재에 추가하면 책갈피를 남길 수 있어요."); return@launch }
-                        if (bookmarks.any { it.page == p }) dao.removeBookmark(bookId, p) else dao.addBookmark(Bookmark(bookId = bookId, page = p))
+                        if (existingId != null) dao.removeBookmarkById(existingId) else dao.addBookmark(Bookmark(bookId = bookId, page = p, frac = frac))
                     }
                 },
-                onAddNote = { p, text -> scope.launch { dao.addNote(Note(bookId = bookId, page = p, text = text)) } },
+                onAddNote = { p, text, frac -> scope.launch { dao.addNote(Note(bookId = bookId, page = p, text = text, frac = frac)) } },
                 highlights = highlights,
-                onAddHighlight = { p, st, en, text, color, note ->
+                onAddHighlight = { p, st, en, text, color, note, frac ->
                     scope.launch {
-                        dao.addHighlight(Highlight(bookId = bookId, page = p, startIdx = st, endIdx = en, text = text, color = color, note = note))
+                        dao.addHighlight(Highlight(bookId = bookId, page = p, startIdx = st, endIdx = en, text = text, color = color, note = note, frac = frac))
                         snack.showSnackbar(if (note.isBlank()) "형광펜을 칠했어요." else "메모를 남겼어요.")
                     }
                 },
                 onRemoveHighlight = { id -> scope.launch { dao.removeHighlight(id) } },
+                onViewMode = { mode -> if (!sc.target.once) scope.launch { dao.setViewMode(bookId, mode) } },
             )
             nextVol?.let { (done, next) ->
                 NextVolumeSheet(done, next,

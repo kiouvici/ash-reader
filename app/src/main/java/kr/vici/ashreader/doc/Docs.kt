@@ -21,6 +21,7 @@ import kr.vici.ashreader.engine.comic.PagePanels
 import kr.vici.ashreader.engine.comic.PanelDetector
 import kr.vici.ashreader.engine.comic.ReadingDirection
 import kr.vici.ashreader.engine.hwp.HwpDoc
+import kr.vici.ashreader.engine.hwp.HwpHealth
 import kr.vici.ashreader.engine.mupdf.MupdfDoc
 import kr.vici.ashreader.office.DocExtractor
 import kr.vici.ashreader.office.DocxConverter
@@ -230,6 +231,17 @@ class HwpReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
     override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap {
         val raw = synchronized(lock) { doc.renderPage(index, w) }
         return fitInto(raw, w, h, colors, applyTheme = true)
+    }
+
+    /**
+     * F-28 자동 전환 판정: 첫 쪽(작게 렌더)이 비었는데 글자는 있거나, 렌더 자체가 실패하면 true.
+     * 글자 없는 빈 문서는 false(이북식으로 바꿔도 나을 게 없음).
+     */
+    fun firstPageFailed(): Boolean = synchronized(lock) {
+        if (pageCount <= 0) return@synchronized false
+        val chars = runCatching { doc.pageTextChars(0) }.getOrDefault(0)
+        val bmp = try { doc.renderPage(0, 480) } catch (e: Exception) { return@synchronized true }
+        try { HwpHealth.firstPageFailed(HwpHealth.inkRatio(bmp), chars) } finally { bmp.recycle() }
     }
 
     override fun close() = synchronized(lock) { doc.close() }

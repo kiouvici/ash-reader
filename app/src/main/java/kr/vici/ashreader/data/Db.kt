@@ -2,6 +2,7 @@
 package kr.vici.ashreader.data
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -34,13 +35,28 @@ data class Book(
     val status: Int = 0,
     val seriesKey: String = "",
     val volume: Int = 0,
+    /** 한글 문서 보기 방식: 0 = 원본, 1 = 이북식(F-28). 다시 열 때 이 방식으로 연다. */
+    @ColumnInfo(defaultValue = "0") val viewMode: Int = 0,
 ) {
     companion object {
         const val TO_READ = 0
         const val READING = 1
         const val DONE = 2
+        const val VIEW_ORIGINAL = 0
+        const val VIEW_EBOOK = 1
     }
 }
+
+/**
+ * 보기 방식·쪽 나눔과 무관한 위치(F-28): 문서 전체에서의 비율 0..1 (-1 = 모름, 옛 기록).
+ * 같은 쪽 나눔이면 [page]로 정확히 돌아오고, 쪽 수가 바뀌면(이북식↔원본, 글꼴·크기 변경) 비율로 옮긴다.
+ */
+fun locatorPage(page: Int, frac: Float, count: Int): Int =
+    if (frac >= 0f && count > 0) (frac * count).toInt().coerceIn(0, count - 1) else page
+
+/** [page]쪽 안 [within](0..1) 지점의 비율 위치. */
+fun locatorFrac(page: Int, count: Int, within: Float = 0.5f): Float =
+    if (count <= 0) -1f else ((page + within.coerceIn(0f, 0.999f)) / count).coerceIn(0f, 1f)
 
 /** 읽은 비율 0..1 (Room 열이 아니므로 확장 함수로 둔다). */
 fun Book.progress(): Float = if (status == Book.DONE) 1f else if (pageCount <= 0) 0f else ((lastPage + 1f) / pageCount).coerceIn(0f, 1f)
@@ -52,6 +68,7 @@ data class Bookmark(
     val page: Int,
     val label: String = "",
     val createdAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "-1") val frac: Float = -1f,
 )
 
 /** 형광펜·메모. 글자 선택(S-28)은 2단계 후반에 연결 — 지금은 쪽 단위 메모만 저장. */
@@ -63,12 +80,15 @@ data class Note(
     val text: String,
     val color: Int = 0,
     val createdAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "-1") val frac: Float = -1f,
 )
 
 /**
  * 형광펜(S-28). 위치(locator) = 쪽 + 그 쪽 글자 열의 [startIdx]..[endIdx](끝 제외) + 고른 글자 [text].
  * 이북류는 글꼴·크기를 바꾸면 쪽이 달라지므로 [text]로 근처 쪽에서 다시 찾는다.
  * [color] = 0 노랑, 1 초록, 2 파랑, 3 분홍. [note] = 붙인 메모(없으면 빈 글).
+ * [frac] = 보기 방식과 무관한 위치(문서 비율, [locatorPage]). 쪽 수가 바뀌어도 [text]를 그 근처에서 찾는다.
+ * 한글 원본 보기는 글자 위치가 없어 칠해 보이지 않는다(이북식에서 다시 보임).
  */
 @Entity(tableName = "highlight", indices = [Index("bookId")])
 data class Highlight(
@@ -81,6 +101,7 @@ data class Highlight(
     val color: Int = 0,
     val note: String = "",
     val createdAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "-1") val frac: Float = -1f,
 )
 
 /** 독서 기록(S-50). 기기에만 저장. */
@@ -115,6 +136,9 @@ interface BookDao {
     @Query("UPDATE book SET lastPage = :page, pageCount = :count, lastOpenedAt = :now, status = :status WHERE id = :id")
     suspend fun progress(id: String, page: Int, count: Int, status: Int, now: Long = System.currentTimeMillis())
 
+    @Query("UPDATE book SET viewMode = :mode WHERE id = :id")
+    suspend fun setViewMode(id: String, mode: Int)
+
     @Query("DELETE FROM book WHERE id = :id")
     suspend fun delete(id: String)
 
@@ -123,6 +147,9 @@ interface BookDao {
 
     @Query("DELETE FROM bookmark WHERE bookId = :bookId AND page = :page")
     suspend fun removeBookmark(bookId: String, page: Int)
+
+    @Query("DELETE FROM bookmark WHERE id = :id")
+    suspend fun removeBookmarkById(id: Long)
 
     @Query("SELECT * FROM bookmark WHERE bookId = :bookId ORDER BY page")
     fun bookmarks(bookId: String): Flow<List<Bookmark>>
@@ -162,7 +189,7 @@ interface BookDao {
     @Query("SELECT * FROM session") suspend fun allSessions(): List<ReadingSession>
 }
 
-@Database(entities = [Book::class, Bookmark::class, Note::class, ReadingSession::class, Highlight::class], version = 2, exportSchema = false)
+@Database(entities = [Book::class, Bookmark::class, Note::class, ReadingSession::class, Highlight::class], version = 3, exportSchema = false)
 abstract class AshDb : RoomDatabase() {
     abstract fun books(): BookDao
 
@@ -179,9 +206,17 @@ abstract class AshDb : RoomDatabase() {
             }
         }
 
+        /** 2 → 3: 한글 보기 방식(책), 보기 방식과 무관한 위치 비율(책갈피·메모·형광펜). */
+        val M2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `book` ADD COLUMN `viewMode` INTEGER NOT NULL DEFAULT 0")
+                for (t in listOf("bookmark", "note", "highlight")) db.execSQL("ALTER TABLE `$t` ADD COLUMN `frac` REAL NOT NULL DEFAULT -1")
+            }
+        }
+
         @Volatile private var inst: AshDb? = null
         fun get(context: Context): AshDb = inst ?: synchronized(this) {
-            inst ?: Room.databaseBuilder(context.applicationContext, AshDb::class.java, "ash.db").addMigrations(M1_2).build().also { inst = it }
+            inst ?: Room.databaseBuilder(context.applicationContext, AshDb::class.java, "ash.db").addMigrations(M1_2, M2_3).build().also { inst = it }
         }
     }
 }

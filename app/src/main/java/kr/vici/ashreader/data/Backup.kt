@@ -76,18 +76,18 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
                 if (cur == null) {
                     if (inc.path.isNotEmpty() && File(inc.path).exists()) { dao.upsert(inc); updated++ } else missing++
                 } else if (inc.lastOpenedAt > cur.lastOpenedAt) {
-                    dao.upsert(cur.copy(lastPage = inc.lastPage, pageCount = inc.pageCount, status = inc.status, lastOpenedAt = inc.lastOpenedAt))
+                    dao.upsert(cur.copy(lastPage = inc.lastPage, pageCount = inc.pageCount, status = inc.status, lastOpenedAt = inc.lastOpenedAt, viewMode = inc.viewMode))
                     updated++
                 }
             }
             val bmKeys = dao.allBookmarks().map { it.bookId to it.page }.toMutableSet()
             for (o in root.optJSONArray("bookmarks").objects()) {
-                val b = Bookmark(bookId = o.optString("bookId"), page = o.optInt("page"), label = o.optString("label"), createdAt = o.optLong("createdAt"))
+                val b = Bookmark(bookId = o.optString("bookId"), page = o.optInt("page"), label = o.optString("label"), createdAt = o.optLong("createdAt"), frac = o.fracOf())
                 if (b.bookId.isNotEmpty() && bmKeys.add(b.bookId to b.page)) { dao.addBookmark(b); nb++ }
             }
             val noteKeys = dao.allNotes().map { Triple(it.bookId, it.page, it.text) }.toMutableSet()
             for (o in root.optJSONArray("notes").objects()) {
-                val n = Note(bookId = o.optString("bookId"), page = o.optInt("page"), text = o.optString("text"), color = o.optInt("color"), createdAt = o.optLong("createdAt"))
+                val n = Note(bookId = o.optString("bookId"), page = o.optInt("page"), text = o.optString("text"), color = o.optInt("color"), createdAt = o.optLong("createdAt"), frac = o.fracOf())
                 if (n.bookId.isNotEmpty() && n.text.isNotEmpty() && noteKeys.add(Triple(n.bookId, n.page, n.text))) { dao.addNote(n); nn++ }
             }
             val hlKeys = dao.allHighlights().map { listOf(it.bookId, it.page, it.startIdx, it.endIdx, it.text) }.toMutableSet()
@@ -95,6 +95,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
                 val h = Highlight(
                     bookId = o.optString("bookId"), page = o.optInt("page"), startIdx = o.optInt("startIdx"), endIdx = o.optInt("endIdx"),
                     text = o.optString("text"), color = o.optInt("color"), note = o.optString("note"), createdAt = o.optLong("createdAt"),
+                    frac = o.fracOf(),
                 )
                 if (h.bookId.isNotEmpty() && hlKeys.add(listOf(h.bookId, h.page, h.startIdx, h.endIdx, h.text))) { dao.addHighlight(h); nh++ }
             }
@@ -122,29 +123,31 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
         fun fileName(now: Long = System.currentTimeMillis()): String =
             "ASH-백업-" + java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.KOREA).format(java.util.Date(now)) + ".json"
 
+        private fun JSONObject.fracOf(): Float = optDouble("frac", -1.0).toFloat().let { if (it.isNaN()) -1f else it }
+
         private fun JSONArray?.objects(): List<JSONObject> =
             if (this == null) emptyList() else (0 until length()).mapNotNull { optJSONObject(it) }
 
         private fun Book.toJson() = JSONObject()
             .put("id", id).put("title", title).put("format", format).put("path", path).put("folder", folder)
             .put("sizeBytes", sizeBytes).put("pageCount", pageCount).put("lastPage", lastPage).put("addedAt", addedAt)
-            .put("lastOpenedAt", lastOpenedAt).put("status", status).put("seriesKey", seriesKey).put("volume", volume)
+            .put("lastOpenedAt", lastOpenedAt).put("status", status).put("seriesKey", seriesKey).put("volume", volume).put("viewMode", viewMode)
 
         private fun bookOf(o: JSONObject) = Book(
             id = o.optString("id"), title = o.optString("title"), format = o.optString("format"), path = o.optString("path"),
             folder = o.optString("folder"), sizeBytes = o.optLong("sizeBytes"), pageCount = o.optInt("pageCount"),
             lastPage = o.optInt("lastPage"), addedAt = o.optLong("addedAt", System.currentTimeMillis()),
             lastOpenedAt = o.optLong("lastOpenedAt"), status = o.optInt("status"), seriesKey = o.optString("seriesKey"),
-            volume = o.optInt("volume"),
+            volume = o.optInt("volume"), viewMode = o.optInt("viewMode"),
         )
 
-        private fun Bookmark.toJson() = JSONObject().put("bookId", bookId).put("page", page).put("label", label).put("createdAt", createdAt)
+        private fun Bookmark.toJson() = JSONObject().put("bookId", bookId).put("page", page).put("label", label).put("createdAt", createdAt).put("frac", frac.toDouble())
 
-        private fun Note.toJson() = JSONObject().put("bookId", bookId).put("page", page).put("text", text).put("color", color).put("createdAt", createdAt)
+        private fun Note.toJson() = JSONObject().put("bookId", bookId).put("page", page).put("text", text).put("color", color).put("createdAt", createdAt).put("frac", frac.toDouble())
 
         private fun Highlight.toJson() = JSONObject()
             .put("bookId", bookId).put("page", page).put("startIdx", startIdx).put("endIdx", endIdx)
-            .put("text", text).put("color", color).put("note", note).put("createdAt", createdAt)
+            .put("text", text).put("color", color).put("note", note).put("createdAt", createdAt).put("frac", frac.toDouble())
 
         private fun ReadingSession.toJson() = JSONObject()
             .put("bookId", bookId).put("startedAt", startedAt).put("durationMs", durationMs).put("pagesTurned", pagesTurned)
