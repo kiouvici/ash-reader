@@ -12,22 +12,21 @@ PM 지시로 중단. 코드는 아직 이 브랜치에 들어가지 않았고, �
 - Real-CUGAN: nihui/realcugan-ncnn-vulkan(MIT, 2022-07-28 커밋 395302c) 확보·분석. 2x 입력 처리 = 타일, prepadding 18,
   in0/out0, 0~1 정규화, nose 모델은 syncgap 0. 모델 SHA-256:
   - models-se/up2x-conservative.bin 2,573,648B `91c72c13…84a0`, .param `4b3b5c57…9708`
-  - models-nose/up2x-no-denoise.bin 2,551,408B `2b6f4db8…84a0`... (전체 값은 다음 작업에서 표로 기록)
+  - models-nose/up2x-no-denoise.bin 2,551,408B `2b6f4db8…9b84`, .param `c370b703…3708`
 - ncnn 20261020 android-vulkan 프리빌드(40.7MB zip, sha256 6e0c5f9b…1086): 정적 libncnn.a(arm64 11.5MB)+glslang, OpenMP·SIMPLEVK(Vulkan 로더 동적).
 - libarchive 3.8.10(sha256 56cad765…fb96): 압축 라이브러리 전부 끄고 정적 빌드 성공(호스트 1.9MB .a). RAR4 시험 파일은 libarchive 저장소 test/*.rar.uu(solid·암호 포함)를 쓰면 됨(rar 7은 RAR5만 생성).
 
-## 막힌 것
-- 시험 만화 이미지: 이 환경에서 upload.wikimedia.org·digitalcomicmuseum·archive.org 직접 다운로드 차단.
-  후보(미국 PD, Wikimedia Commons): Little Nemo 1906 일요판(1,760×2,330 전후, 왼→오), Krazy Kat 1916(왼→오),
-  Tokyo Puck 1909·北澤楽天 Tagosaku(오→왼 후보, 칸 구조 확인 필요). 컬러 = Little Nemo.
-- 임시 브랜치 `tmp/comic-fetch`(CI로 Commons에서 받아오는 워크플로)는 실패 상태로 남아 있음. 삭제는 권한상 못 함 — 필요 없으면 대표님이 지워 주세요.
+## 시험 만화
+- **시험 만화는 대표님 제공 예정(CBZ·CBR, 왼→오/오→왼/컬러).** 공개 만화 탐색·다운로드는 PM 지시로 중단했다.
+- 임시 브랜치 `tmp/comic-fetch`(실패한 받기용 워크플로)는 쓰지 않으며 그대로 둔다. 필요 없으면 PM·대표님이 지워 주세요.
+- RAR4(solid·암호 포함) 형식 시험은 libarchive 저장소의 test/*.rar.uu를 쓸 수 있다.
 
 ## 남은 것
 1. `:engine-comic` 모듈(CBZ java.util.zip + CBR libarchive JNI, solid 판별 헤더 플래그, ComicInfo.xml Manga=YesAndRightToLeft, 4096px 초과 BitmapRegionDecoder 타일).
 2. Kotlin Kumiko 이식 + 정답 상자 JSON 형식 + IoU≥0.7 채점기 JVM 테스트.
 3. ncnn+Real-CUGAN JNI(Vulkan 있으면 GPU, 없으면 CPU), 쪽당 시간 API.
-4. 시험 파일 3권(CBZ·CBR RAR5 solid·비solid) + docs/시험파일목록.md 출처.
+4. 대표님 샘플로 시험 파일 정리(CBZ·CBR solid·비solid), 정답 칸 상자 JSON, docs/시험파일목록.md 기록.
 5. :bench ⑤ 버튼, CSV, .so 크기·16KB 정렬 CI 단계.
 
 ## 다음에 할 첫 단계
-시험 이미지 확보 방법을 대표님께 결정받기(① 대표님 PC에서 Commons 원본 10장 내려받아 test-files/public/comic 에 올리기 ② 허용 도메인에 upload.wikimedia.org 추가). 그동안 합성 쪽 이미지로 Kotlin 칸 인식기·채점기부터 작성.
+대표님 샘플이 오기 전에 합성 쪽 이미지로 Kotlin 칸 인식기와 정답 상자 JSON 형식·IoU 채점기(JVM 테스트)를 먼저 작성한다. 추가 자료가 필요하면 직접 찾지 않고 PM에게 먼저 요청한다.
