@@ -66,7 +66,7 @@ object Experiments {
     val all: List<Experiment> = listOf(
         ReadCheck,
         HwpRenderExperiment,
-        Placeholder("2", "② Word(DOCX/DOC)", "DOCX→XHTML 조판 첫 화면, DOC 추출"),
+        OfficeExperiment,
         CurlExperiment,
         LineBreakExperiment,
         Placeholder("5", "⑤ 만화 칸 인식·AI 화질", "칸 인식 1초·화질 향상 5초(N-10), 발열"),

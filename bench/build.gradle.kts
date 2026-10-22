@@ -73,6 +73,7 @@ dependencies {
     implementation(project(":pagecurl"))
     implementation(project(":engine-mupdf"))
     implementation(project(":engine-hwp"))
+    implementation(project(":engine-office"))
 
     testImplementation(libs.junit)
 
