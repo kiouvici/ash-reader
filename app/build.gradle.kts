@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.android.application)
     // AGP 9 내장 Kotlin 사용: org.jetbrains.kotlin.android 는 적용하지 않는다.
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 // N-05 음성 시험 전용: -Pash.negativeTest=true 일 때만 INTERNET 권한을 넣은 빌드 유형(negativeProbe)을 만든다.
@@ -97,8 +98,23 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
+    implementation(libs.androidx.core)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.datastore.preferences)
+
+    // 2단계: 엔진 연결 (F-17 쪽 비트맵 공급)
+    implementation(project(":pagecurl"))
+    implementation(project(":engine-mupdf"))
+    implementation(project(":engine-hwp"))
+    implementation(project(":engine-comic"))
+    implementation(project(":engine-office"))
+
     testImplementation(libs.junit)
-    if (withOffice) implementation(project(":engine-office"))
 }
 
 // N-05 ①: 병합된 매니페스트 INTERNET 권한 검사 (구현은 buildSrc/AshBuild.kt)
