@@ -18,8 +18,9 @@ val abis = providers.gradleProperty("ash.abis").orNull?.split(",") ?: listOf("ar
 android {
     namespace = "kr.vici.ashreader.engine.comic"
     compileSdk = 37
-    // ncnn 20261020 프리빌드가 NDK r29 libc++(std::__hash_memory)로 빌드돼 이 모듈만 r29 를 쓴다(c++_static 이라 다른 모듈과 충돌 없음)
-    ndkVersion = "29.0.14206865"
+    // ncnn 20261020 프리빌드는 clang 21(NDK r30 계열) libc++(std::__hash_memory)로 빌드됐다.
+    // 이 모듈만 그 NDK 를 쓴다(c++_static 이라 다른 모듈과 충돌 없음). CI 가 sdkmanager 목록에서 r30 을 골라 ashComicNdk 로 넘긴다.
+    ndkVersion = providers.gradleProperty("ashComicNdk").orNull ?: "30.0.14904198"
 
     defaultConfig {
         minSdk = 26
