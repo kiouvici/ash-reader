@@ -95,17 +95,9 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Android 8 (API 26) emulator — HWP render test
-        uses: ReactiveCircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc # v2.38.0
-        with:
-          api-level: 26
-          arch: x86
-          emulator-boot-timeout: 1200
-          ram-size: 2048M
-          target: default
-          disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
-          script: .github/scripts/run-emulator-test.sh engine-hwp ASH-HWP hwp.log
+      - name: Android 8 (API 26) emulator test
+        shell: bash
+        run: .github/scripts/emulator-run.sh engine-hwp ASH-HWP hwp.log
 
       - name: HWP result table
         if: always()
