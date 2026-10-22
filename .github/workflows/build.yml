@@ -165,9 +165,11 @@ jobs:
             ok=yes; for a in $al; do [ "$a" = "2**14" ] || [ "$a" = "2**16" ] || ok=no; done
             [ "$ok" = no ] && fail=1
             echo "| $abi | $n | $sz | $csz | $al ($ok) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=.so $abi::$n $sz B, APK 압축 $csz B, LOAD $al ($ok)"
           done
           A=$(unzip -l "$APK" 'assets/realcugan/*' | tail -1 | awk '{print $1}')
           echo "- Real-CUGAN 모델 assets 합계: $A 바이트" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Real-CUGAN assets::$A B"
           [ "$fail" = 0 ] || { echo "::error title=16KB 정렬::64비트 .so LOAD 정렬이 16KB가 아닙니다"; exit 1; }
 
       - name: Remove keystore
