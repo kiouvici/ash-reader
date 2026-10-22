@@ -110,13 +110,14 @@ private fun CurlBenchScreen() {
         view.runAutoTurns(20, 1000) { r ->
             CurlBenchActivity.lastReport = r
             measuring = false
-            val pct = r.lateRatio * 100
-            status = String.format(Locale.ROOT, "지연 %.1f%% (%d/%d), %.0fHz, p95 %.1fms — %s",
-                pct, r.lateFrames, r.frames, r.refreshHz, r.p95Ms, if (pct <= 5.0) "합격" else "불합격")
+            val pct = r.lateRatioWithMissed * 100
+            status = String.format(Locale.ROOT, "지연+건너뜀 %.1f%%, 실효 %.0f/%.0f fps, p95 %.1fms — %s",
+                pct, r.effectiveFps, r.refreshHz, r.p95Ms, if (pct <= 5.0) "합격" else "불합격")
             val exp = "③ 책 넘김 효과"
             ResultStore.addAll(listOf(
-                Measurement(exp, label, "GL 지연 프레임 비율(판정)", pct, "%", "${r.lateFrames}/${r.frames}, 기준 5% 이하"),
-                Measurement(exp, label, "건너뛴 vsync 포함 비율(참고)", r.lateRatioWithMissed * 100, "%", "건너뜀 ${r.missedVsyncs}"),
+                Measurement(exp, label, "지연+건너뜀 비율(판정 제안)", pct, "%", "늦음 ${r.lateFrames}+건너뜀 ${r.missedVsyncs} / ${r.frames + r.missedVsyncs}, 기준 5% 이하"),
+                Measurement(exp, label, "GL 지연 프레임 비율(v0.6.2 판정)", r.lateRatio * 100, "%", "${r.lateFrames}/${r.frames}"),
+                Measurement(exp, label, "실효 프레임률", r.effectiveFps, "fps", String.format(Locale.ROOT, "목표 %.0f", r.refreshHz)),
                 Measurement(exp, label, "프레임 지연 p50", r.p50Ms, "ms", String.format(Locale.ROOT, "주기 %.1fms", r.periodMs)),
                 Measurement(exp, label, "프레임 지연 p95", r.p95Ms, "ms", ""),
                 Measurement(exp, label, "프레임 지연 최댓값", r.maxMs, "ms", ""),

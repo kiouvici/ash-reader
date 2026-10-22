@@ -17,11 +17,13 @@ data class FrameReport(
     val p50Ms: Double,
     val p95Ms: Double,
     val maxMs: Double,
+    /** 넘김 중 실제로 그린 초당 프레임 (넘김 구간 합 기준) */
+    val effectiveFps: Double = 0.0,
 ) {
     val periodMs: Double get() = 1000.0 / refreshHz
-    /** 판정값: 늦은 프레임 / 그린 프레임 */
+    /** 기존 판정값(v0.6.2): 늦은 프레임 / 그린 프레임. 건너뛴 vsync 를 못 본다(S26U 120Hz 실측에서 0% 였지만 실제 약 60fps). */
     val lateRatio: Double get() = if (frames == 0) 0.0 else lateFrames.toDouble() / frames
-    /** 참고값: 건너뛴 vsync도 지연으로 셈 */
+    /** 제안 판정값: 건너뛴 vsync 도 지연으로 셈 = 넘김 중 새 그림이 나오지 않은 vsync 비율 */
     val lateRatioWithMissed: Double
         get() = if (frames + missedVsyncs == 0) 0.0 else (lateFrames + missedVsyncs).toDouble() / (frames + missedVsyncs)
 }
@@ -34,6 +36,8 @@ class FrameStatsRecorder {
     private var missed = 0
     private var lastVsync = 0L
     private var turns = 0
+    private var turnStart = 0L
+    private var activeNs = 0L
     @Volatile var recording = false
         private set
 
@@ -46,6 +50,8 @@ class FrameStatsRecorder {
         missed = 0
         lastVsync = 0L
         turns = 0
+        turnStart = 0L
+        activeNs = 0L
         recording = true
     }
 
@@ -55,6 +61,7 @@ class FrameStatsRecorder {
         val lat = swapDoneNs - vsyncNs
         latencies += lat
         if (lat > periodNs) late++
+        if (lastVsync == 0L) turnStart = vsyncNs
         if (continuing && lastVsync != 0L) {
             val gap = vsyncNs - lastVsync
             val skipped = (gap.toDouble() / periodNs).roundToInt() - 1
@@ -68,6 +75,7 @@ class FrameStatsRecorder {
     fun onTurnEnd() {
         if (!recording) return
         turns++
+        if (lastVsync != 0L) activeNs += lastVsync - turnStart + periodNs
         lastVsync = 0L
     }
 
@@ -86,6 +94,7 @@ class FrameStatsRecorder {
             p50Ms = pct(0.5),
             p95Ms = pct(0.95),
             maxMs = if (sorted.isEmpty()) 0.0 else sorted.last() / 1e6,
+            effectiveFps = if (activeNs > 0) latencies.size / (activeNs / 1e9) else 0.0,
         )
     }
 }

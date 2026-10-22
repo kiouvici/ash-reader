@@ -129,7 +129,8 @@ class PageCurlView @JvmOverloads constructor(
      */
     fun runAutoTurns(count: Int, intervalMs: Long = 1000, onDone: (FrameReport) -> Unit) {
         gl.post {
-            refreshHz = display?.refreshRate?.takeIf { it > 1f } ?: 60f
+            // 판정 주기는 기기가 지원하는 최고 주사율(넘김 중 그 주사율을 요청하므로)
+            refreshHz = HighRefresh.maxRate(this) ?: display?.refreshRate?.takeIf { it > 1f } ?: 60f
             recorder.start(refreshHz)
             autoRemaining = count
             autoIntervalMs = intervalMs
@@ -385,7 +386,10 @@ class PageCurlView @JvmOverloads constructor(
     }
 
     private fun setAnimating(v: Boolean) {
-        if (_isAnimating.value != v) _isAnimating.value = v
+        if (_isAnimating.value != v) {
+            _isAnimating.value = v
+            mainHandler.post { HighRefresh.request(this, v) }
+        }
     }
 
     // ------------------------------------------------------------------

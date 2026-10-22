@@ -23,6 +23,8 @@ class FrameStatsTest {
         assertEquals(1, rep.turns)
         assertEquals(0.25, rep.lateRatio, 1e-9)
         assertEquals(0.4, rep.lateRatioWithMissed, 1e-9)
+        // 넘김 구간 = 0 ~ 4p + 한 주기 = 5 주기에 4 프레임 → 48fps
+        assertEquals(48.0, rep.effectiveFps, 0.01)
     }
 
     @Test
