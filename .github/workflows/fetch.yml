@@ -1,0 +1,30 @@
+name: tmp-fetch-pd-comics
+on: { push: { branches: ["tmp/comic-fetch"] } }
+permissions: { contents: write }
+jobs:
+  fetch:
+    if: "!contains(github.event.head_commit.message, '[fetched]')"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: fetch
+        shell: bash
+        run: |
+          set -u
+          UA="ash-reader-test-fixtures/0.1 (https://github.com/kiouvici/ash-reader; kiouvici@gmail.com)"
+          mkdir -p img meta
+          while IFS='|' read -r title width; do
+            [ -z "$title" ] && continue
+            enc=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$title")
+            curl -sS -A "$UA" "https://commons.wikimedia.org/w/api.php?action=query&titles=File:$enc&prop=imageinfo&iiprop=url|size|extmetadata|sha1&iiurlwidth=$width&format=json" -o "meta/tmp.json"
+            name=$(python3 -c "import re,sys;print(re.sub(r'[^A-Za-z0-9._-]+','_',sys.argv[1]))" "$title")
+            mv meta/tmp.json "meta/$name.json"
+            url=$(python3 -c "import json,sys;p=list(json.load(open(sys.argv[1]))['query']['pages'].values())[0]['imageinfo'][0];print(p.get('thumburl') if sys.argv[2]!='0' else p['url'])" "meta/$name.json" "$width")
+            curl -sS -L -A "$UA" "$url" -o "img/$name" || echo "FAIL $title"
+            ls -la "img/$name"; sleep 1
+          done < list.txt
+      - name: commit
+        shell: bash
+        run: |
+          git config user.name kiouvici; git config user.email kiouvici@gmail.com
+          git add img meta && git commit -q -m "[fetched] images" && git push origin HEAD:tmp/comic-fetch
