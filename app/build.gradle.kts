@@ -15,6 +15,10 @@ val ciRunNumber: Int = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull
 // N-05 음성 시험 전용: -Pash.negativeTest=true 일 때만 INTERNET 권한을 넣은 빌드 유형(negativeProbe)을 만든다.
 val negativeTest: Boolean = providers.gradleProperty("ash.negativeTest").orNull == "true"
 
+// 실험 ② APK 크기 측정 전용: -Pash.withOffice=true 일 때만 :engine-office(POI HWPF 포함)를 넣고
+// 진입점(office-probe.pro)을 유지시켜 R8 후 증가량을 잰다. 기본 빌드에는 영향 없음.
+val withOffice: Boolean = providers.gradleProperty("ash.withOffice").orNull == "true"
+
 // 서명 (P4): 워크플로가 시크릿에서 환경변수를 설정한다.
 //  - release: ASH_KEYSTORE_FILE / ASH_KEYSTORE_PASSWORD / ASH_KEY_ALIAS / ASH_KEY_PASSWORD
 //  - debug  : ASH_DEBUG_KEYSTORE_FILE / ASH_DEBUG_KEYSTORE_PASSWORD / ASH_DEBUG_KEY_ALIAS (키 비밀번호 = 저장소 비밀번호)
@@ -80,6 +84,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (withOffice) proguardFile("office-probe.pro")
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("ashRelease")
             } else {
@@ -115,6 +120,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    if (withOffice) implementation(project(":engine-office"))
 }
 
 // ---------------------------------------------------------------------------
