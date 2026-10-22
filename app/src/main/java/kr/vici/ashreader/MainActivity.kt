@@ -36,7 +36,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -55,10 +57,16 @@ import kr.vici.ashreader.data.LibraryRepo
 import kr.vici.ashreader.data.Highlight
 import kr.vici.ashreader.data.Note
 import kr.vici.ashreader.data.ReadingSession
+import kr.vici.ashreader.data.ScanFolder
+import kr.vici.ashreader.data.StorageAccess
 import kr.vici.ashreader.data.Settings
 import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.ui.AppSettingsScreen
 import kr.vici.ashreader.ui.AshTheme
+import kr.vici.ashreader.ui.ExportSheet
+import kr.vici.ashreader.ui.FoldersScreen
+import kr.vici.ashreader.ui.StorageIntroScreen
+import kr.vici.ashreader.ui.StoreEditScreen
 import kr.vici.ashreader.ui.Icons
 import kr.vici.ashreader.ui.LibraryScreen
 import kr.vici.ashreader.ui.LicensesScreen
@@ -77,6 +85,12 @@ internal sealed interface Screen {
     data object Licenses : Screen
     data class Series(val key: String) : Screen
     data class Reader(val target: ReaderTarget, val once: LibraryRepo.Opened?) : Screen
+    /** S-02 파일 접근 권한 안내 */
+    data object StorageIntro : Screen
+    /** S-03·설정 모으는 폴더. [intro] = 첫 안내에서 옴 */
+    data class Folders(val intro: Boolean) : Screen
+    /** S-15 서점 바로가기 편집 */
+    data object StoreEdit : Screen
 }
 
 /**
@@ -107,12 +121,16 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
                 Screen.Stats -> putString("k", "stats")
                 Screen.Settings -> putString("k", "settings")
                 Screen.Licenses -> putString("k", "licenses")
+                Screen.StorageIntro -> putString("k", "storage")
+                Screen.StoreEdit -> putString("k", "stores")
+                is Screen.Folders -> { putString("k", "folders"); putBoolean("intro", sc.intro) }
                 is Screen.Series -> { putString("k", "series"); putString("key", sc.key) }
                 is Screen.Reader -> {
                     putString("k", "reader")
                     val t = sc.target
                     putString("id", t.id); putString("title", t.title); putString("path", t.path); putString("format", t.format.name)
                     putInt("startPage", t.startPage); putBoolean("once", t.once); putInt("viewMode", t.viewMode); putInt("startCount", t.startCount)
+                    putString("enc", t.textEncoding)
                     sc.once?.let { o ->
                         putString("oPath", o.file.path); putString("oTitle", o.title); putString("oFormat", o.format.name); putString("oId", o.id)
                     }
@@ -125,6 +143,9 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
             "stats" -> Screen.Stats
             "settings" -> Screen.Settings
             "licenses" -> Screen.Licenses
+            "storage" -> Screen.StorageIntro
+            "stores" -> Screen.StoreEdit
+            "folders" -> Screen.Folders(b.getBoolean("intro"))
             "series" -> b.getString("key")?.let { Screen.Series(it) }
             "reader" -> {
                 val id = b.getString("id"); val path = b.getString("path")
@@ -133,6 +154,7 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
                     ReaderTarget(
                         id, b.getString("title").orEmpty(), path, DocFormat.of(b.getString("format").orEmpty()),
                         b.getInt("startPage"), b.getBoolean("once"), b.getInt("viewMode"), b.getInt("startCount"),
+                        b.getString("enc").orEmpty(),
                     ),
                     b.getString("oPath")?.let { op ->
                         LibraryRepo.Opened(File(op), b.getString("oTitle").orEmpty(), DocFormat.of(b.getString("oFormat").orEmpty()), b.getString("oId").orEmpty())
@@ -240,18 +262,63 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
         }
     }
 
-    fun open(b: Book) {
-        val f = DocFormat.of(b.format)
-        nav.screen = Screen.Reader(ReaderTarget(b.id, b.title, b.path, f, b.lastPage, once = false, viewMode = b.viewMode, startCount = b.pageCount), null)
+    // F-01: 폴더 수집. 앱 시작·복귀 때(30초에 한 번까지)와 새로고침·폴더 바꿈 때.
+    var lastScan by remember { mutableStateOf(0L) }
+    fun scan(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastScan < 30_000) return
+        lastScan = now
+        scope.launch {
+            runCatching { app.collector.scan() }.onSuccess { r -> if (r.added > 0) snack.showSnackbar("새 파일 ${r.added}개를 찾았어요.") }
+        }
     }
+    val scanning by app.collector.busy.collectAsState()
+    val stores by remember { dao.storeApps() }.collectAsState(initial = emptyList())
+    var ready by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val st = app.prefs.settings.first()
+        runCatching { app.stores.ensureDefaults(app.prefs, st.storeInit) }
+        if (!st.storageAsked && nav.screen == Screen.Library) nav.screen = Screen.StorageIntro else scan(force = true)
+        ready = true
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (ready && nav.screen !is Screen.StorageIntro) scan() }
+
+    /** 파일 접근 허용됨(S-02) → Download 를 모으는 폴더로 넣고 모은다. */
+    fun storageGranted() {
+        scope.launch {
+            dao.upsertScanFolder(ScanFolder(StorageAccess.downloadDir().path, true, "Download"))
+            app.prefs.update { it.copy(storageAsked = true) }
+            nav.screen = Screen.Library
+            scan(force = true)
+        }
+    }
+
+    var exportFor by remember { mutableStateOf<String?>(null) }
+    var exportAll by remember { mutableStateOf(false) }
+
+    fun openTarget(b: Book) {
+        scope.launch {
+            runCatching { app.library.localPath(b) }.onSuccess { p ->
+                val f = DocFormat.of(b.format)
+                nav.screen = Screen.Reader(
+                    ReaderTarget(b.id, b.title, p, f, b.lastPage, once = false, viewMode = b.viewMode, startCount = b.pageCount, textEncoding = b.textEncoding), null,
+                )
+            }.onFailure { e -> snack.showSnackbar(e.message ?: "파일을 열 수 없어요.") }
+        }
+    }
+
+    fun open(b: Book) = openTarget(b)
 
     // 외부 인텐트 → 한 번만 보기 (서재에 이미 있으면 그 책으로 연다)
     LaunchedEffect(pending) {
         val uri = pending ?: return@LaunchedEffect
         incoming.value = null
         runCatching { app.library.openOnce(uri) }.onSuccess { o ->
-            val existing = dao.get(o.id)
-            nav.screen = if (existing != null) Screen.Reader(ReaderTarget(existing.id, existing.title, existing.path, DocFormat.of(existing.format), existing.lastPage, false, existing.viewMode, existing.pageCount), null)
+            val existing = dao.get(o.id)?.takeIf { it.hidden == 0 }
+            // 서재에 같은 문서가 있으면 그 기록으로 이어 읽는다(F-06). 파일은 방금 받은 사본으로 연다(서재 쪽 파일이 없어도 열리게).
+            nav.screen = if (existing != null) Screen.Reader(
+                ReaderTarget(existing.id, existing.title, o.file.absolutePath, DocFormat.of(existing.format), existing.lastPage, false, existing.viewMode, existing.pageCount, existing.textEncoding), null,
+            )
             else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true), o)
         }.onFailure { snack.showSnackbar("파일을 열 수 없어요. ${it.message.orEmpty()}") }
     }
@@ -328,6 +395,11 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                 onRemoveHighlight = { id -> scope.launch { dao.removeHighlight(id) } },
                 onViewMode = { mode -> if (!sc.target.once) scope.launch { dao.setViewMode(bookId, mode) } },
                 passwords = nav.passwords,
+                onTextEncoding = { enc -> if (!sc.target.once) scope.launch { dao.setEncoding(bookId, enc) } },
+                onOpenStore = {
+                    val first = stores.firstOrNull { Links.isInstalled(context, it.pkg) }
+                    if (first == null || !Links.launch(context, first.pkg)) nav.screen = Screen.StoreEdit
+                },
             )
             nextVol?.let { (done, next) ->
                 NextVolumeSheet(done, next,
@@ -335,6 +407,16 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                     onOpenNext = { nextVol = null; open(next) },
                     onDismiss = { nextVol = null })
             }
+        }
+        Screen.StorageIntro -> {
+            BackHandler { scope.launch { app.prefs.update { it.copy(storageAsked = true) } }; nav.screen = nav.tab }
+            StorageIntroScreen(
+                onGranted = { storageGranted() },
+                onFolders = {
+                    scope.launch { app.prefs.update { it.copy(storageAsked = true) } }
+                    nav.screen = Screen.Folders(intro = true)
+                },
+            )
         }
         else -> Scaffold(
             snackbarHost = { SnackbarHost(snack) },
@@ -352,6 +434,11 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                         books = books, onOpen = ::open, onAdd = { picker.launch(arrayOf("*/*")) },
                         onSeries = { nav.screen = Screen.Series(it) },
                         onRemove = { b -> scope.launch { app.library.remove(b) } },
+                        stores = stores, scanning = scanning,
+                        onRefresh = { scan(force = true) },
+                        onFolders = { nav.screen = Screen.Folders(intro = false) },
+                        onStoreEdit = { nav.screen = Screen.StoreEdit },
+                        onExport = { b -> exportFor = b.id },
                     )
                     Screen.Stats -> {
                         val since = remember { weekStart() }
@@ -360,7 +447,27 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                         val times by remember { dao.timeByBook() }.collectAsState(initial = emptyList())
                         StatsScreen(week, streakOf(days), books, times.associate { it.bookId to it.total })
                     }
-                    Screen.Settings -> AppSettingsScreen(settings, ::change, onClearOnce = { scope.launch { app.library.clearOnce() } }, onLicenses = { nav.screen = Screen.Licenses })
+                    Screen.Settings -> AppSettingsScreen(
+                        settings, ::change, onClearOnce = { scope.launch { app.library.clearOnce() } }, onLicenses = { nav.screen = Screen.Licenses },
+                        onStorage = { nav.screen = Screen.StorageIntro },
+                        onFolders = { nav.screen = Screen.Folders(intro = false) },
+                        onStoreEdit = { nav.screen = Screen.StoreEdit },
+                        onExportAll = { exportAll = true },
+                    )
+                    is Screen.Folders -> {
+                        val back = { nav.screen = if (sc.intro) Screen.Library else nav.tab }
+                        BackHandler { back() }
+                        FoldersScreen(
+                            intro = sc.intro, onBack = back,
+                            onAccess = { nav.screen = Screen.StorageIntro },
+                            onScan = { scan(force = true) },
+                        )
+                    }
+                    Screen.StoreEdit -> {
+                        BackHandler { nav.screen = nav.tab }
+                        StoreEditScreen(onBack = { nav.screen = nav.tab })
+                    }
+                    Screen.StorageIntro -> Unit
                     Screen.Licenses -> {
                         BackHandler { nav.screen = Screen.Settings }
                         LicensesScreen(onBack = { nav.screen = Screen.Settings })
@@ -373,6 +480,8 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                     is Screen.Reader -> Unit
                 }
             }
+            exportFor?.let { id -> ExportSheet(bookId = id) { exportFor = null } }
+            if (exportAll) ExportSheet(bookId = null) { exportAll = false }
         }
     }
 }

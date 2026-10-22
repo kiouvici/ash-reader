@@ -146,7 +146,10 @@ private fun StatCard(label: String, value: String, modifier: Modifier) {
 
 /** S-51 설정(전체). */
 @Composable
-fun AppSettingsScreen(s: Settings, onChange: ((Settings) -> Settings) -> Unit, onClearOnce: () -> Unit, onLicenses: () -> Unit = {}) {
+fun AppSettingsScreen(
+    s: Settings, onChange: ((Settings) -> Settings) -> Unit, onClearOnce: () -> Unit, onLicenses: () -> Unit = {},
+    onStorage: () -> Unit = {}, onFolders: () -> Unit = {}, onStoreEdit: () -> Unit = {}, onExportAll: () -> Unit = {},
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var info by remember { mutableStateOf<String?>(null) }
@@ -189,6 +192,12 @@ fun AppSettingsScreen(s: Settings, onChange: ((Settings) -> Settings) -> Unit, o
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle("설정")
+        Group("서재") {
+            val access = remember { kr.vici.ashreader.data.StorageAccess.hasFileAccess(context) }
+            ValueRow("파일 접근 권한", "기기 안 책·문서를 찾는 권한(S-02 다시 보기)", if (access) "허용됨" else "허용 안 됨", onStorage)
+            ValueRow("모으는 폴더", "기본 Download · 폴더 더하기·빼기", "", onFolders)
+            ValueRow("서점 바로가기 편집", "서재 위 '내 서점 앱' 줄 · 더하기·빼기·순서", "", onStoreEdit)
+        }
         Group("읽기") {
             ValueRow("본문 글꼴", "나눔명조 · ASH 바탕 · ASH 부리", s.font.label.substringBefore(" (")) {
                 onChange { it.copy(font = kr.vici.ashreader.data.BodyFont.entries[(it.font.ordinal + 1) % 3]) }
@@ -222,12 +231,10 @@ fun AppSettingsScreen(s: Settings, onChange: ((Settings) -> Settings) -> Unit, o
                 info = if (Links.isInstalled(context, Links.MALGEUL)) "말글사전이 설치되어 있어요. 본문 글자 선택에서 '사전'을 누르면 바로 찾아요."
                 else "말글사전이 설치되어 있지 않아요. 말글사전 APK를 설치하세요. 그동안은 다른 사전 앱을 고를 수 있어요."
             }
-            ValueRow("구매한 책 열기", "서재 위 바로가기", "예스24") {
-                if (!Links.launch(context, Links.YES24)) info = "예스24 eBook 앱이 설치되어 있지 않아요."
-            }
         }
         Group("정보") {
             ValueRow("백업·내보내기", "서재·책갈피·메모·형광펜·기록을 파일로 저장하거나 가져오기", "") { backupOpen = true }
+            ValueRow("형광펜·메모 모두 내보내기", ".txt 또는 .md 로 저장하거나 공유", "", onExportAll)
             SwitchRow("한 번만 보기 기록 지우기", "앱 닫으면 지워요", s.clearOnceOnExit) { v -> onChange { it.copy(clearOnceOnExit = v) }; if (v) onClearOnce() }
             ValueRow("오픈소스 라이선스", "AGPL-3.0 · 사용한 라이브러리", "", onLicenses)
             ValueRow("버전", "", AppInfo.VERSION_LABEL) {}

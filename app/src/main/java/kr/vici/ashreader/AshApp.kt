@@ -10,8 +10,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kr.vici.ashreader.data.AshDb
+import kr.vici.ashreader.data.Collector
 import kr.vici.ashreader.data.LibraryRepo
 import kr.vici.ashreader.data.Prefs
+import kr.vici.ashreader.data.StoreRepo
 
 class AshApp : Application() {
     /** 화면과 상관없이 끝까지 해야 하는 정리 작업(캐시 지우기 등). */
@@ -19,6 +21,10 @@ class AshApp : Application() {
     val db: AshDb by lazy { AshDb.get(this) }
     val prefs: Prefs by lazy { Prefs(this) }
     val library: LibraryRepo by lazy { LibraryRepo(this, db) }
+    /** 서재 수집(F-01). */
+    val collector: Collector by lazy { Collector(this, db) }
+    /** 서점 바로가기(F-36). */
+    val stores: StoreRepo by lazy { StoreRepo(this, db) }
 }
 
 val Context.ash: AshApp get() = applicationContext as AshApp
@@ -26,7 +32,7 @@ val Context.ash: AshApp get() = applicationContext as AshApp
 /** 다른 앱 연결 (F-36 서점 바로가기, F-66 사전). 인터넷 없이 인텐트만 쓴다. */
 object Links {
     /** 예스24 eBook 앱(실제 APK 로 확인, 시작 화면 com.yes24.ebook.fourth.MainActivity). 매니페스트 <queries> 와 같이 바꿀 것. */
-    const val YES24 = "com.yes24.ebook.fourth"
+    const val YES24 = StoreRepo.YES24
     const val MALGEUL = "kr.vici.malgeul"
 
     fun isInstalled(context: Context, pkg: String): Boolean =
@@ -38,6 +44,10 @@ object Links {
         context.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         return true
     }
+
+    /** Play 스토어(market://)를 여는 앱이 있나(없으면 '설치 안 됨' 안내만, F-36). 매니페스트 <queries> 에 market 인텐트 선언. */
+    fun hasStore(context: Context): Boolean =
+        Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + YES24)).resolveActivity(context.packageManager) != null
 
     /** Play 스토어 앱 상세(스토어 앱이 없으면 false). market:// 은 인터넷 권한이 필요 없다. */
     fun openStore(context: Context, pkg: String): Boolean = try {

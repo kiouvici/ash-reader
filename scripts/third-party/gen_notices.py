@@ -16,13 +16,16 @@ app/src/main/assets/licenses/{index.json,texts/*.txt}(앱 S-52 화면)를 만든
   --ncnn-zip        ncnn-20261020-full-source.zip
   --realcugan       nihui/realcugan-ncnn-vulkan 395302c 체크아웃(LICENSE)
   --canonical       SPDX 표준 원문 폴더(Apache-2.0.txt, MIT.txt, OFL-1.1.txt …; rustup 의 share/doc/rust/licenses)
+  --convert-tp      engine-convert/build/third_party (fetch-third-party.sh 결과: libmobi, libmspack)
+  --djvu-tp         engine-djvu/build/third_party (fetch-third-party.sh 결과: djvulibre)
 사용 예:
   (cd engine-hwp/rust && cargo metadata --format-version 1 --filter-platform aarch64-linux-android > /tmp/meta.json)
   ./gradlew --no-configuration-cache :app:ashThirdPartyDeps   # 또는 CI compile 작업의 third-party-android 아티팩트
   python3 scripts/third-party/gen_notices.py --cargo-metadata /tmp/meta.json --android-deps app/build/third-party \
       --mupdf engine-mupdf/build/mupdf-src --libarchive engine-comic/build/third_party/libarchive \
       --ncnn-zip ncnn-20261020-full-source.zip --realcugan realcugan-ncnn-vulkan \
-      --canonical "$(rustc --print sysroot)/share/doc/rust/licenses"
+      --canonical "$(rustc --print sysroot)/share/doc/rust/licenses" \
+      --convert-tp engine-convert/build/third_party --djvu-tp engine-djvu/build/third_party
 의존성(Cargo.lock·libs.versions.toml·엔진 판)을 바꾸면 다시 돌려 함께 커밋한다.
 """
 import argparse
@@ -180,6 +183,36 @@ def comic(n, args):
           "", "njean42/kumiko 의 처리 순서를 순수 Kotlin 으로 옮겨 씀(engine-comic PanelDetector)")
 
 
+# ---------------------------------------------------------------- 문서 변환·DjVu 엔진 (engine-convert, engine-djvu)
+def convert_djvu(n, args):
+    g = "문서 변환·DjVu 엔진 (C·C++)"
+    conv = read(os.path.join(ROOT, "engine-convert/scripts/fetch-third-party.sh"))
+    mobi_dir = os.path.join(args.convert_tp, "libmobi")
+    m = re.search(r"AC_INIT\(\[libmobi\], \[([^\]]+)\]", read(os.path.join(mobi_dir, "configure.ac")))
+    ids = [n.text(read(os.path.join(mobi_dir, "COPYING")), "GNU LGPL 3.0")]
+    gpl3 = canon(args, "GPL-3.0-or-later")  # LGPL 3.0 은 GPL 3.0 원문과 함께 준다
+    if gpl3:
+        ids.append(n.text(gpl3, "GNU GPL 3.0"))
+    n.add(g, "libmobi", m.group(1) if m else "", "LGPL-3.0-or-later", ids,
+          "Copyright (c) Bartek Fabiszewski",
+          "MOBI·AZW3(KF8) → EPUB 재구성. 암호 해제(USE_ENCRYPTION) 빼고 정적 링크(engine-convert). 내장 miniz(MIT)·xmlwriter 포함")
+    mz = read(os.path.join(mobi_dir, "src/miniz.c"))
+    i = mz.find("This is free and unencumbered software")
+    unl = mz[i:].split("*/", 1)[0].strip() if i >= 0 else mz.split("*/", 1)[0]
+    n.add(g, "miniz (libmobi 포함)", "1.15", "Unlicense", [n.text(unl, "miniz.c — unlicense")], "Rich Geldreich",
+          "libmobi 에 함께 들어 있는 판(src/miniz.c), 공개 도메인")
+    msp = os.path.join(args.convert_tp, "libmspack/libmspack")
+    sha = re.search(r"libmspack\.git - ([0-9a-f]{40})", conv)
+    n.add(g, "libmspack", sha.group(1)[:7] if sha else "", "LGPL-2.1-only", [n.text(read(os.path.join(msp, "COPYING.LIB")), "GNU LGPL 2.1")],
+          "(C) 2003-2019 Stuart Caie", "CHM 풀기(chmd·lzxd)만 정적 링크(engine-convert)")
+    dj = os.path.join(args.djvu_tp, "djvulibre")
+    cr = read(os.path.join(dj, "COPYRIGHT"))
+    n.add(g, "DjVuLibre", "3.5.30", "GPL-2.0-or-later",
+          [n.text(read(os.path.join(dj, "COPYING")), "GNU GPL 2.0"), n.text(cr, "DjVuLibre COPYRIGHT")],
+          "Copyright (c) 2002 Leon Bottou and Yann Le Cun; Copyright (c) 2001 AT&T; Copyright (c) 1999-2001 LizardTech, Inc.",
+          "DjVu 쪽 그리기(libdjvu, engine-djvu). 'GPL v2 또는 (선택에 따라) 그 이후 판'이라 AGPL-3.0-or-later 앱과 함께 배포(D-001 A안)")
+
+
 # ---------------------------------------------------------------- Rust (engine-hwp)
 LIC_FILE = re.compile(r"(?i)^(licen[cs]e|copying|notice|unlicense|copyright)")
 
@@ -312,7 +345,7 @@ def fonts(n, args):
 
 def main():
     ap = argparse.ArgumentParser()
-    for a in ["cargo-metadata", "android-deps", "mupdf", "libarchive", "ncnn-zip", "realcugan", "canonical"]:
+    for a in ["cargo-metadata", "android-deps", "mupdf", "libarchive", "ncnn-zip", "realcugan", "canonical", "convert-tp", "djvu-tp"]:
         ap.add_argument("--" + a, required=True)
     args = ap.parse_args()
     n = Notices()
@@ -320,6 +353,7 @@ def main():
     mupdf(n, args)
     rust(n, args)
     comic(n, args)
+    convert_djvu(n, args)
     android(n, args)
     fonts(n, args)
 
@@ -344,7 +378,7 @@ def main():
     L.append("ASH Reader 는 GNU Affero General Public License v3.0 or later 로 배포된다.")
     L.append("소스 코드: https://github.com/kiouvici/ash-reader")
     L.append("이 파일은 scripts/third-party/gen_notices.py 가 실제 빌드 입력(Cargo 해석 결과, Gradle 실행 클래스패스,")
-    L.append("MuPDF Android.mk, engine-comic 받기 스크립트, 앱 글꼴)에서 만든다. 손으로 고치지 말 것.")
+    L.append("MuPDF Android.mk, engine-comic·engine-convert·engine-djvu 받기 스크립트, 앱 글꼴)에서 만든다. 손으로 고치지 말 것.")
     L.append("")
     groups = []
     for c in n.items:

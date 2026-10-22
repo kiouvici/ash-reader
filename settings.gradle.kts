@@ -23,3 +23,5 @@ include(":engine-mupdf") // MuPDF + 한국어 줄바꿈 패치 (실험 ④)
 include(":engine-hwp") // rhwp + resvg (실험 ①)
 include(":engine-office") // DOCX·DOC·암호 DOCX (실험 ②)
 include(":engine-comic") // 만화 CBZ·CBR + 칸 인식 + Real-CUGAN (실험 ⑤)
+include(":engine-convert") // MOBI·AZW3(libmobi)·CHM(libmspack) → 합성 EPUB, TXT 인코딩 판별
+include(":engine-djvu") // DjVu (DjVuLibre)

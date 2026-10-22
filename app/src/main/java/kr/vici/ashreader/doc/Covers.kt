@@ -18,6 +18,7 @@ import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.Settings
 import kr.vici.ashreader.engine.comic.ComicArchive
 import kr.vici.ashreader.engine.comic.ComicFormat
+import kr.vici.ashreader.engine.djvu.DjvuDoc
 import kr.vici.ashreader.engine.hwp.HwpDoc
 import kr.vici.ashreader.engine.mupdf.MupdfDoc
 import kr.vici.ashreader.office.Cfb
@@ -29,7 +30,8 @@ import kr.vici.ashreader.office.Cfb
  * - PDF·XPS: 첫 쪽 / CBZ·CBR: 첫 그림
  * - DOCX: 첫 내장 그림 → 없으면 첫 쪽(이북식 변환)
  * - HWP·HWPX: 미리보기 그림(PrvImage) → 없으면 첫 쪽(rhwp)
- * - TXT 등: 없음(색 상자 유지)
+ * - DjVu: 첫 쪽
+ * - TXT·MOBI·AZW3·CHM 등: 없음(색 상자 유지)
  */
 object Covers {
     const val WIDTH = 300
@@ -46,7 +48,7 @@ object Covers {
 
     fun supported(f: DocFormat) = when (f) {
         DocFormat.EPUB, DocFormat.PDF, DocFormat.XPS, DocFormat.CBZ, DocFormat.CBR,
-        DocFormat.DOCX, DocFormat.HWP, DocFormat.HWPX -> true
+        DocFormat.DOCX, DocFormat.HWP, DocFormat.HWPX, DocFormat.DJVU -> true
         else -> false
     }
 
@@ -97,6 +99,7 @@ object Covers {
         DocFormat.DOCX -> docxImage(file) ?: docxFirstPage(context, file)
         DocFormat.HWPX -> hwpxPreview(file) ?: hwpFirstPage(context, file)
         DocFormat.HWP -> hwpPreview(file) ?: hwpFirstPage(context, file)
+        DocFormat.DJVU -> DjvuDoc.open(file.absolutePath).use { d -> if (d.pageCount() > 0) d.renderPage(0, WIDTH) else null }
         else -> null
     }
 

@@ -76,7 +76,7 @@ jobs:
       # 필수 1: minSdk 26 보다 새 API(NewApi)를 쓰면 실패. app·엔진 모듈 모두 (lint 설정은 각 모듈 build.gradle.kts)
       - name: Lint NewApi (app + engines)
         shell: bash
-        run: .github/scripts/gradle-annotate.sh :app:lintDebug :engine-comic:lintDebug :engine-hwp:lintDebug :engine-mupdf:lintDebug :engine-office:lintDebug :pagecurl:lintDebug
+        run: .github/scripts/gradle-annotate.sh :app:lintDebug :engine-comic:lintDebug :engine-hwp:lintDebug :engine-mupdf:lintDebug :engine-office:lintDebug :engine-convert:lintDebug :engine-djvu:lintDebug :pagecurl:lintDebug
 
       # C1: 배포 APK 에 들어가는 외부 모듈·라이선스 목록(THIRD_PARTY_NOTICES 갱신 근거). 실패해도 빌드는 계속.
       - name: List third-party Android dependencies
@@ -211,7 +211,7 @@ jobs:
 
       - name: Unit tests
         shell: bash
-        run: .github/scripts/gradle-annotate.sh :app:testDebugUnitTest :engine-office:testDebugUnitTest :bench:testDebugUnitTest :pagecurl:testDebugUnitTest :engine-comic:testDebugUnitTest
+        run: .github/scripts/gradle-annotate.sh :app:testDebugUnitTest :engine-office:testDebugUnitTest :bench:testDebugUnitTest :pagecurl:testDebugUnitTest :engine-comic:testDebugUnitTest :engine-convert:testDebugUnitTest
 
       - name: Assemble debug & release (app, bench)
         shell: bash

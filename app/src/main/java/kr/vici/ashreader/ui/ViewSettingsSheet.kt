@@ -4,6 +4,8 @@ package kr.vici.ashreader.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,13 +37,17 @@ import kr.vici.ashreader.data.BodyFont
 import kr.vici.ashreader.data.Prefs
 import kr.vici.ashreader.data.ReadTheme
 import kr.vici.ashreader.data.Settings
+import kr.vici.ashreader.engine.convert.TextEncoding
 
 private enum class AaTab(val label: String) { TEXT("글자"), THEME("테마"), PARA("문단") }
+
+/** TXT 인코딩 고르기(F-32). [chosen] = 사용자가 고른 것(null = 자동), [detected] = 지금 연 인코딩. */
+class TxtEncodingUi(val chosen: TextEncoding.Kind?, val detected: TextEncoding.Kind?, val onPick: (TextEncoding.Kind?) -> Unit)
 
 /** S-24 보기 설정('Aa'). 바꾼 값은 시트를 닫을 때가 아니라 바로 저장된다(문서는 닫힌 뒤 다시 배치). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ViewSettingsSheet(s: Settings, reflowable: Boolean, onChange: ((Settings) -> Settings) -> Unit, onDismiss: () -> Unit) {
+fun ViewSettingsSheet(s: Settings, reflowable: Boolean, onChange: ((Settings) -> Settings) -> Unit, onDismiss: () -> Unit, txt: TxtEncodingUi? = null) {
     var tab by remember { mutableStateOf(AaTab.TEXT) }
     val cs = MaterialTheme.colorScheme
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -80,6 +86,15 @@ fun ViewSettingsSheet(s: Settings, reflowable: Boolean, onChange: ((Settings) ->
                     Stepper("글자 크기", "${s.fontSize}", small = "가", big = "가",
                         onMinus = { onChange { it.copy(fontSize = (it.fontSize - 1).coerceAtLeast(Prefs.MIN_SIZE)) } },
                         onPlus = { onChange { it.copy(fontSize = (it.fontSize + 1).coerceAtMost(Prefs.MAX_SIZE)) } })
+                    if (txt != null) {
+                        Text("글자 인코딩 (TXT)", fontSize = 13.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 16.dp))
+                        Text("글자가 깨져 보이면 바꿔 보세요. 이 책에만 적용돼요.", fontSize = 12.sp, color = cs.onSurfaceVariant)
+                        Row(Modifier.padding(vertical = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val auto = "자동" + (if (txt.chosen == null && txt.detected != null) " (${txt.detected.label})" else "")
+                            Pill(auto, txt.chosen == null) { txt.onPick(null) }
+                            TextEncoding.Kind.entries.forEach { k -> Pill(k.label, txt.chosen == k) { txt.onPick(k) } }
+                        }
+                    }
                 }
                 AaTab.THEME -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ReadTheme.entries.forEach { t ->

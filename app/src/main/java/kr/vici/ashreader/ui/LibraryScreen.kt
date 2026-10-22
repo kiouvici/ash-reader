@@ -28,14 +28,14 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,9 +57,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kr.vici.ashreader.Links
 import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.DocFormat
+import kr.vici.ashreader.data.StoreApp
 import kr.vici.ashreader.data.progress
 import kr.vici.ashreader.doc.Covers
 
@@ -75,18 +75,24 @@ fun LibraryScreen(
     onSeries: (String) -> Unit,
     onRemove: (Book) -> Unit,
     modifier: Modifier = Modifier,
+    stores: List<StoreApp> = emptyList(),
+    scanning: Boolean = false,
+    onRefresh: () -> Unit = {},
+    onFolders: () -> Unit = {},
+    onStoreEdit: () -> Unit = {},
+    onExport: (Book) -> Unit = {},
 ) {
-    val context = LocalContext.current
     var shelf by rememberSaveable { mutableStateOf(Shelf.RECENT) }
+    // -1 = 전체, 0~2 = 상태(F-71), FAVORITES = 즐겨찾기
     var status by rememberSaveable { mutableStateOf(-1) }
     var query by rememberSaveable { mutableStateOf<String?>(null) }
-    var storeMissing by remember { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<Book?>(null) }
     var listMode by rememberSaveable { mutableStateOf(false) }
+    var more by remember { mutableStateOf(false) }
 
     val cont = books.firstOrNull { it.status == Book.READING && it.lastOpenedAt > 0 }
     val filtered = books
-        .filter { status < 0 || it.status == status }
+        .filter { status < 0 || (status == FAVORITES && it.favorite) || it.status == status }
         .filter { q -> query.isNullOrBlank() || q.title.contains(query!!, ignoreCase = true) }
         .let { l -> if (shelf == Shelf.ALL) l.sortedBy { it.title } else l }
 
@@ -103,22 +109,26 @@ fun LibraryScreen(
                     Text("서재", fontFamily = Myeongjo, fontWeight = FontWeight.Bold, fontSize = 24.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
                     IconButton(onClick = { query = if (query == null) "" else null }, modifier = Modifier.size(48.dp)) { Icon(Icons.Search, contentDescription = "검색") }
                     IconButton(onClick = { listMode = !listMode }, modifier = Modifier.size(48.dp)) { Icon(Icons.Grid, contentDescription = "보기 전환") }
+                    Box {
+                        IconButton(onClick = { more = true }, modifier = Modifier.size(48.dp)) { Icon(Icons.More, contentDescription = "더 보기") }
+                        DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                            DropdownMenuItem(text = { Text("새로고침(폴더 다시 모으기)") }, onClick = { more = false; onRefresh() }, modifier = Modifier.heightIn(min = 48.dp))
+                            DropdownMenuItem(text = { Text("모으는 폴더 관리") }, onClick = { more = false; onFolders() }, modifier = Modifier.heightIn(min = 48.dp))
+                        }
+                    }
                 }
+                if (scanning) LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 8.dp).semantics { contentDescription = "폴더에서 책을 모으는 중" })
                 if (query != null) {
                     OutlinedTextField(value = query!!, onValueChange = { query = it }, singleLine = true, placeholder = { Text("제목으로 찾기") }, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp))
                 }
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Shelf.entries.forEach { s -> Pill(s.label, s == shelf) { shelf = s } }
                 }
-                Text("내 서점 앱", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 12.dp)) {
-                    StoreChip("예스24", dashed = false) { if (!Links.launch(context, Links.YES24)) storeMissing = true }
-                    StoreChip("+ 책 추가", dashed = true, onClick = onAdd)
-                }
-                if (cont != null) ContinueCard(cont) { onOpen(cont) }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
-                    listOf(Book.READING to "읽는 중", Book.TO_READ to "읽을 책", Book.DONE to "다 읽음").forEach { (st, label) ->
-                        val n = books.count { it.status == st }
+                StoreRow(stores, onEdit = onStoreEdit, onAddBook = onAdd)
+                if (cont != null && shelf == Shelf.RECENT) ContinueCard(cont) { onOpen(cont) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 12.dp)) {
+                    listOf(Book.READING to "읽는 중", Book.TO_READ to "읽을 책", Book.DONE to "다 읽음", FAVORITES to "★ 즐겨찾기").forEach { (st, label) ->
+                        val n = books.count { if (st == FAVORITES) it.favorite else it.status == st }
                         val on = status == st
                         Box(
                             Modifier.clip(RoundedCornerShape(8.dp))
@@ -130,7 +140,12 @@ fun LibraryScreen(
                     }
                 }
                 if (books.isEmpty()) {
-                    Text("아직 책이 없어요. '+ 책 추가'를 눌러 기기에 있는 파일을 서재에 넣으세요.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(vertical = 24.dp))
+                    Column(Modifier.padding(vertical = 24.dp)) {
+                        Text("아직 책이 없어요", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                        Text("다운로드 폴더에 파일을 넣거나, 다른 앱에서 파일을 'ASH Reader로 열기' 해 보세요.", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
+                        androidx.compose.material3.OutlinedButton(onClick = onFolders, modifier = Modifier.heightIn(min = 48.dp)) { Text("폴더 추가하기") }
+                    }
                 }
             }
         }
@@ -162,24 +177,18 @@ fun LibraryScreen(
         }
     }
 
-    if (storeMissing) {
-        AlertDialog(
-            onDismissRequest = { storeMissing = false },
-            text = { Text("예스24 eBook 앱이 설치되어 있지 않아요. Play 스토어에서 볼까요?") },
-            confirmButton = { TextButton(onClick = { storeMissing = false; Links.openStore(context, Links.YES24) }) { Text("Play 스토어 열기") } },
-            dismissButton = { TextButton(onClick = { storeMissing = false }) { Text("닫기") } },
-        )
-    }
     menuFor?.let { b ->
-        AlertDialog(
-            onDismissRequest = { menuFor = null },
-            title = { Text(b.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-            text = { Text("${DocFormat.of(b.format).badge} · ${b.sizeBytes / 1024}KB · ${b.folder}") },
-            confirmButton = { TextButton(onClick = { menuFor = null; onOpen(b) }) { Text("열기") } },
-            dismissButton = { TextButton(onClick = { menuFor = null; onRemove(b) }) { Text("서재에서 빼기") } },
+        BookMenuSheet(
+            b, onDismiss = { menuFor = null },
+            onOpen = { menuFor = null; onOpen(b) },
+            onRemove = { menuFor = null; onRemove(b) },
+            onExport = { menuFor = null; onExport(b) },
         )
     }
 }
+
+/** 상태 칩 '즐겨찾기' 값(F-71). */
+private const val FAVORITES = 3
 
 @Composable
 private fun SectionTitle(t: String) = Text(t, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
@@ -194,23 +203,6 @@ fun Pill(label: String, selected: Boolean, onClick: () -> Unit) {
             .heightIn(min = 48.dp).padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) { Text(label, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal, color = if (selected) cs.onPrimary else cs.onSurface) }
-}
-
-@Composable
-private fun StoreChip(label: String, dashed: Boolean, onClick: () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    Row(
-        Modifier.clip(RoundedCornerShape(12.dp))
-            .then(if (dashed) Modifier.border(1.dp, cs.outline, RoundedCornerShape(12.dp)) else Modifier.background(cs.surfaceContainer).border(1.dp, cs.outlineVariant, RoundedCornerShape(12.dp)))
-            .clickable(onClick = onClick)
-            .heightIn(min = 48.dp).padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // TODO(D-009): 서점 앱 아이콘은 설치된 앱 아이콘을 쓰거나 ChatGPT 제작 그림으로 교체
-        if (!dashed) Box(Modifier.size(24.dp).clip(RoundedCornerShape(6.dp)).background(cs.outlineVariant))
-        Text(label, fontSize = 14.sp, color = if (dashed) cs.onSurfaceVariant else cs.onSurface)
-    }
 }
 
 @Composable
@@ -260,6 +252,7 @@ fun Cover(b: Book, modifier: Modifier = Modifier) {
             )
         }
         Badge(f, Modifier.align(Alignment.BottomStart).padding(6.dp))
+        if (b.favorite) Text("★", fontSize = 16.sp, color = Ash.Gold, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).semantics { contentDescription = "즐겨찾기" })
     }
 }
 
@@ -279,7 +272,7 @@ private fun BookTile(b: Book, list: Boolean, onClick: () -> Unit, onLong: () -> 
         Row(mod.heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Badge(DocFormat.of(b.format))
             Column(Modifier.weight(1f)) {
-                Text(b.title, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text((if (b.favorite) "★ " else "") + b.title, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${(b.progress() * 100).toInt()}%", fontSize = 12.sp, color = cs.onSurfaceVariant)
             }
         }

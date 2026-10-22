@@ -37,6 +37,18 @@ data class Book(
     val volume: Int = 0,
     /** 한글 문서 보기 방식: 0 = 원본, 1 = 이북식(F-28). 다시 열 때 이 방식으로 연다. */
     @ColumnInfo(defaultValue = "0") val viewMode: Int = 0,
+    /** 즐겨찾기(F-71). */
+    @ColumnInfo(defaultValue = "0") val favorite: Boolean = false,
+    /** TXT 인코딩 수동 지정(F-32): "" = 자동, 아니면 TextEncoding.Kind 이름. */
+    @ColumnInfo(defaultValue = "''") val textEncoding: String = "",
+    /** 어디서 왔나: [ORIGIN_COPY] 앱 안 사본 / [ORIGIN_FILE] 폴더 수집(파일 경로) / [ORIGIN_SAF] 폴더 수집(SAF, [sourceUri]). */
+    @ColumnInfo(defaultValue = "0") val origin: Int = ORIGIN_COPY,
+    /** SAF 로 모은 문서의 content:// 주소(열 때 캐시로 복사). */
+    @ColumnInfo(defaultValue = "''") val sourceUri: String = "",
+    /** 수집 때 본 파일 수정 시각(크기·시각이 같으면 해시를 다시 내지 않음). */
+    @ColumnInfo(defaultValue = "0") val fileMtime: Long = 0,
+    /** 0 = 보임, [HIDDEN_MISSING] = 파일이 없어짐(다시 찾으면 이어짐), [HIDDEN_REMOVED] = 사용자가 서재에서 뺌(다시 모으지 않음). */
+    @ColumnInfo(defaultValue = "0") val hidden: Int = 0,
 ) {
     companion object {
         const val TO_READ = 0
@@ -46,8 +58,32 @@ data class Book(
         const val VIEW_EBOOK = 1
         /** 그림만 든 PDF 를 만화 보기로(칸 단위·AI 화질). */
         const val VIEW_COMIC = 2
+        const val ORIGIN_COPY = 0
+        const val ORIGIN_FILE = 1
+        const val ORIGIN_SAF = 2
+        const val HIDDEN_MISSING = 1
+        const val HIDDEN_REMOVED = 2
     }
 }
+
+/** 서재 '내 서점 앱' 바로가기 한 줄(F-36). [ord] 작은 것부터. */
+@Entity(tableName = "store_app")
+data class StoreApp(
+    @PrimaryKey val pkg: String,
+    val label: String,
+    val ord: Int,
+)
+
+/** 서재가 모으는 폴더·빼는 폴더(F-01). [path] = 절대 경로 또는 SAF 폴더 content:// 주소. */
+@Entity(tableName = "scan_folder")
+data class ScanFolder(
+    @PrimaryKey val path: String,
+    /** true = 모으는 폴더, false = 빼는 폴더 */
+    val include: Boolean,
+    /** 화면에 보일 이름(예: "Download/소설") */
+    val label: String,
+    val addedAt: Long = System.currentTimeMillis(),
+)
 
 /**
  * 보기 방식·쪽 나눔과 무관한 위치(F-28): 문서 전체에서의 비율 0..1 (-1 = 모름, 옛 기록).
@@ -120,16 +156,16 @@ data class BookTime(val bookId: String, val total: Long)
 
 @Dao
 interface BookDao {
-    @Query("SELECT * FROM book ORDER BY CASE WHEN lastOpenedAt = 0 THEN addedAt ELSE lastOpenedAt END DESC")
+    @Query("SELECT * FROM book WHERE hidden = 0 ORDER BY CASE WHEN lastOpenedAt = 0 THEN addedAt ELSE lastOpenedAt END DESC")
     fun recent(): Flow<List<Book>>
 
     @Query("SELECT * FROM book WHERE id = :id")
     suspend fun get(id: String): Book?
 
-    @Query("SELECT * FROM book WHERE seriesKey = :key AND seriesKey != '' ORDER BY volume")
+    @Query("SELECT * FROM book WHERE seriesKey = :key AND seriesKey != '' AND hidden = 0 ORDER BY volume")
     fun series(key: String): Flow<List<Book>>
 
-    @Query("SELECT * FROM book WHERE seriesKey = :key AND volume = :volume LIMIT 1")
+    @Query("SELECT * FROM book WHERE seriesKey = :key AND volume = :volume AND hidden = 0 LIMIT 1")
     suspend fun volume(key: String, volume: Int): Book?
 
     @Upsert
@@ -143,6 +179,51 @@ interface BookDao {
 
     @Query("DELETE FROM book WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("UPDATE book SET favorite = :fav WHERE id = :id")
+    suspend fun setFavorite(id: String, fav: Boolean)
+
+    @Query("UPDATE book SET status = :status WHERE id = :id")
+    suspend fun setStatus(id: String, status: Int)
+
+    @Query("UPDATE book SET lastPage = 0, status = CASE WHEN status = 2 THEN 1 ELSE status END WHERE id = :id")
+    suspend fun restart(id: String)
+
+    @Query("UPDATE book SET textEncoding = :enc WHERE id = :id")
+    suspend fun setEncoding(id: String, enc: String)
+
+    @Query("UPDATE book SET hidden = :hidden WHERE id = :id")
+    suspend fun setHidden(id: String, hidden: Int)
+
+    /** 폴더에서 모은 문서(수집 대상). */
+    @Query("SELECT * FROM book WHERE origin != 0")
+    suspend fun collected(): List<Book>
+
+    // ---- 서점 바로가기(F-36)
+    @Query("SELECT * FROM store_app ORDER BY ord, label")
+    fun storeApps(): Flow<List<StoreApp>>
+
+    @Query("SELECT * FROM store_app ORDER BY ord, label")
+    suspend fun allStoreApps(): List<StoreApp>
+
+    @Upsert
+    suspend fun upsertStoreApps(apps: List<StoreApp>)
+
+    @Query("DELETE FROM store_app WHERE pkg = :pkg")
+    suspend fun deleteStoreApp(pkg: String)
+
+    // ---- 모으는·빼는 폴더(F-01)
+    @Query("SELECT * FROM scan_folder ORDER BY include DESC, addedAt")
+    fun scanFolders(): Flow<List<ScanFolder>>
+
+    @Query("SELECT * FROM scan_folder")
+    suspend fun allScanFolders(): List<ScanFolder>
+
+    @Upsert
+    suspend fun upsertScanFolder(f: ScanFolder)
+
+    @Query("DELETE FROM scan_folder WHERE path = :path")
+    suspend fun deleteScanFolder(path: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addBookmark(b: Bookmark)
@@ -191,7 +272,7 @@ interface BookDao {
     @Query("SELECT * FROM session") suspend fun allSessions(): List<ReadingSession>
 }
 
-@Database(entities = [Book::class, Bookmark::class, Note::class, ReadingSession::class, Highlight::class], version = 3, exportSchema = false)
+@Database(entities = [Book::class, Bookmark::class, Note::class, ReadingSession::class, Highlight::class, StoreApp::class, ScanFolder::class], version = 4, exportSchema = false)
 abstract class AshDb : RoomDatabase() {
     abstract fun books(): BookDao
 
@@ -216,9 +297,29 @@ abstract class AshDb : RoomDatabase() {
             }
         }
 
+        /**
+         * 3 → 4: 즐겨찾기(F-71)·TXT 인코딩(F-32)·폴더 수집(F-01: 출처·SAF 주소·수정 시각·숨김) 열,
+         * 서점 바로가기(F-36)·모으는 폴더 표. 기존 서재는 모두 앱 안 사본(origin 0)으로 남는다.
+         */
+        val M3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `book` ADD COLUMN `favorite` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `book` ADD COLUMN `textEncoding` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `book` ADD COLUMN `origin` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `book` ADD COLUMN `sourceUri` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `book` ADD COLUMN `fileMtime` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `book` ADD COLUMN `hidden` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `store_app` (`pkg` TEXT NOT NULL, `label` TEXT NOT NULL, `ord` INTEGER NOT NULL, PRIMARY KEY(`pkg`))")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `scan_folder` (`path` TEXT NOT NULL, `include` INTEGER NOT NULL, `label` TEXT NOT NULL, " +
+                        "`addedAt` INTEGER NOT NULL, PRIMARY KEY(`path`))",
+                )
+            }
+        }
+
         @Volatile private var inst: AshDb? = null
         fun get(context: Context): AshDb = inst ?: synchronized(this) {
-            inst ?: Room.databaseBuilder(context.applicationContext, AshDb::class.java, "ash.db").addMigrations(M1_2, M2_3).build().also { inst = it }
+            inst ?: Room.databaseBuilder(context.applicationContext, AshDb::class.java, "ash.db").addMigrations(M1_2, M2_3, M3_4).build().also { inst = it }
         }
     }
 }

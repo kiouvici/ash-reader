@@ -23,11 +23,14 @@ enum class FormatGroup(val title: String) { EBOOK("이북"), TEXT("텍스트"), 
 /** 실제 형식(시그니처 기준, F-05). [engine] = 여는 엔진. */
 enum class DocFormat(val badge: String, val group: FormatGroup, val engine: Engine) {
     EPUB("EPUB", FormatGroup.EBOOK, Engine.MUPDF),
-    MOBI("MOBI", FormatGroup.EBOOK, Engine.MUPDF),
+    MOBI("MOBI", FormatGroup.EBOOK, Engine.CONVERT),
+    AZW3("AZW3", FormatGroup.EBOOK, Engine.CONVERT),
     FB2("FB2", FormatGroup.EBOOK, Engine.MUPDF),
     HTML("HTML", FormatGroup.EBOOK, Engine.MUPDF),
+    CHM("CHM", FormatGroup.EBOOK, Engine.CONVERT),
     TXT("TXT", FormatGroup.TEXT, Engine.MUPDF),
     PDF("PDF", FormatGroup.PDF, Engine.MUPDF),
+    DJVU("DjVu", FormatGroup.PDF, Engine.DJVU),
     XPS("XPS", FormatGroup.PDF, Engine.MUPDF),
     CBZ("CBZ", FormatGroup.COMIC, Engine.COMIC),
     CBR("CBR", FormatGroup.COMIC, Engine.COMIC),
@@ -38,7 +41,8 @@ enum class DocFormat(val badge: String, val group: FormatGroup, val engine: Engi
     RTF("RTF", FormatGroup.WORD, Engine.OFFICE),
     UNKNOWN("?", FormatGroup.TEXT, Engine.NONE);
 
-    enum class Engine { MUPDF, COMIC, HWP, OFFICE, NONE }
+    /** CONVERT = 합성 EPUB 으로 바꿔 MuPDF 로(MOBI·AZW3·CHM, :engine-convert), DJVU = :engine-djvu. */
+    enum class Engine { MUPDF, COMIC, HWP, OFFICE, CONVERT, DJVU, NONE }
 
     /** 글자 크기·줄 간격을 바꿀 수 있는 이북류(이북식 보기). 나머지는 고정 쪽. */
     val reflowable: Boolean get() = group == FormatGroup.EBOOK || group == FormatGroup.TEXT || group == FormatGroup.WORD
@@ -51,17 +55,34 @@ enum class DocFormat(val badge: String, val group: FormatGroup, val engine: Engi
 object FormatDetector {
     private val IMAGE = Regex(".*\\.(jpe?g|png|webp|gif|bmp|avif)$", RegexOption.IGNORE_CASE)
 
-    fun detect(file: File, displayName: String): DocFormat {
+    /** 서재가 모으는 확장자(F-01 수집). 실제 형식은 시그니처로 다시 본다. */
+    val EXTENSIONS = setOf(
+        "epub", "mobi", "azw", "azw3", "fb2", "htm", "html", "xhtml", "chm", "txt", "text", "pdf", "djvu", "djv",
+        "cbz", "cbr", "zip", "hwp", "hwpx", "docx", "doc", "rtf",
+    )
+
+    fun detect(file: File, displayName: String): DocFormat = RandomAccessFile(file, "r").use { f ->
+        detect(ByteSource.of(f), displayName, file)
+    }
+
+    /**
+     * [src] 머리 표본(8KB)과 필요한 곳만 읽어 판별한다. [file] 이 있으면(경로로 읽을 수 있는 파일) ZIP·OLE 안을 자세히 보고,
+     * 없으면(SAF 파일 서술자) ZIP 은 중앙 디렉터리만 직접 읽고 OLE 는 확장자로 가린다.
+     */
+    fun detect(src: ByteSource, displayName: String, file: File? = null): DocFormat {
         val ext = displayName.substringAfterLast('.', "").lowercase()
-        val head = RandomAccessFile(file, "r").use { f ->
-            val n = minOf(f.length(), 8L shl 10).toInt()
-            ByteArray(n).also { f.readFully(it) }
-        }
+        val head = ByteArray(minOf(src.length, 8L shl 10).toInt()).also { src.readFully(0, it) }
         val isZip = head.size >= 4 && head[0] == 'P'.code.toByte() && head[1] == 'K'.code.toByte() && head[2] == 3.toByte() && head[3] == 4.toByte()
-        if (isZip) return zipKind(file, ext)
+        if (isZip) return zipKind(src, file, ext)
         if (head.size >= 7 && String(head, 0, 7, Charsets.US_ASCII).startsWith("Rar!")) return DocFormat.CBR
+        if (head.size >= 16 && String(head, 0, 8, Charsets.ISO_8859_1) == "AT&TFORM" &&
+            String(head, 12, 3, Charsets.ISO_8859_1) == "DJV") return DocFormat.DJVU
+        if (head.size >= 4 && String(head, 0, 4, Charsets.ISO_8859_1) == "ITSF") return DocFormat.CHM
+        mobiKind(src, head, ext)?.let { return it }
         // 필수 4: 머리 표본(8KB)만 본다. OLE(HWP5·DOC·암호 DOCX)는 디렉터리 섹터만 파일에서 읽어 가린다.
-        val sniffed = if (Cfb.isCfb(head)) CfbFile.sniff(file) else FormatSniffer.sniff(head)
+        val sniffed = if (Cfb.isCfb(head)) {
+            if (file != null) CfbFile.sniff(file) else return byExtension(ext)
+        } else FormatSniffer.sniff(head)
         return when (sniffed) {
             SniffedFormat.PDF -> DocFormat.PDF
             SniffedFormat.HWP5, SniffedFormat.HWP3 -> DocFormat.HWP
@@ -72,28 +93,53 @@ object FormatDetector {
         }
     }
 
-    private fun zipKind(file: File, ext: String): DocFormat = runCatching {
-        ZipFile(file).use { z ->
-            val names = z.entries().asSequence().map { it.name }.toList()
-            val mime = z.getEntry("mimetype")?.let { e -> z.getInputStream(e).use { it.readBytes().toString(Charsets.US_ASCII).trim() } }
-            when {
-                mime == "application/epub+zip" -> DocFormat.EPUB
-                "word/document.xml" in names -> DocFormat.DOCX
-                mime == "application/hwp+zip" || "Contents/section0.xml" in names -> DocFormat.HWPX
-                names.any { it.endsWith(".fdseq") } -> DocFormat.XPS
-                names.isNotEmpty() && names.count { IMAGE.matches(it) } * 2 >= names.count { !it.endsWith("/") } -> DocFormat.CBZ
-                else -> byExtension(ext)
-            }
-        }
-    }.getOrElse { byExtension(ext) }
+    /**
+     * Palm 데이터베이스 머리(오프셋 60 'BOOKMOBI') → MOBI 헤더의 파일 판(8 = KF8)으로 AZW3 를 가린다.
+     * KF8 겸용(옛 MOBI + KF8) 파일은 확장자가 azw3 면 AZW3, 아니면 MOBI 로 둔다(여는 길은 같다).
+     */
+    internal fun mobiKind(src: ByteSource, head: ByteArray, ext: String): DocFormat? {
+        if (head.size < 86 || String(head, 60, 8, Charsets.ISO_8859_1) != "BOOKMOBI") return null
+        val rec0 = be32(head, 78)
+        val b = ByteArray(40)
+        val ver = if (rec0 in 78 until src.length - 40 && src.read(rec0, b, 0, 40) == 40 && String(b, 16, 4, Charsets.ISO_8859_1) == "MOBI") be32(b, 36) else 0L
+        return if (ver == 8L || ext == "azw3") DocFormat.AZW3 else DocFormat.MOBI
+    }
 
-    private fun byExtension(ext: String): DocFormat = when (ext) {
+    private fun be32(b: ByteArray, o: Int): Long =
+        ((b[o].toLong() and 0xFF) shl 24) or ((b[o + 1].toLong() and 0xFF) shl 16) or ((b[o + 2].toLong() and 0xFF) shl 8) or (b[o + 3].toLong() and 0xFF)
+
+    private fun zipKind(src: ByteSource, file: File?, ext: String): DocFormat {
+        val listing: Pair<List<String>, String?>? = if (file != null) runCatching {
+            ZipFile(file).use { z ->
+                val names = z.entries().asSequence().map { it.name }.toList()
+                val mime = z.getEntry("mimetype")?.let { e -> if (e.size in 0..256) z.getInputStream(e).use { it.readBytes().toString(Charsets.US_ASCII).trim() } else null }
+                names to mime
+            }
+        }.getOrNull() else null
+        val (names, mime) = listing ?: ZipNames.list(src)?.let { l -> l.map { it.name } to ZipNames.storedText(src, l, "mimetype") } ?: return byExtension(ext)
+        return zipKindOf(names, mime) ?: byExtension(ext)
+    }
+
+    /** ZIP 안 이름·mimetype 으로 형식. 그림이 반 이상인 일반 ZIP 은 만화(CBZ)로 본다(ZIP 그림 묶음 = 만화). */
+    internal fun zipKindOf(names: List<String>, mime: String?): DocFormat? = when {
+        mime == "application/epub+zip" -> DocFormat.EPUB
+        "word/document.xml" in names -> DocFormat.DOCX
+        mime == "application/hwp+zip" || "Contents/section0.xml" in names -> DocFormat.HWPX
+        names.any { it.endsWith(".fdseq") } -> DocFormat.XPS
+        names.isNotEmpty() && names.count { IMAGE.matches(it) } * 2 >= names.count { !it.endsWith("/") } && names.any { IMAGE.matches(it) } -> DocFormat.CBZ
+        else -> null
+    }
+
+    fun byExtension(ext: String): DocFormat = when (ext) {
         "epub" -> DocFormat.EPUB
-        "mobi", "azw", "azw3" -> DocFormat.MOBI
+        "mobi", "azw" -> DocFormat.MOBI
+        "azw3" -> DocFormat.AZW3
         "fb2" -> DocFormat.FB2
         "htm", "html", "xhtml" -> DocFormat.HTML
+        "chm" -> DocFormat.CHM
         "txt", "text", "md" -> DocFormat.TXT
         "pdf" -> DocFormat.PDF
+        "djvu", "djv" -> DocFormat.DJVU
         "xps", "oxps" -> DocFormat.XPS
         "cbz" -> DocFormat.CBZ
         "cbr" -> DocFormat.CBR
@@ -123,18 +169,19 @@ object SeriesParser {
 
 /** 문서 식별 해시(F-63): 크기 + 앞·가운데·뒤 64KB 표본. */
 object DocHash {
-    fun of(file: File): String {
+    fun of(file: File): String = RandomAccessFile(file, "r").use { of(ByteSource.of(it)) }
+
+    /** 경로 없이 읽는 파일(SAF 파일 서술자)도 같은 값이 나온다. */
+    fun of(src: ByteSource): String {
         val md = MessageDigest.getInstance("SHA-256")
-        val len = file.length()
+        val len = src.length
         md.update(len.toString().toByteArray())
-        RandomAccessFile(file, "r").use { f ->
-            val chunk = 64 shl 10
-            for (pos in listOf(0L, maxOf(0L, len / 2 - chunk / 2), maxOf(0L, len - chunk))) {
-                val n = minOf(chunk.toLong(), len - pos).toInt()
-                if (n <= 0) continue
-                val b = ByteArray(n)
-                f.seek(pos); f.readFully(b); md.update(b)
-            }
+        val chunk = 64 shl 10
+        for (pos in listOf(0L, maxOf(0L, len / 2 - chunk / 2), maxOf(0L, len - chunk))) {
+            val n = minOf(chunk.toLong(), len - pos).toInt()
+            if (n <= 0) continue
+            val b = ByteArray(n)
+            src.readFully(pos, b); md.update(b)
         }
         return md.digest().take(16).joinToString("") { "%02x".format(it) }
     }
@@ -177,9 +224,17 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
         addOpened(o, folderOf(uri))
     }
 
-    /** 이미 연 문서(한 번만 보기)를 서재에 넣는다. */
+    /** 이미 연 문서(한 번만 보기)를 서재에 넣는다. 예전에 '서재에서 빼기'한 같은 문서면 다시 보이게 한다. */
     suspend fun addOpened(o: Opened, folder: String = ""): Book = withContext(Dispatchers.IO) {
-        dao.get(o.id)?.let { return@withContext it }
+        dao.get(o.id)?.let { old ->
+            if (old.hidden == 0) return@withContext old
+            // 빼 둔(또는 파일이 없어진) 기록의 읽은 위치·책갈피는 살리고, 파일은 앱 안 사본으로 둔다
+            val dest = File(booksDir, o.file.name)
+            if (o.file.absolutePath != dest.absolutePath) o.file.copyTo(dest, overwrite = true)
+            val b = old.copy(path = dest.absolutePath, origin = Book.ORIGIN_COPY, sourceUri = "", hidden = 0, sizeBytes = dest.length())
+            dao.upsert(b)
+            return@withContext b
+        }
         val dest = File(booksDir, o.file.name)
         if (o.file.absolutePath != dest.absolutePath) o.file.copyTo(dest, overwrite = true)
         val s = SeriesParser.parse(o.title)
@@ -222,11 +277,60 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
     suspend fun sweep(clearCopies: Boolean) = withContext(Dispatchers.IO) {
         val keep = dao.allBooks().map { it.id }.toSet()
         DocCaches.sweep(context, keep)
+        trimSafCache(dao.allBooks().filter { it.hidden == 0 }.map { it.id }.toSet())
         if (clearCopies) clearOnce() else File(context.cacheDir, "office-enc").deleteRecursively()
         onceDir.listFiles()?.filter { it.name.startsWith("tmp-") }?.forEach { it.delete() }
     }
 
+    /**
+     * 읽기 화면이 열 파일 경로(F-01). 앱 안 사본·경로 수집 문서는 그 경로,
+     * SAF 로 모은 문서는 캐시(saf/<id>.<확장자>)로 복사해 연다(크기가 같으면 다시 쓰지 않음). 원본은 읽기만 한다.
+     */
+    suspend fun localPath(b: Book): String = withContext(Dispatchers.IO) {
+        if (b.origin != Book.ORIGIN_SAF) {
+            if (!File(b.path).isFile) throw java.io.FileNotFoundException("파일이 없어졌어요. 옮겨졌거나 지워졌을 수 있어요.")
+            return@withContext b.path
+        }
+        val ext = DocFormat.of(b.format).badge.lowercase()
+        val out = File(safDir, b.id + "." + ext)
+        if (out.isFile && out.length() == b.sizeBytes) { out.setLastModified(System.currentTimeMillis()); return@withContext out.path }
+        val tmp = File(safDir, "tmp-" + System.nanoTime())
+        try {
+            context.contentResolver.openInputStream(Uri.parse(b.sourceUri))?.use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
+                ?: throw java.io.FileNotFoundException("파일을 읽을 수 없어요. 폴더 접근 권한을 다시 확인해 주세요.")
+        } catch (e: SecurityException) {
+            tmp.delete(); throw java.io.FileNotFoundException("폴더 접근 권한이 없어졌어요. 설정 > 서재 > 모으는 폴더에서 다시 골라 주세요.")
+        } catch (e: java.io.IOException) {
+            tmp.delete(); throw e
+        }
+        if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
+        trimSafCache()
+        out.path
+    }
+
+    /** SAF 문서 캐시(필수 5 와 같은 취지): 서재에 없는 것은 지우고, 1GB 를 넘으면 오래 안 연 것부터. */
+    private fun trimSafCache(keep: Set<String>? = null) {
+        val files = safDir.listFiles()?.filter { it.isFile } ?: return
+        if (keep != null) files.filter { it.name.substringBefore('.') !in keep }.forEach { it.delete() }
+        var total = safDir.listFiles()?.sumOf { it.length() } ?: 0L
+        for (f in (safDir.listFiles() ?: emptyArray()).sortedBy { it.lastModified() }) {
+            if (total <= SAF_CACHE_MAX) break
+            total -= f.length(); f.delete()
+        }
+    }
+
+    val safDir: File get() = File(context.cacheDir, "saf").apply { mkdirs() }
+
+    /**
+     * 서재에서 빼기(S-14): 기록만 지우고 기기의 파일은 지우지 않는다.
+     * 폴더에서 모은 문서는 다시 모으지 않도록 '뺌' 표시만 남긴다(책갈피·읽은 위치는 '책 추가'로 다시 넣으면 이어짐).
+     */
     suspend fun remove(b: Book) = withContext(Dispatchers.IO) {
+        if (b.origin != Book.ORIGIN_COPY) {
+            dao.setHidden(b.id, Book.HIDDEN_REMOVED)
+            File(safDir, b.id + "." + DocFormat.of(b.format).badge.lowercase()).delete()
+            return@withContext
+        }
         dao.delete(b.id)
         // 필수 6: 서재 폴더 안의 파일만 지운다(DB 경로가 바깥을 가리키면 지우지 않음)
         insideBooks(booksDir, b.path)?.delete()
@@ -235,6 +339,8 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
     }
 
     companion object {
+        const val SAF_CACHE_MAX = 1L shl 30
+
         /** [path] 가 [booksDir] 안의 파일이면 정규화한 파일, 아니면 null(../·심볼릭 링크로 밖을 가리키는 경로 거부). */
         fun insideBooks(booksDir: File, path: String): File? {
             if (path.isEmpty()) return null
