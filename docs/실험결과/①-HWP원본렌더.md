@@ -26,3 +26,8 @@ CI `Spike engine-hwp` Step Summary: `.so` 크기·16KB 정렬 표, 쪽 수·열�
 ## 남은 일
 - 기준 기기 측정(첫 쪽 5초, N-01), .so 크기 기준 APK 증가량 확정
 - 편람·사업안내 공공누리 유형 확인 후 공개 여부 결정
+
+## CI 결과 (2026-10-22)
+- cargo-ndk 빌드 통과. `.so` 크기(release, libash_hwp.so): arm64-v8a 10.9MB(gzip 4.7MB), x86_64 12.5MB, armeabi-v7a 7.6MB, x86 13.0MB → 배포 APK(arm64 하나)는 약 4.7MB 증가(설계서 예상 5~10MB 이내).
+- 16KB 정렬: arm64-v8a·x86_64 통과. 32비트는 경고만 낸다.
+- 에뮬레이터 시험: 2코어 러너에서 에뮬레이터가 부팅하지 못한다(pagecurl-smoke와 같은 증상). continue-on-error로 두고 측정 앱(PR #5) ① 버튼으로 실기기에서 판정한다.
