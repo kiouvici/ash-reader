@@ -88,11 +88,7 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
-          script: |
-            adb logcat -c
-            ./gradlew --console=plain :engine-mupdf:connectedDebugAndroidTest > gradle-test.log 2>&1 || touch test-failed
-            adb logcat -d -s ASH-LB:* AndroidRuntime:E TestRunner:* > lb.log
-            if [ -f test-failed ]; then tail -40 gradle-test.log | while read -r x; do echo "::error title=gradle::$x"; done; grep -h -A3 "<failure" engine-mupdf/build/outputs/androidTest-results/connected/debug/*.xml 2>/dev/null | head -20 | while read -r x; do echo "::error title=junit::$x"; done; grep -E "FATAL|Exception" lb.log | head -10 | while read -r x; do echo "::error title=logcat::$x"; done; exit 1; fi
+          script: .github/scripts/run-emulator-test.sh engine-mupdf ASH-LB lb.log
 
       - name: Line-break result table
         if: always()
