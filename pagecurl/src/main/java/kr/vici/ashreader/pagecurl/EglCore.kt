@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.pagecurl
 
-import android.graphics.SurfaceTexture
 import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.EGLContext
@@ -9,13 +8,14 @@ import android.opengl.EGLDisplay
 import android.opengl.EGLSurface
 import android.util.Log
 
-/** TextureView 의 SurfaceTexture 에 그리는 EGL14 + GLES 2.0 컨텍스트 (전용 GL 스레드에서만 사용). */
+/** SurfaceView 의 Surface 에 그리는 EGL14 + GLES 2.0 컨텍스트 (전용 GL 스레드에서만 사용). */
 internal class EglCore {
     private var display: EGLDisplay = EGL14.EGL_NO_DISPLAY
     private var context: EGLContext = EGL14.EGL_NO_CONTEXT
     private var surface: EGLSurface = EGL14.EGL_NO_SURFACE
 
-    fun init(surfaceTexture: SurfaceTexture): Boolean {
+    /** [window] = Surface·SurfaceTexture·SurfaceHolder 중 하나 (eglCreateWindowSurface 가 받는 형식). */
+    fun init(window: Any): Boolean {
         display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         val ver = IntArray(2)
         if (!EGL14.eglInitialize(display, ver, 0, ver, 1)) return fail("eglInitialize")
@@ -40,7 +40,7 @@ internal class EglCore {
             intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE), 0,
         )
         if (context == EGL14.EGL_NO_CONTEXT) return fail("eglCreateContext")
-        surface = EGL14.eglCreateWindowSurface(display, config, surfaceTexture, intArrayOf(EGL14.EGL_NONE), 0)
+        surface = EGL14.eglCreateWindowSurface(display, config, window, intArrayOf(EGL14.EGL_NONE), 0)
         if (surface == EGL14.EGL_NO_SURFACE) return fail("eglCreateWindowSurface")
         if (!EGL14.eglMakeCurrent(display, surface, surface, context)) return fail("eglMakeCurrent")
         // vsync 에 맞춰 교체 (기본값이지만 명시)

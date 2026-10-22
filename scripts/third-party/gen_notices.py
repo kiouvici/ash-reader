@@ -278,6 +278,10 @@ def font_names(path):
     return out
 
 
+# 줄인 수정판(OFL 3항: 수정판은 원래 이름을 쓰지 않음) → 고지에는 원래 글꼴 이름으로 싣는다.
+FONT_ORIGIN = {"ASH Batang": "RIDIBatang", "ASH Buri": "MaruBuri"}
+
+
 def fonts(n, args):
     g = "글꼴"
     ofl = canon(args, "OFL-1.1")
@@ -288,12 +292,14 @@ def fonts(n, args):
             continue
         nm = font_names(os.path.join(fd, f))
         family = nm.get(16) or re.sub(r"\s+(Regular|Bold|Light|ExtraBold|Heavy)$", "", nm.get(1, f))
-        fam.setdefault(family, []).append((f, nm))
+        fam.setdefault(FONT_ORIGIN.get(family, family), []).append((f, nm))
     for family, files in fam.items():
         nm = files[0][1]
         ver = (nm.get(5) or "").replace("Version ", "").split(";")[0]
+        cur = nm.get(16) or nm.get(1, "")
+        mod = ("한글·라틴·문장부호·기호만 남기고 힌팅을 뺀 수정판(글꼴 이름 %s). " % cur) if family in FONT_ORIGIN.values() else ""
         n.add(g, family, ver, "OFL-1.1", [n.text(ofl, "SIL Open Font License 1.1")], nm.get(0, ""),
-              "앱에 넣은 파일: " + ", ".join(f for f, _ in files))
+              mod + "앱에 넣은 파일: " + ", ".join(f for f, _ in files))
 
 
 def main():

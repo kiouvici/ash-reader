@@ -6,16 +6,19 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.os.Build
 import android.view.Display
+import android.view.Surface
+import android.view.SurfaceView
 import android.view.View
 
 /**
  * 넘김 중 최고 주사율 요청 (S26U 실측: 120Hz 설정에서도 TextureView 만 갱신되면 약 60fps 로 그려짐).
  *
  * 원인(추정): 가변 주사율 기기는 화면에 '움직이는 내용'이 있다는 투표가 없으면 60Hz 이하로 내린다.
- * TextureView 는 자기 Surface 층이 없어 Surface.setFrameRate 를 쓸 수 없고, 손가락 입력이 없는
- * 자동 넘김에서는 터치 부스트도 없다. 그래서 넘기는 동안만 두 가지로 높은 주사율을 요청한다.
+ * 손가락 입력이 없는 자동 넘김에서는 터치 부스트도 없다. 그래서 넘기는 동안만 높은 주사율을 요청한다.
  *  ① 창 preferredDisplayModeId = 같은 해상도의 최고 주사율 모드 (API 23+)
  *  ② View.setRequestedFrameRate(REQUESTED_FRAME_RATE_CATEGORY_HIGH) (API 35+, ARR 기기)
+ *  ③ SurfaceView 층 Surface.setFrameRate(최고 주사율, FIXED_SOURCE) (API 30+) — 넘김 그림이 그 주사율로 나온다는 투표.
+ *     (TextureView 시절에는 자기 층이 없어 쓸 수 없었다)
  * 넘김이 끝나면 원래 값으로 되돌린다(전력 절약).
  */
 internal object HighRefresh {
@@ -34,6 +37,15 @@ internal object HighRefresh {
     }
 
     fun request(view: View, on: Boolean) {
+        if (Build.VERSION.SDK_INT >= 30 && view is SurfaceView) {
+            runCatching {
+                val sf = view.holder.surface
+                if (sf.isValid) {
+                    val rate = if (on) maxRate(view) ?: 0f else 0f // 0 = 투표 거둠
+                    sf.setFrameRate(rate, Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE)
+                }
+            }
+        }
         if (Build.VERSION.SDK_INT >= 35) {
             runCatching {
                 view.requestedFrameRate = if (on) View.REQUESTED_FRAME_RATE_CATEGORY_HIGH else View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT

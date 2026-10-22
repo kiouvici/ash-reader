@@ -1001,7 +1001,7 @@ MuPDF Android.mk, engine-comic 받기 스크립트, 앱 글꼴)에서 만든다.
 
 - MaruBuri 2.000 — OFL-1.1
     © NAVER Corp. © NAVER Cultural Foundation Corp.
-    앱에 넣은 파일: maruburi_bold.ttf, maruburi_regular.ttf
+    한글·라틴·문장부호·기호만 남기고 힌팅을 뺀 수정판(글꼴 이름 ASH Buri). 앱에 넣은 파일: maruburi_bold.ttf, maruburi_regular.ttf
     원문: [4ebc375d84b0]
 - NanumGothic 3.020 — OFL-1.1
     Copyright © 2011 NHN Corporation. All rights reserved. Font designed by Sandoll Communications Inc.
@@ -1013,7 +1013,7 @@ MuPDF Android.mk, engine-comic 받기 스크립트, 앱 글꼴)에서 만든다.
     원문: [4ebc375d84b0]
 - RIDIBatang 1.0.1 Build 20191001 — OFL-1.1
     Copyright © 2019 RIDI & Sandoll. All rights reserved. Font designed by Sandoll Inc.
-    앱에 넣은 파일: ridibatang.otf
+    한글·라틴·문장부호·기호만 남기고 힌팅을 뺀 수정판(글꼴 이름 ASH Batang). 앱에 넣은 파일: ridibatang.otf
     원문: [4ebc375d84b0]
 
 

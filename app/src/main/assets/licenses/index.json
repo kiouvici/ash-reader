@@ -3849,7 +3849,7 @@
    "version": "2.000",
    "license": "OFL-1.1",
    "copyright": "© NAVER Corp. © NAVER Cultural Foundation Corp.",
-   "note": "앱에 넣은 파일: maruburi_bold.ttf, maruburi_regular.ttf",
+   "note": "한글·라틴·문장부호·기호만 남기고 힌팅을 뺀 수정판(글꼴 이름 ASH Buri). 앱에 넣은 파일: maruburi_bold.ttf, maruburi_regular.ttf",
    "texts": [
     "texts/4ebc375d84b0.txt"
    ]
@@ -3882,7 +3882,7 @@
    "version": "1.0.1 Build 20191001",
    "license": "OFL-1.1",
    "copyright": "Copyright © 2019 RIDI & Sandoll. All rights reserved. Font designed by Sandoll Inc.",
-   "note": "앱에 넣은 파일: ridibatang.otf",
+   "note": "한글·라틴·문장부호·기호만 남기고 힌팅을 뺀 수정판(글꼴 이름 ASH Batang). 앱에 넣은 파일: ridibatang.otf",
    "texts": [
     "texts/4ebc375d84b0.txt"
    ]
