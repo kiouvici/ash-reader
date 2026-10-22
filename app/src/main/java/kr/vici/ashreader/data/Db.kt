@@ -153,6 +153,13 @@ interface BookDao {
 
     @Query("SELECT bookId, SUM(durationMs) AS total FROM session GROUP BY bookId")
     fun timeByBook(): Flow<List<BookTime>>
+
+    // ---- 백업·내보내기(S-53): 한 번에 읽고 쓰기
+    @Query("SELECT * FROM book") suspend fun allBooks(): List<Book>
+    @Query("SELECT * FROM bookmark") suspend fun allBookmarks(): List<Bookmark>
+    @Query("SELECT * FROM note") suspend fun allNotes(): List<Note>
+    @Query("SELECT * FROM highlight") suspend fun allHighlights(): List<Highlight>
+    @Query("SELECT * FROM session") suspend fun allSessions(): List<ReadingSession>
 }
 
 @Database(entities = [Book::class, Bookmark::class, Note::class, ReadingSession::class, Highlight::class], version = 2, exportSchema = false)

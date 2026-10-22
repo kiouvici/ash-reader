@@ -47,6 +47,7 @@ import kr.vici.ashreader.ui.AppSettingsScreen
 import kr.vici.ashreader.ui.AshTheme
 import kr.vici.ashreader.ui.Icons
 import kr.vici.ashreader.ui.LibraryScreen
+import kr.vici.ashreader.ui.LicensesScreen
 import kr.vici.ashreader.ui.NextVolumeSheet
 import kr.vici.ashreader.ui.ReaderScreen
 import kr.vici.ashreader.ui.ReaderTarget
@@ -59,6 +60,7 @@ private sealed interface Screen {
     data object Library : Screen
     data object Stats : Screen
     data object Settings : Screen
+    data object Licenses : Screen
     data class Series(val key: String) : Screen
     data class Reader(val target: ReaderTarget, val book: Book?, val once: LibraryRepo.Opened?) : Screen
 }
@@ -234,7 +236,11 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                         val times by remember { dao.timeByBook() }.collectAsState(initial = emptyList())
                         StatsScreen(week, streakOf(days), books, times.associate { it.bookId to it.total })
                     }
-                    Screen.Settings -> AppSettingsScreen(settings, ::change) { scope.launch { app.library.clearOnce() } }
+                    Screen.Settings -> AppSettingsScreen(settings, ::change, onClearOnce = { scope.launch { app.library.clearOnce() } }, onLicenses = { screen = Screen.Licenses })
+                    Screen.Licenses -> {
+                        BackHandler { screen = Screen.Settings }
+                        LicensesScreen(onBack = { screen = Screen.Settings })
+                    }
                     is Screen.Series -> {
                         BackHandler { screen = Screen.Library }
                         val vols by remember(sc.key) { dao.series(sc.key) }.collectAsState(initial = emptyList())

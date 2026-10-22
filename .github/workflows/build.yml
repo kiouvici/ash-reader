@@ -72,6 +72,21 @@ jobs:
       - name: Compile app (Kotlin)
         run: ./gradlew --console=plain :app:compileDebugKotlin
 
+      # C1: 배포 APK 에 들어가는 외부 모듈·라이선스 목록(THIRD_PARTY_NOTICES 갱신 근거). 실패해도 빌드는 계속.
+      - name: List third-party Android dependencies
+        continue-on-error: true
+        run: ./gradlew --console=plain --no-configuration-cache :app:ashThirdPartyDeps
+
+      - name: Upload third-party list
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: third-party-android
+          path: app/build/third-party/
+          if-no-files-found: ignore
+          retention-days: 14
+
   build:
     needs: compile
     runs-on: ubuntu-24.04

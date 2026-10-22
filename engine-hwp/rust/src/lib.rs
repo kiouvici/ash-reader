@@ -9,6 +9,7 @@
 //!   nativePageSizePx96(h, i) -> int[2]
 //!   nativeRenderPage(h, i, bitmap) -> int  0=성공. 비트맵 크기에 맞춰 축척
 //!   nativePageTextChars(h, i) -> int  공백 제외 글자 수(F-28 판정용)
+//!   nativeToXhtml(h, dir, title) -> String?  이북식 보기용 XHTML(그림은 dir/images 에 씀). 실패 시 null
 //!   nativeClose(h)
 //! 패닉은 catch_unwind로 잡아 오류로 돌려준다(앱 종료 없음, N-03).
 
@@ -19,6 +20,8 @@ use jni::sys::{jint, jintArray, jlong, jstring};
 use jni::JNIEnv;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, Mutex, OnceLock};
+
+pub mod reflow;
 
 pub struct Doc {
     core: rhwp::DocumentCore,
@@ -98,6 +101,12 @@ impl Doc {
             out[y * stride..y * stride + row].copy_from_slice(&src[y * row..y * row + row]);
         }
         Ok(())
+    }
+
+    /// 이북식 보기용 XHTML. 그림은 [img_dir]/images 아래에 쓴다.
+    pub fn to_xhtml(&self, img_dir: &str, title: &str) -> Result<String, String> {
+        catch_unwind(AssertUnwindSafe(|| reflow::to_xhtml(self.core.document(), std::path::Path::new(img_dir), title)))
+            .map_err(|_| "이북식 변환 패닉".to_string())
     }
 
     pub fn page_text_chars(&self, i: u32) -> u32 {
@@ -227,6 +236,20 @@ pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeRenderP
                 set_err(e);
                 -5
             }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeToXhtml(mut env: JNIEnv, _c: JClass, h: jlong, dir: JString, title: JString) -> jstring {
+    let d = jstr(&mut env, &dir);
+    let t = jstr(&mut env, &title);
+    let Some(doc) = doc(h) else { return std::ptr::null_mut() };
+    match doc.to_xhtml(&d, &t) {
+        Ok(x) => env.new_string(x).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut()),
+        Err(e) => {
+            set_err(e);
+            std::ptr::null_mut()
         }
     }
 }

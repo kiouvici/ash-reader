@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,8 +52,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Calendar
+import kotlinx.coroutines.launch
 import kr.vici.ashreader.AppInfo
 import kr.vici.ashreader.Links
+import kr.vici.ashreader.ash
+import kr.vici.ashreader.data.Backup
 import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.PanelMode
@@ -134,9 +140,41 @@ private fun StatCard(label: String, value: String, modifier: Modifier) {
 
 /** S-51 설정(전체). */
 @Composable
-fun AppSettingsScreen(s: Settings, onChange: ((Settings) -> Settings) -> Unit, onClearOnce: () -> Unit) {
+fun AppSettingsScreen(s: Settings, onChange: ((Settings) -> Settings) -> Unit, onClearOnce: () -> Unit, onLicenses: () -> Unit = {}) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var info by remember { mutableStateOf<String?>(null) }
+    var backupOpen by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    val backup = remember { context.ash.let { Backup(context.applicationContext, it.db, it.prefs) } }
+    // S-53 백업: 저장 위치·가져올 파일은 사용자가 고른다(SAF). 네트워크 없음.
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(Backup.MIME)) { uri ->
+        if (uri != null) scope.launch {
+            busy = true
+            info = runCatching { backup.export(uri) }.fold(
+                { r -> "내보냈어요. 책 ${r.books}권 · 책갈피 ${r.bookmarks}개 · 메모 ${r.notes}개 · 형광펜 ${r.highlights}개 · 독서 기록 ${r.sessions}개와 설정을 담았어요. (책 파일은 들어가지 않아요)" },
+                { e -> "내보내지 못했어요. ${e.message.orEmpty()}" },
+            )
+            busy = false
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            busy = true
+            info = runCatching { backup.import(uri) }.fold(
+                { r ->
+                    buildString {
+                        append("가져와서 합쳤어요. 새 책갈피 ${r.bookmarks}개 · 메모 ${r.notes}개 · 형광펜 ${r.highlights}개 · 독서 기록 ${r.sessions}개, 읽은 위치 ${r.booksUpdated}권")
+                        if (r.settings) append(", 설정")
+                        append(".")
+                        if (r.booksMissing > 0) append(" 이 기기에 파일이 없는 책 ${r.booksMissing}권은 서재에 넣지 않았어요. 같은 파일을 서재에 넣으면 책갈피·메모·형광펜이 다시 붙어요.")
+                    }
+                },
+                { e -> "가져오지 못했어요. ${e.message.orEmpty()}" },
+            )
+            busy = false
+        }
+    }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle("설정")
         Group("읽기") {
@@ -164,20 +202,35 @@ fun AppSettingsScreen(s: Settings, onChange: ((Settings) -> Settings) -> Unit, o
             }
         }
         Group("정보") {
-            // TODO(S-53): 백업·복원 파일 내보내기
-            ValueRow("백업·내보내기", "서재·책갈피·메모를 파일로 저장", "") { info = "백업은 다음 판에서 열려요." }
+            ValueRow("백업·내보내기", "서재·책갈피·메모·형광펜·기록을 파일로 저장하거나 가져오기", "") { backupOpen = true }
             SwitchRow("한 번만 보기 기록 지우기", "앱 닫으면 지워요", s.clearOnceOnExit) { v -> onChange { it.copy(clearOnceOnExit = v) }; if (v) onClearOnce() }
-            // TODO(C1): 라이선스 고지 화면(S-52) — 고지 파일 정리 후 연결
-            ValueRow("오픈소스 라이선스", "AGPL-3.0 · 사용한 라이브러리", "") {
-                info = "ASH Reader는 AGPL-3.0-or-later로 배포돼요. MuPDF(AGPL), rhwp, Apache POI, Kumiko(AGPL), 나눔글꼴(OFL) 등을 사용해요."
-            }
+            ValueRow("오픈소스 라이선스", "AGPL-3.0 · 사용한 라이브러리", "", onLicenses)
             ValueRow("버전", "", AppInfo.VERSION_LABEL) {}
         }
         Box(Modifier.height(24.dp))
     }
     info?.let {
-        AlertDialog(onDismissRequest = { info = null }, text = { Text(it) }, confirmButton = { TextButton(onClick = { info = null }) { Text("확인") } })
+        AlertDialog(onDismissRequest = { info = null }, text = { Text(it) }, confirmButton = { TextButton(onClick = { info = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text("확인") } })
     }
+    if (backupOpen) AlertDialog(
+        onDismissRequest = { backupOpen = false },
+        title = { Text("백업·내보내기") },
+        text = {
+            Column {
+                Text("서재 정보·읽은 위치·책갈피·메모·형광펜·독서 기록·설정을 JSON 파일 하나로 저장해요. 책 파일은 담지 않아요. " +
+                    "가져오면 지금 기록과 합쳐요(같은 항목은 하나만 남겨요).", fontSize = 14.sp, lineHeight = 20.sp)
+                Button(
+                    onClick = { backupOpen = false; exportLauncher.launch(Backup.fileName()) }, enabled = !busy,
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp).heightIn(min = 48.dp),
+                ) { Text("파일로 내보내기") }
+                OutlinedButton(
+                    onClick = { backupOpen = false; importLauncher.launch(arrayOf(Backup.MIME, "text/plain", "application/octet-stream")) }, enabled = !busy,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(min = 48.dp),
+                ) { Text("파일에서 가져오기") }
+            }
+        },
+        confirmButton = { TextButton(onClick = { backupOpen = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("닫기") } },
+    )
 }
 
 @Composable
