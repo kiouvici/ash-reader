@@ -68,9 +68,15 @@ val buildNcnn by tasks.registering(Exec::class) {
     description = "ncnn 20261020 을 소스에서 NDK r28 로 빌드 (ABI 별, 이미 있으면 건너뜀)"
     val script = file("scripts/build-ncnn.sh")
     inputs.file(script)
-    outputs.upToDateWhen { abis.all { File(ncnnDir, "$it/lib/cmake/ncnn/ncnnConfig.cmake").exists() } }
+    // 구성 캐시: 스크립트 수준 값을 람다가 잡지 않도록 지역 값으로 복사
+    val outDir: String = ncnnDir.absolutePath
+    val abiList: List<String> = abis.toList()
     val ndk = androidComponents.sdkComponents.ndkDirectory
-    doFirst { commandLine(listOf("bash", script.absolutePath, ncnnDir.absolutePath, ndk.get().asFile.absolutePath) + abis) }
+    outputs.upToDateWhen { abiList.all { File(outDir, "$it/lib/cmake/ncnn/ncnnConfig.cmake").exists() } }
+    executable("bash")
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf(script.absolutePath, outDir, ndk.get().asFile.absolutePath) + abiList
+    })
 }
 
 tasks.matching {
