@@ -41,7 +41,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 cmake;3.22.1"
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 ndk;29.0.14206865 cmake;3.22.1"
 
       # :bench 가 :engine-hwp(rust, cargo-ndk)·:engine-mupdf(NDK)를 쓴다
       - name: Set up Rust + cargo-ndk
@@ -275,7 +275,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 cmake;3.22.1"
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 ndk;29.0.14206865 cmake;3.22.1"
 
       # :bench 가 :engine-hwp(rust, cargo-ndk)·:engine-mupdf(NDK)를 쓴다
       - name: Set up Rust + cargo-ndk
@@ -346,7 +346,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 cmake;3.22.1"
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 ndk;29.0.14206865 cmake;3.22.1"
 
       # :bench 가 :engine-hwp(rust, cargo-ndk)·:engine-mupdf(NDK)를 쓴다
       - name: Set up Rust + cargo-ndk

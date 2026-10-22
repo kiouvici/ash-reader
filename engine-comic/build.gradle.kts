@@ -18,7 +18,8 @@ val abis = providers.gradleProperty("ash.abis").orNull?.split(",") ?: listOf("ar
 android {
     namespace = "kr.vici.ashreader.engine.comic"
     compileSdk = 37
-    ndkVersion = "28.2.13676358"
+    // ncnn 20261020 프리빌드가 NDK r29 libc++(std::__hash_memory)로 빌드돼 이 모듈만 r29 를 쓴다(c++_static 이라 다른 모듈과 충돌 없음)
+    ndkVersion = "29.0.14206865"
 
     defaultConfig {
         minSdk = 26
