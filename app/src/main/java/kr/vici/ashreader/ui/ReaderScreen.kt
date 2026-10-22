@@ -612,7 +612,7 @@ private fun slotAt(x: Float, w: Float, h: Float, first: Int, spread: Boolean, rt
 }
 
 private fun noTextMsg(fmt: DocFormat): String = when (fmt.group) {
-    FormatGroup.HWP -> "원본 보기에서는 글자를 고를 수 없어요. 위쪽 ‘이북식’을 누르면 글자 선택·검색·형광펜을 쓸 수 있어요."
+    FormatGroup.HWP -> "원본 보기에서는 글자를 고를 수 없어요. ‘이북식’으로 바꾸면 글자 선택·검색·형광펜을 쓸 수 있어요."
     FormatGroup.COMIC -> "만화는 그림이라 글자를 고를 수 없어요."
     else -> "이 쪽에는 고를 수 있는 글자가 없어요. (그림으로 된 PDF일 수 있어요)"
 }

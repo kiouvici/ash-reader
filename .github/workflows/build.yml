@@ -77,6 +77,22 @@ jobs:
         continue-on-error: true
         run: ./gradlew --console=plain --no-configuration-cache :app:ashThirdPartyDeps
 
+      # 아티팩트·로그를 못 받는 환경에서도 목록을 읽을 수 있게 압축본을 주석(annotation)으로 남긴다.
+      - name: Third-party list as annotations
+        continue-on-error: true
+        shell: bash
+        run: |
+          [ -d app/build/third-party ] || exit 0
+          tar -C app/build -czf /tmp/tp.tgz third-party
+          python3 - <<'PY'
+          import base64
+          b = base64.b64encode(open('/tmp/tp.tgz','rb').read()).decode()
+          n = 3500; parts = [b[i:i+n] for i in range(0, len(b), n)]
+          kinds = ['notice'] * 10 + ['warning'] * 10
+          for i, p in enumerate(parts[:20]):
+              print('::%s title=ashtp %d/%d::%s' % (kinds[i], i + 1, len(parts), p))
+          PY
+
       - name: Upload third-party list
         if: always()
         continue-on-error: true
