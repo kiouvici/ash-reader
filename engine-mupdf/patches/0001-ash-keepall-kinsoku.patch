@@ -1,0 +1,216 @@
+diff --git a/source/html/css-apply.c b/source/html/css-apply.c
+index 1500f8e..7e994a8 100644
+--- a/source/html/css-apply.c
++++ b/source/html/css-apply.c
+@@ -1271,6 +1271,7 @@ is_inheritable_property(int name)
+ 		name == PRO_WHITE_SPACE ||
+ 		name == PRO_WIDOWS ||
+ 		name == PRO_WORD_SPACING ||
++		name == PRO_WORD_BREAK ||
+ 		name == PRO_HYPHENS ||
+ 		// Strictly speaking, text-decoration is not an inherited property,
+ 		// but since when drawing an underlined element, all children are also underlined,
+@@ -1943,6 +1944,14 @@ fz_apply_css_style(fz_context *ctx, fz_html_font_set *set, fz_css_style *style,
+ 		else style->overflow_wrap = OVERFLOW_WRAP_NORMAL;
+ 	}
+ 
++	value = value_from_property(match, PRO_WORD_BREAK);
++	if (value)
++	{
++		if (!strcmp(value->data, "keep-all")) style->word_break = WB_KEEP_ALL;
++		else if (!strcmp(value->data, "break-all")) style->word_break = WB_BREAK_ALL;
++		else style->word_break = WB_NORMAL;
++	}
++
+ 	value = value_from_property(match, PRO_BORDER_COLLAPSE);
+ 	if (value)
+ 	{
+diff --git a/source/html/css-properties.gperf b/source/html/css-properties.gperf
+index a5ab5f2..d460279 100644
+--- a/source/html/css-properties.gperf
++++ b/source/html/css-properties.gperf
+@@ -85,4 +85,5 @@ visibility,PRO_VISIBILITY
+ white-space,PRO_WHITE_SPACE
+ widows,PRO_WIDOWS
+ width,PRO_WIDTH
++word-break,PRO_WORD_BREAK
+ word-spacing,PRO_WORD_SPACING
+diff --git a/source/html/css-properties.h b/source/html/css-properties.h
+index 66fde47..e5cffa2 100644
+--- a/source/html/css-properties.h
++++ b/source/html/css-properties.h
+@@ -1,4 +1,4 @@
+-/* ANSI-C code produced by gperf version 3.2.1 */
++/* ANSI-C code produced by gperf version 3.1 */
+ /* Command-line: gperf source/html/css-properties.gperf  */
+ /* Computed positions: -k'1-2,$' */
+ 
+@@ -32,7 +32,7 @@
+ #line 1 "source/html/css-properties.gperf"
+ struct css_property_info { const char *name; int key; };
+ 
+-#define TOTAL_KEYWORDS 81
++#define TOTAL_KEYWORDS 82
+ #define MIN_WORD_LENGTH 3
+ #define MAX_WORD_LENGTH 25
+ #define MIN_HASH_VALUE 8
+@@ -61,7 +61,7 @@ css_property_hash (register const char *str, register size_t len)
+       156, 156, 156, 156, 156, 156, 156, 156, 156, 156,
+       156, 156, 156, 156, 156, 156, 156, 156, 156, 156,
+       156, 156, 156, 156, 156, 156, 156,  25,   5,   0,
+-        5,   5, 110,  50,  75,  70, 156, 156,   0,  25,
++        5,   5, 110,  50,  75,  70, 156,   5,   0,  25,
+        50,   5,   0,  20,  30,  65,   0,  20,  25,   5,
+       156,   5, 156, 156, 156, 156, 156, 156, 156, 156,
+       156, 156, 156, 156, 156, 156, 156, 156, 156, 156,
+@@ -81,10 +81,6 @@ css_property_hash (register const char *str, register size_t len)
+   return len + asso_values[(unsigned char)str[1]] + asso_values[(unsigned char)str[0]] + asso_values[(unsigned char)str[len - 1]];
+ }
+ 
+-#if (defined __GNUC__ && __GNUC__ + (__GNUC_MINOR__ >= 6) > 4) || (defined __clang__ && __clang_major__ >= 3)
+-#pragma GCC diagnostic push
+-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+-#endif
+ static struct css_property_info css_property_list[] =
+   {
+     {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+@@ -105,7 +101,10 @@ static struct css_property_info css_property_list[] =
+     {"border-left",PRO_BORDER_LEFT},
+ #line 25 "source/html/css-properties.gperf"
+     {"border-right",PRO_BORDER_RIGHT},
+-    {""}, {""}, {""}, {""},
++    {""}, {""},
++#line 88 "source/html/css-properties.gperf"
++    {"word-break",PRO_WORD_BREAK},
++    {""},
+ #line 30 "source/html/css-properties.gperf"
+     {"border-style",PRO_BORDER_STYLE},
+     {""}, {""},
+@@ -176,7 +175,7 @@ static struct css_property_info css_property_list[] =
+     {"text-decoration",PRO_TEXT_DECORATION},
+ #line 72 "source/html/css-properties.gperf"
+     {"page-break-after",PRO_PAGE_BREAK_AFTER},
+-#line 88 "source/html/css-properties.gperf"
++#line 89 "source/html/css-properties.gperf"
+     {"word-spacing",PRO_WORD_SPACING},
+     {""},
+ #line 29 "source/html/css-properties.gperf"
+@@ -278,9 +277,6 @@ static struct css_property_info css_property_list[] =
+ #line 87 "source/html/css-properties.gperf"
+     {"width",PRO_WIDTH}
+   };
+-#if (defined __GNUC__ && __GNUC__ + (__GNUC_MINOR__ >= 6) > 4) || (defined __clang__ && __clang_major__ >= 3)
+-#pragma GCC diagnostic pop
+-#endif
+ 
+ struct css_property_info *
+ css_property_lookup (register const char *str, register size_t len)
+@@ -297,5 +293,5 @@ css_property_lookup (register const char *str, register size_t len)
+             return &css_property_list[key];
+         }
+     }
+-  return (struct css_property_info *) 0;
++  return 0;
+ }
+diff --git a/source/html/html-imp.h b/source/html/html-imp.h
+index 1447843..978dee0 100644
+--- a/source/html/html-imp.h
++++ b/source/html/html-imp.h
+@@ -196,6 +196,7 @@ enum
+ 	PRO_WHITE_SPACE,
+ 	PRO_WIDOWS,
+ 	PRO_WIDTH,
++	PRO_WORD_BREAK,
+ 	PRO_WORD_SPACING,
+ 
+ 	/* Number of real properties. */
+@@ -233,6 +234,7 @@ enum { V_VISIBLE, V_HIDDEN, V_COLLAPSE };
+ enum { PB_AUTO, PB_ALWAYS, PB_AVOID, PB_LEFT, PB_RIGHT };
+ enum { TD_NONE, TD_UNDERLINE, TD_LINE_THROUGH };
+ enum { HYP_NONE, HYP_MANUAL, HYP_AUTO };
++enum { WB_NORMAL, WB_KEEP_ALL, WB_BREAK_ALL };
+ 
+ enum {
+ 	WS_COLLAPSE = 1,
+@@ -322,6 +324,7 @@ struct fz_css_style_s
+ 	unsigned int position : 2;
+ 	unsigned int border_collapse : 1;
+ 	unsigned int hyphens : 2;
++	unsigned int word_break : 2;
+ };
+ 
+ struct fz_css_style_splay_s {
+diff --git a/source/html/html-layout.c b/source/html/html-layout.c
+index 409e9b4..7474596 100644
+--- a/source/html/html-layout.c
++++ b/source/html/html-layout.c
+@@ -688,6 +688,37 @@ static void split_flow_at_byte_offset_reverse(fz_context *ctx, fz_pool *pool, fz
+ 	flow->content.text[len] = 0;
+ }
+ 
++/* ASH (F-38): Korean line-start / line-end prohibition for forced breaks. */
++static int ash_is_no_start(int c)
++{
++	return c == '.' || c == ',' || c == '!' || c == '?' || c == ':' || c == ';' || c == ')' ||
++		c == ']' || c == '}' || c == '%' || c == 0x2026 || c == 0x300D || c == 0x300F ||
++		c == 0x201D || c == 0x2019 || c == 0x3002 || c == 0x3001 || c == 0x2103 ||
++		c == 0xFF09 || c == 0xFF0C || c == 0xFF0E;
++}
++
++static int ash_is_no_end(int c)
++{
++	return c == '(' || c == '[' || c == '{' || c == 0x300C || c == 0x300E ||
++		c == 0x201C || c == 0x2018 || c == 0xFF08;
++}
++
++static int ash_kinsoku_forbids(const char *text, size_t at)
++{
++	int next, prev = 0;
++	const char *p = text, *last = NULL;
++	if (at == 0 || text[at] == 0)
++		return 0;
++	fz_chartorune(&next, text + at);
++	while (p < text + at)
++	{
++		last = p;
++		p += fz_chartorune(&prev, p);
++	}
++	(void)last;
++	return ash_is_no_start(next) || ash_is_no_end(prev);
++}
++
+ static void break_word_for_overflow_wrap(fz_context *ctx, fz_html_flow *node, layout_data *ld, float max_w)
+ {
+ 	hb_buffer_t *hb_buf = ld->hb_buf;
+@@ -746,7 +777,10 @@ static void break_word_for_overflow_wrap(fz_context *ctx, fz_html_flow *node, la
+ 					if (w > max_w)
+ 						break;
+ 
+-					at = walker.start + walker.glyph_info[i].cluster - text;
++					/* ASH (F-38): never start the next line with closing
++					 * punctuation, and never end a line with an opening one. */
++					if (!ash_kinsoku_forbids(text, walker.start + walker.glyph_info[i].cluster - text))
++						at = walker.start + walker.glyph_info[i].cluster - text;
+ 				}
+ 
+ 				w += walker.glyph_pos[i].x_advance * em / walker.scale;
+diff --git a/source/html/html-parse.c b/source/html/html-parse.c
+index 4adc450..59c6c53 100644
+--- a/source/html/html-parse.c
++++ b/source/html/html-parse.c
+@@ -517,6 +517,15 @@ generate_text_run(fz_context *ctx, fz_html_box *box, fz_html_box *flow, const ch
+ 				if (brk == '#') brk = '^';
+ 				if (brk == '%') brk = '^';
+ 
++				/* ASH (F-37): word-break: keep-all. Korean is written with
++				 * spaces between words, so inside a space-delimited run we
++				 * suppress every UAX#14 opportunity (also before '(' or after
++				 * '/'): lines break only at spaces. A run wider than the line
++				 * is broken per character by overflow-wrap: break-word.
++				 * Stricter than CSS Text 3 keep-all (letters only) on purpose. */
++				if (box->style->word_break == WB_KEEP_ALL)
++					brk = '^';
++
+ 				if (brk == '_')
+ 				{
+ 					if (mark != prev)

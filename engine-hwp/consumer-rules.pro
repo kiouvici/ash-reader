@@ -1,0 +1,1 @@
+-keep class kr.vici.ashreader.engine.hwp.HwpNative { *; }

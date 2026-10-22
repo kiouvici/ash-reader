@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # :engine-comic 의 ncnn 소스 빌드 결과 위치 (actions/cache 대상, 체크아웃 밖)
+  ASH_NCNN_DIR: /home/runner/ncnn-cache
+
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
@@ -21,11 +25,12 @@ concurrency:
 #   android-actions/setup-android v4.0.4 be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
 #   gradle/actions/setup-gradle v6.4.0 3f5f9adaf7d9fecd50b5935e54106014257a94e6
 #   actions/upload-artifact   v7.0.2  cf430e030ddbb5b0abf93d22962f4752f3646cd9
+#   reactivecircus/android-emulator-runner v2.38.0 a421e43855164a8197daf9d8d40fe71c6996bb0d
 
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,7 +45,23 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: "platform-tools build-tools;36.0.0"
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 cmake;3.22.1"
+
+      # :bench 가 :engine-hwp(rust, cargo-ndk)·:engine-mupdf(NDK)를 쓴다
+      - name: Set up Rust + cargo-ndk
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-linux-android x86_64-linux-android armv7-linux-androideabi i686-linux-android
+          cargo install cargo-ndk --version 4.1.2 --locked
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      # :engine-comic 의 ncnn(소스 빌드, Vulkan 켬) 결과 캐시. 키 = ncnn 태그 + NDK 버전 + ABI
+      - name: Cache ncnn build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /home/runner/ncnn-cache
+          key: ncnn-20261020-ndk28.2.13676358-arm64-v8a_x86_64-v1
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
@@ -104,13 +125,13 @@ jobs:
 
       - name: Permission check, merged manifest (N-05 ①)
         shell: bash
-        run: .github/scripts/gradle-annotate.sh :app:checkDebugNoInternetPermission :app:checkReleaseNoInternetPermission
+        run: .github/scripts/gradle-annotate.sh :app:checkDebugNoInternetPermission :app:checkReleaseNoInternetPermission :bench:checkDebugNoInternetPermission :bench:checkReleaseNoInternetPermission
 
       - name: Unit tests
         shell: bash
-        run: .github/scripts/gradle-annotate.sh :app:testDebugUnitTest
+        run: .github/scripts/gradle-annotate.sh :app:testDebugUnitTest :engine-office:testDebugUnitTest :bench:testDebugUnitTest :pagecurl:testDebugUnitTest :engine-comic:testDebugUnitTest
 
-      - name: Assemble debug & release
+      - name: Assemble debug & release (app, bench)
         shell: bash
         env:
           ASH_KEYSTORE_FILE: ${{ steps.signing.outputs.release_keystore }}
@@ -120,7 +141,36 @@ jobs:
           ASH_DEBUG_KEYSTORE_FILE: ${{ steps.signing.outputs.debug_keystore }}
           ASH_DEBUG_KEYSTORE_PASSWORD: ${{ secrets.ASH_DEBUG_KEYSTORE_PASSWORD }}
           ASH_DEBUG_KEY_ALIAS: ${{ secrets.ASH_DEBUG_KEY_ALIAS }}
-        run: .github/scripts/gradle-annotate.sh :app:assembleDebug :app:assembleRelease
+        run: .github/scripts/gradle-annotate.sh :app:assembleDebug :app:assembleRelease :bench:assembleDebug :bench:assembleRelease
+
+      # 실험 ⑤: 칸 인식 합성 시험 결과와 libash_comic.so 크기·16KB 정렬 (arm64·x86_64 필수)
+      - name: Comic engine report (.so size, 16KB alignment, panel test)
+        shell: bash
+        run: |
+          set -euo pipefail
+          OBJDUMP="$ANDROID_SDK_ROOT/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-objdump"
+          APK=bench/build/outputs/apk/release/bench-release.apk
+          rm -rf so && mkdir so && unzip -q -o "$APK" 'lib/*' -d so
+          {
+            echo "### 실험 ⑤ :engine-comic"
+            R=$(ls engine-comic/build/test-results/testDebugUnitTest/*PanelDetectorTest*.xml)
+            echo '```'; grep -o 'ASH-PANEL total[^<]*' "$R" || true; echo '```'
+            echo "| ABI | .so | 크기(바이트) | APK 안 압축 크기 | LOAD 정렬 |"; echo "|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          fail=0
+          for so in so/lib/*/*.so; do
+            abi=$(basename "$(dirname "$so")"); n=$(basename "$so")
+            sz=$(stat -c %s "$so"); csz=$(unzip -v "$APK" "lib/$abi/$n" | awk 'NR==4{print $3}')
+            al=$("$OBJDUMP" -p "$so" | awk '/LOAD/{print $NF}' | sort -u | tr '\n' ' ')
+            ok=yes; for a in $al; do [ "$a" = "2**14" ] || [ "$a" = "2**16" ] || ok=no; done
+            [ "$ok" = no ] && fail=1
+            echo "| $abi | $n | $sz | $csz | $al ($ok) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=.so $abi::$n $sz B, APK 압축 $csz B, LOAD $al ($ok)"
+          done
+          A=$(unzip -l "$APK" 'assets/realcugan/*' | tail -1 | awk '{print $1}')
+          echo "- Real-CUGAN 모델 assets 합계: $A 바이트" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Real-CUGAN assets::$A B"
+          [ "$fail" = 0 ] || { echo "::error title=16KB 정렬::64비트 .so LOAD 정렬이 16KB가 아닙니다"; exit 1; }
 
       - name: Remove keystore
         if: always()
@@ -129,7 +179,7 @@ jobs:
 
       - name: Permission check, final APK (aapt2)
         shell: bash
-        run: .github/scripts/check-apk-permissions.sh app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk
+        run: .github/scripts/check-apk-permissions.sh app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk bench/build/outputs/apk/debug/bench-debug.apk bench/build/outputs/apk/release/bench-release.apk
 
       # P4: 서명 인증서 지문 확인. release는 기대 지문과 다르면 실패, debug는 지문을 요약에 표시.
       - name: Verify signing certificates
@@ -139,6 +189,28 @@ jobs:
           RELEASE_MODE: ${{ steps.signing.outputs.release_mode }}
           DEBUG_MODE: ${{ steps.signing.outputs.debug_mode }}
         run: .github/scripts/verify-apk-signers.sh app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/debug/app-debug.apk
+
+      # 측정 앱(bench)은 release·debug 모두 고정 디버그 키로 서명돼야 한다 (app-debug 와 같은 지문).
+      - name: Verify bench signing (debug key)
+        shell: bash
+        env:
+          DEBUG_MODE: ${{ steps.signing.outputs.debug_mode }}
+        run: |
+          APKSIGNER="$(ls -1d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
+          fp() { "$APKSIGNER" verify --print-certs "$1" | grep -m1 'certificate SHA-256 digest:' | sed 's/.*digest: //'; }
+          REF="$(fp app/build/outputs/apk/debug/app-debug.apk)"
+          fail=0
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### 측정 앱 서명" >> "$GITHUB_STEP_SUMMARY"
+          for apk in bench/build/outputs/apk/debug/bench-debug.apk bench/build/outputs/apk/release/bench-release.apk; do
+            F="$(fp "$apk")"
+            echo "- $(basename "$apk"): \`$F\`" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$DEBUG_MODE" = "fixed" ] && [ "$F" != "$REF" ]; then
+              echo "::error title=측정 앱 서명 오류::$(basename "$apk") 가 고정 디버그 키로 서명되지 않았습니다 ($F)"
+              fail=1
+            fi
+          done
+          exit $fail
 
       # P5: 릴리스 APK와 같은 커밋의 소스(source.zip)를 함께 올린다 (AGPL-3.0 소스 제공).
       - name: Package APKs and source
@@ -156,11 +228,17 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk "dist/ash-reader-${VC}-${SHA}-debug${DS}.apk"
           cp app/build/outputs/apk/release/app-release.apk "dist/ash-reader-${VC}-${SHA}-release${RS}.apk"
           git archive --format=zip --prefix="ash-reader-${SHA}/" -o "dist/ash-reader-${VC}-${SHA}-source.zip" "$GITHUB_SHA"
+          # 측정 앱: 별도 artifact (같은 커밋 소스 포함)
+          mkdir -p dist-bench
+          cp bench/build/outputs/apk/release/bench-release.apk "dist-bench/ash-reader-bench-${VC}-${SHA}-release${DS}.apk"
+          cp bench/build/outputs/apk/debug/bench-debug.apk "dist-bench/ash-reader-bench-${VC}-${SHA}-debug${DS}.apk"
+          cp "dist/ash-reader-${VC}-${SHA}-source.zip" dist-bench/
           {
             echo ""
             echo "### 산출물 (versionCode ${VC}, 커밋 ${GITHUB_SHA})"
             echo '```'
             (cd dist && sha256sum *)
+            (cd dist-bench && sha256sum *.apk)
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -172,6 +250,14 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Upload bench APKs and source
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ash-reader-bench-${{ github.run_number }}
+          path: dist-bench/*
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -180,13 +266,16 @@ jobs:
           path: |
             app/build/reports/
             app/build/outputs/logs/
+            engine-office/build/reports/
+            engine-office/build/test-results/
+            bench/build/reports/
           if-no-files-found: ignore
           retention-days: 14
 
-  # P8: 음성 시험. INTERNET 권한을 넣은 시험용 빌드에서 두 검사가 모두 '실패'해야 이 job이 성공한다.
-  permission-negative-test:
+  # 실험 ②: POI(poi + poi-scratchpad)를 넣었을 때 R8 후 release APK 증가량 측정. 서명은 AGP 기본 debug 키(크기만 봄).
+  office-apk-size:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -202,6 +291,70 @@ jobs:
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
           packages: "platform-tools build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-provider: basic
+
+      - name: Measure APK size with and without engine-office
+        shell: bash
+        run: |
+          set -euo pipefail
+          .github/scripts/gradle-annotate.sh :app:assembleRelease
+          BASE=$(stat -c %s app/build/outputs/apk/release/app-release.apk)
+          cp app/build/outputs/apk/release/app-release.apk base.apk
+          .github/scripts/gradle-annotate.sh -Pash.withOffice=true :app:assembleRelease
+          WITH=$(stat -c %s app/build/outputs/apk/release/app-release.apk)
+          DEX_BASE=$(unzip -l base.apk | awk '/classes[0-9]*\.dex/{s+=$1} END{print s}')
+          DEX_WITH=$(unzip -l app/build/outputs/apk/release/app-release.apk | awk '/classes[0-9]*\.dex/{s+=$1} END{print s}')
+          DIFF=$((WITH - BASE))
+          {
+            echo "### 실험 ② APK 크기 (release, R8 켬)"
+            echo "| | APK(B) | dex 합계(B) |"
+            echo "|---|---|---|"
+            echo "| 기본 | $BASE | $DEX_BASE |"
+            echo "| + engine-office(POI HWPF) | $WITH | $DEX_WITH |"
+            echo "| 증가 | $DIFF ($(awk "BEGIN{printf \"%.2f\", $DIFF/1048576}") MiB) | $((DEX_WITH - DEX_BASE)) |"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=POI APK 증가::$DIFF bytes"
+          if [ "$DIFF" -gt 6291456 ]; then echo "::warning title=실험 ② 기준 초과::POI 추가로 6MB 초과 증가"; fi
+
+  # P8: 음성 시험. INTERNET 권한을 넣은 시험용 빌드에서 두 검사가 모두 '실패'해야 이 job이 성공한다.
+  permission-negative-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 cmake;3.22.1"
+
+      # :bench 가 :engine-hwp(rust, cargo-ndk)·:engine-mupdf(NDK)를 쓴다
+      - name: Set up Rust + cargo-ndk
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-linux-android x86_64-linux-android armv7-linux-androideabi i686-linux-android
+          cargo install cargo-ndk --version 4.1.2 --locked
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      # :engine-comic 의 ncnn(소스 빌드, Vulkan 켬) 결과 캐시. 키 = ncnn 태그 + NDK 버전 + ABI
+      - name: Cache ncnn build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /home/runner/ncnn-cache
+          key: ncnn-20261020-ndk28.2.13676358-arm64-v8a_x86_64-v1
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
@@ -236,3 +389,95 @@ jobs:
           fi
           grep -q "android.permission.INTERNET" neg2.log || { cat neg2.log; echo "::error::aapt2 검사 실패 원인이 INTERNET이 아닙니다"; exit 1; }
           echo "기대대로 실패: aapt2 최종 APK 검사가 INTERNET 권한을 잡았습니다" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # 실험 ③: 에뮬레이터에서 넘김 표면 스모크 시험 (성능 판정 아님, 동작 확인만)
+  pagecurl-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then echo "::notice title=KVM::사용 가능 ($(nproc) cores)"; else echo "::warning title=KVM::/dev/kvm 없음 또는 권한 없음"; ls -l /dev/kvm || true; fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 cmake;3.22.1"
+
+      # :bench 가 :engine-hwp(rust, cargo-ndk)·:engine-mupdf(NDK)를 쓴다
+      - name: Set up Rust + cargo-ndk
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-linux-android x86_64-linux-android armv7-linux-androideabi i686-linux-android
+          cargo install cargo-ndk --version 4.1.2 --locked
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      # :engine-comic 의 ncnn(소스 빌드, Vulkan 켬) 결과 캐시. 키 = ncnn 태그 + NDK 버전 + ABI
+      - name: Cache ncnn build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /home/runner/ncnn-cache
+          key: ncnn-20261020-ndk28.2.13676358-arm64-v8a_x86_64-v1
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-provider: basic
+
+      - name: Build test APKs
+        shell: bash
+        run: .github/scripts/gradle-annotate.sh :bench:assembleDebug :bench:assembleDebugAndroidTest
+
+      - name: Emulator smoke test
+        id: smoke1
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 1200
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
+          disable-animations: true
+          script: ./gradlew --console=plain :bench:connectedDebugAndroidTest
+
+      # 러너(2코어)에서 에뮬레이터 부팅이 가끔 시간 초과 → 1회만 재시도
+      - name: Emulator smoke test (retry)
+        if: steps.smoke1.outcome == 'failure'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 1200
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
+          disable-animations: true
+          script: ./gradlew --console=plain :bench:connectedDebugAndroidTest
+
+      - name: Upload smoke test report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pagecurl-smoke-${{ github.run_number }}
+          path: bench/build/reports/androidTests/
+          if-no-files-found: ignore
+          retention-days: 14
