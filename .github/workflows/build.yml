@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # :engine-comic 의 ncnn 소스 빌드 결과 위치 (actions/cache 대상, 체크아웃 밖)
+  ASH_NCNN_DIR: /home/runner/ncnn-cache
+
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
@@ -41,7 +45,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358"
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 cmake;3.22.1"
 
       # :bench 가 :engine-hwp(rust, cargo-ndk)·:engine-mupdf(NDK)를 쓴다
       - name: Set up Rust + cargo-ndk
@@ -51,6 +55,13 @@ jobs:
           rustup target add aarch64-linux-android x86_64-linux-android armv7-linux-androideabi i686-linux-android
           cargo install cargo-ndk --version 4.1.2 --locked
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      # :engine-comic 의 ncnn(소스 빌드, Vulkan 켬) 결과 캐시. 키 = ncnn 태그 + NDK 버전 + ABI
+      - name: Cache ncnn build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /home/runner/ncnn-cache
+          key: ncnn-20261020-ndk28.2.13676358-arm64-v8a_x86_64-v1
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
@@ -118,7 +129,7 @@ jobs:
 
       - name: Unit tests
         shell: bash
-        run: .github/scripts/gradle-annotate.sh :app:testDebugUnitTest :engine-office:testDebugUnitTest :bench:testDebugUnitTest :pagecurl:testDebugUnitTest
+        run: .github/scripts/gradle-annotate.sh :app:testDebugUnitTest :engine-office:testDebugUnitTest :bench:testDebugUnitTest :pagecurl:testDebugUnitTest :engine-comic:testDebugUnitTest
 
       - name: Assemble debug & release (app, bench)
         shell: bash
@@ -131,6 +142,35 @@ jobs:
           ASH_DEBUG_KEYSTORE_PASSWORD: ${{ secrets.ASH_DEBUG_KEYSTORE_PASSWORD }}
           ASH_DEBUG_KEY_ALIAS: ${{ secrets.ASH_DEBUG_KEY_ALIAS }}
         run: .github/scripts/gradle-annotate.sh :app:assembleDebug :app:assembleRelease :bench:assembleDebug :bench:assembleRelease
+
+      # 실험 ⑤: 칸 인식 합성 시험 결과와 libash_comic.so 크기·16KB 정렬 (arm64·x86_64 필수)
+      - name: Comic engine report (.so size, 16KB alignment, panel test)
+        shell: bash
+        run: |
+          set -euo pipefail
+          OBJDUMP="$ANDROID_SDK_ROOT/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-objdump"
+          APK=bench/build/outputs/apk/release/bench-release.apk
+          rm -rf so && mkdir so && unzip -q -o "$APK" 'lib/*' -d so
+          {
+            echo "### 실험 ⑤ :engine-comic"
+            R=$(ls engine-comic/build/test-results/testDebugUnitTest/*PanelDetectorTest*.xml)
+            echo '```'; grep -o 'ASH-PANEL total[^<]*' "$R" || true; echo '```'
+            echo "| ABI | .so | 크기(바이트) | APK 안 압축 크기 | LOAD 정렬 |"; echo "|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          fail=0
+          for so in so/lib/*/*.so; do
+            abi=$(basename "$(dirname "$so")"); n=$(basename "$so")
+            sz=$(stat -c %s "$so"); csz=$(unzip -v "$APK" "lib/$abi/$n" | awk 'NR==4{print $3}')
+            al=$("$OBJDUMP" -p "$so" | awk '/LOAD/{print $NF}' | sort -u | tr '\n' ' ')
+            ok=yes; for a in $al; do [ "$a" = "2**14" ] || [ "$a" = "2**16" ] || ok=no; done
+            [ "$ok" = no ] && fail=1
+            echo "| $abi | $n | $sz | $csz | $al ($ok) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=.so $abi::$n $sz B, APK 압축 $csz B, LOAD $al ($ok)"
+          done
+          A=$(unzip -l "$APK" 'assets/realcugan/*' | tail -1 | awk '{print $1}')
+          echo "- Real-CUGAN 모델 assets 합계: $A 바이트" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Real-CUGAN assets::$A B"
+          [ "$fail" = 0 ] || { echo "::error title=16KB 정렬::64비트 .so LOAD 정렬이 16KB가 아닙니다"; exit 1; }
 
       - name: Remove keystore
         if: always()
@@ -298,7 +338,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358"
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 cmake;3.22.1"
 
       # :bench 가 :engine-hwp(rust, cargo-ndk)·:engine-mupdf(NDK)를 쓴다
       - name: Set up Rust + cargo-ndk
@@ -308,6 +348,13 @@ jobs:
           rustup target add aarch64-linux-android x86_64-linux-android armv7-linux-androideabi i686-linux-android
           cargo install cargo-ndk --version 4.1.2 --locked
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      # :engine-comic 의 ncnn(소스 빌드, Vulkan 켬) 결과 캐시. 키 = ncnn 태그 + NDK 버전 + ABI
+      - name: Cache ncnn build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /home/runner/ncnn-cache
+          key: ncnn-20261020-ndk28.2.13676358-arm64-v8a_x86_64-v1
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
@@ -369,7 +416,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358"
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 cmake;3.22.1"
 
       # :bench 가 :engine-hwp(rust, cargo-ndk)·:engine-mupdf(NDK)를 쓴다
       - name: Set up Rust + cargo-ndk
@@ -379,6 +426,13 @@ jobs:
           rustup target add aarch64-linux-android x86_64-linux-android armv7-linux-androideabi i686-linux-android
           cargo install cargo-ndk --version 4.1.2 --locked
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      # :engine-comic 의 ncnn(소스 빌드, Vulkan 켬) 결과 캐시. 키 = ncnn 태그 + NDK 버전 + ABI
+      - name: Cache ncnn build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /home/runner/ncnn-cache
+          key: ncnn-20261020-ndk28.2.13676358-arm64-v8a_x86_64-v1
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0

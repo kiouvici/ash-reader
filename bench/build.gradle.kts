@@ -74,6 +74,7 @@ dependencies {
     implementation(project(":engine-mupdf"))
     implementation(project(":engine-hwp"))
     implementation(project(":engine-office"))
+    implementation(project(":engine-comic"))
 
     testImplementation(libs.junit)
 
