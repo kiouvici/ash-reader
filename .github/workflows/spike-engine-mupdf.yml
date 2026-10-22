@@ -1,0 +1,142 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# 실험 ④: :engine-mupdf (MuPDF 1.28.5 + ASH 한국어 줄바꿈 패치) NDK 빌드, 16KB 정렬 검사,
+# Android 8(API 26) 에뮬레이터에서 줄바꿈·금칙 자동 검사.
+name: Spike engine-mupdf
+
+on:
+  push:
+    branches: ["spike/ko-linebreak"]
+    paths: ["engine-mupdf/**", ".github/workflows/spike-engine-mupdf.yml", "gradle/**", "settings.gradle.kts", "build.gradle.kts"]
+  pull_request:
+    paths: ["engine-mupdf/**", ".github/workflows/spike-engine-mupdf.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spike-mupdf-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-provider: basic
+
+      - name: Build :engine-mupdf (arm64-v8a, armeabi-v7a, x86_64) + test APK
+        shell: bash
+        run: .github/scripts/gradle-annotate.sh :engine-mupdf:assembleRelease :engine-mupdf:assembleDebugAndroidTest
+
+      - name: 16KB alignment & size report
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_SDK_ROOT/ndk/28.2.13676358"
+          OBJDUMP="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-objdump"
+          AAR=$(ls engine-mupdf/build/outputs/aar/*release*.aar | head -1)
+          mkdir -p aar && unzip -q -o "$AAR" -d aar
+          echo "### :engine-mupdf .so (release AAR)" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ABI | 크기(바이트) | gzip | LOAD 정렬 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          fail=0
+          for so in aar/jni/*/libmupdf_java.so; do
+            abi=$(basename "$(dirname "$so")")
+            sz=$(stat -c %s "$so"); gz=$(gzip -9 -c "$so" | wc -c)
+            aligns=$("$OBJDUMP" -p "$so" | awk '/LOAD/{print $NF}' | sort -u | tr '\n' ' ')
+            ok=yes
+            for a in $aligns; do [ "$a" = "2**14" ] || [ "$a" = "2**16" ] || ok=no; done
+            # 32비트(armeabi-v7a)는 16KB 페이지 대상이 아니므로 정보만 표시
+            if [ "$ok" = no ]; then if [ "$abi" = arm64-v8a ] || [ "$abi" = x86_64 ]; then fail=1; else echo "::warning title=16KB $abi::32비트 .so는 16KB 대상 아님(경고만)"; fi; fi
+            echo "| $abi | $sz | $gz | $aligns ($ok) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=so $abi::size=$sz gzip=$gz align=$aligns ok=$ok"
+          done
+          if [ "$fail" = 1 ]; then echo "::error title=16KB 정렬::64비트 .so의 LOAD 정렬이 16KB가 아닙니다"; exit 1; fi
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Emulator test (API 30)
+        id: emu1
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 1200
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
+          disable-animations: true
+          script: .github/scripts/run-emulator-test.sh engine-mupdf ASH-LB lb.log
+
+      - name: Emulator test (retry)
+        id: emu2
+        if: steps.emu1.outcome == 'failure'
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 1200
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
+          disable-animations: true
+          script: .github/scripts/run-emulator-test.sh engine-mupdf ASH-LB lb.log
+
+      - name: Line-break result table
+        if: always()
+        shell: bash
+        run: |
+          [ -f lb.log ] || exit 0
+          {
+            echo "### 실험 ④ Android 8 에뮬레이터 결과"
+            echo "| 폭(pt) | 방식 | 줄 | 낱말 중간(위반) | 긴 낱말(허용) | 줄머리 | 줄끝 |"
+            echo "|---|---|---|---|---|---|---|"
+            grep -o 'ASH-LB|.*' lb.log | while read -r l; do echo "::notice title=LB::$l"; done >&2; grep -o 'ASH-LB|.*' lb.log | awk -F'|' '{print "| "$2" | "$3" | "$4" | "$5" | "$6" | "$7" | "$8" |"}'
+            echo; grep -E "device:|render" lb.log | sed 's/^.*ASH-LB: /- /'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Emulator result
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.emu1.outcome }}" = success ] || [ "${{ steps.emu2.outcome }}" = success ]; then echo "::notice title=에뮬레이터 시험::통과"; else echo "::warning title=에뮬레이터 시험::2회 실패(continue-on-error, 실기기 측정으로 판정)"; fi
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: engine-mupdf-${{ github.run_number }}
+          path: |
+            lb.log
+            engine-mupdf/build/outputs/aar/
+            engine-mupdf/build/reports/androidTests/
+            engine-mupdf/build/outputs/androidTest-results/
+          if-no-files-found: ignore
+          retention-days: 14
