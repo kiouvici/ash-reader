@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# :engine-hwp 네이티브 부분 — rhwp v0.8.7(커밋 1a76570 고정) → 쪽 SVG → resvg → 안드로이드 Bitmap (기술 설계서 3.3 A안)
+[package]
+name = "ash-hwp-jni"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "ash_hwp"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# CI가 scripts/fetch-rhwp.sh 로 v0.8.7 을 build/rhwp 에 sparse checkout 한다
+rhwp = { path = "../build/rhwp", default-features = false }
+resvg = { version = "0.45", default-features = false, features = ["text", "raster-images"] }
+jni = "0.21"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "unwind"
+strip = true
