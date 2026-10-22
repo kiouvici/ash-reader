@@ -65,10 +65,10 @@ private object ReadCheck : Experiment {
 object Experiments {
     val all: List<Experiment> = listOf(
         ReadCheck,
-        Placeholder("1", "① HWP/HWPX 원본 렌더", "rhwp 첫 쪽 시간(N-01 5초), 쪽 수 비교"),
+        HwpRenderExperiment,
         Placeholder("2", "② Word(DOCX/DOC)", "DOCX→XHTML 조판 첫 화면, DOC 추출"),
         CurlExperiment,
-        Placeholder("4", "④ 한국어 줄바꿈·금칙", "낱말 중간 줄바꿈·금칙 위반 자동 검사, 조판 시간"),
+        LineBreakExperiment,
         Placeholder("5", "⑤ 만화 칸 인식·AI 화질", "칸 인식 1초·화질 향상 5초(N-10), 발열"),
     )
 }

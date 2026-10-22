@@ -45,7 +45,7 @@ jobs:
 
       - name: Build :engine-mupdf (arm64-v8a, armeabi-v7a, x86_64) + test APK
         shell: bash
-        run: .github/scripts/gradle-annotate.sh :engine-mupdf:assembleRelease :engine-mupdf:assembleDebugAndroidTest
+        run: .github/scripts/gradle-annotate.sh :engine-mupdf:assembleRelease -Pash.abis=arm64-v8a,armeabi-v7a,x86_64,x86 :engine-mupdf:assembleDebugAndroidTest
 
       - name: 16KB alignment & size report
         shell: bash

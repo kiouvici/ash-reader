@@ -26,7 +26,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,7 +41,16 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: "platform-tools build-tools;36.0.0"
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358"
+
+      # :bench 가 :engine-hwp(rust, cargo-ndk)·:engine-mupdf(NDK)를 쓴다
+      - name: Set up Rust + cargo-ndk
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-linux-android x86_64-linux-android armv7-linux-androideabi i686-linux-android
+          cargo install cargo-ndk --version 4.1.2 --locked
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
@@ -224,7 +233,7 @@ jobs:
   # P8: 음성 시험. INTERNET 권한을 넣은 시험용 빌드에서 두 검사가 모두 '실패'해야 이 job이 성공한다.
   permission-negative-test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -239,7 +248,16 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: "platform-tools build-tools;36.0.0"
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358"
+
+      # :bench 가 :engine-hwp(rust, cargo-ndk)·:engine-mupdf(NDK)를 쓴다
+      - name: Set up Rust + cargo-ndk
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-linux-android x86_64-linux-android armv7-linux-androideabi i686-linux-android
+          cargo install cargo-ndk --version 4.1.2 --locked
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
@@ -278,7 +296,7 @@ jobs:
   # 실험 ③: 에뮬레이터에서 넘김 표면 스모크 시험 (성능 판정 아님, 동작 확인만)
   pagecurl-smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -301,7 +319,16 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: "platform-tools build-tools;36.0.0"
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358"
+
+      # :bench 가 :engine-hwp(rust, cargo-ndk)·:engine-mupdf(NDK)를 쓴다
+      - name: Set up Rust + cargo-ndk
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-linux-android x86_64-linux-android armv7-linux-androideabi i686-linux-android
+          cargo install cargo-ndk --version 4.1.2 --locked
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
