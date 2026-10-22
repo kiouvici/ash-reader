@@ -15,6 +15,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") } // M-10: 측정 앱은 arm64(실기기)+x86_64(에뮬레이터)
         applicationId = "kr.vici.ashreader.bench"
         minSdk = 26
         targetSdk = 36
@@ -70,6 +71,8 @@ dependencies {
     implementation(libs.androidx.core)
     implementation(libs.kotlinx.coroutines.android)
     implementation(project(":pagecurl"))
+    implementation(project(":engine-mupdf"))
+    implementation(project(":engine-hwp"))
 
     testImplementation(libs.junit)
 

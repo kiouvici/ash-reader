@@ -62,7 +62,7 @@ jobs:
 
       - name: Build :engine-hwp (arm64-v8a, armeabi-v7a, x86_64) + test AAR
         shell: bash
-        run: .github/scripts/gradle-annotate.sh :engine-hwp:assembleRelease :engine-hwp:assembleDebugAndroidTest
+        run: .github/scripts/gradle-annotate.sh :engine-hwp:assembleRelease -Pash.abis=arm64-v8a,armeabi-v7a,x86_64,x86 :engine-hwp:assembleDebugAndroidTest
 
       - name: 16KB alignment & size report
         shell: bash
