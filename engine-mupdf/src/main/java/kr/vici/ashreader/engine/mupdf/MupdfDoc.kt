@@ -64,6 +64,67 @@ class MupdfDoc private constructor(private val doc: Document) : Closeable {
         }
     }
 
+    /**
+     * 쪽 글자와 글자 상자(S-28 글자 선택·검색·형광펜).
+     * [text]의 i번째 UTF-16 글자 상자 = [boxes] 4i..4i+3 (left, top, right, bottom, 쪽 크기 기준 0..1).
+     * 줄 끝마다 '\n'(상자 0)을 넣는다. [aspect] = 쪽 높이/폭.
+     */
+    class PageText(val text: String, val boxes: FloatArray, val aspect: Float)
+
+    fun pageText(i: Int): PageText {
+        val page = doc.loadPage(i)
+        try {
+            val b = page.bounds
+            val pw = (b.x1 - b.x0).takeIf { it > 0f } ?: 1f
+            val ph = (b.y1 - b.y0).takeIf { it > 0f } ?: 1f
+            val st = page.toStructuredText()
+            val sb = StringBuilder()
+            val boxes = ArrayList<Float>()
+            fun put(l: Float, t: Float, r: Float, bt: Float) { boxes += l; boxes += t; boxes += r; boxes += bt }
+            try {
+                for (block in st.blocks ?: emptyArray()) {
+                    for (line in block.lines ?: emptyArray()) {
+                        val chars = line.chars ?: continue
+                        if (chars.isEmpty()) continue
+                        for (ch in chars) {
+                            val q = ch.quad
+                            val l = (minOf(q.ul_x, q.ll_x, q.ur_x, q.lr_x) - b.x0) / pw
+                            val r = (maxOf(q.ul_x, q.ll_x, q.ur_x, q.lr_x) - b.x0) / pw
+                            val t = (minOf(q.ul_y, q.ll_y, q.ur_y, q.lr_y) - b.y0) / ph
+                            val bt = (maxOf(q.ul_y, q.ll_y, q.ur_y, q.lr_y) - b.y0) / ph
+                            val n = sb.length
+                            sb.appendCodePoint(ch.c)
+                            repeat(sb.length - n) { put(l, t, r, bt) }
+                        }
+                        sb.append('\n'); put(0f, 0f, 0f, 0f)
+                    }
+                }
+            } finally {
+                st.destroy()
+            }
+            return PageText(sb.toString(), boxes.toFloatArray(), ph / pw)
+        } finally {
+            page.destroy()
+        }
+    }
+
+    /** 목차 한 줄. [page] = 0부터, 못 찾으면 -1. */
+    data class TocItem(val title: String, val depth: Int, val page: Int)
+
+    /** 문서 목차(outline)를 펼친 목록. 목차가 없으면 빈 목록. */
+    fun outline(): List<TocItem> {
+        val out = ArrayList<TocItem>()
+        fun walk(items: Array<com.artifex.mupdf.fitz.Outline>?, depth: Int) {
+            for (o in items ?: return) {
+                val p = runCatching { o.uri?.let { doc.pageNumberFromLocation(doc.resolveLink(it)) } ?: -1 }.getOrDefault(-1)
+                out += TocItem(o.title?.trim().orEmpty(), depth, p)
+                walk(o.down, depth + 1)
+            }
+        }
+        walk(runCatching { doc.loadOutline() }.getOrNull(), 0)
+        return out
+    }
+
     override fun close() = doc.destroy()
 
     companion object {

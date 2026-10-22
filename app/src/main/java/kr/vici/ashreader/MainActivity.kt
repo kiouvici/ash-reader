@@ -39,6 +39,7 @@ import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.Bookmark
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.LibraryRepo
+import kr.vici.ashreader.data.Highlight
 import kr.vici.ashreader.data.Note
 import kr.vici.ashreader.data.ReadingSession
 import kr.vici.ashreader.data.Settings
@@ -158,6 +159,7 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
             val bookId = sc.target.id
             val bookmarks by remember(bookId) { dao.bookmarks(bookId) }.collectAsState(initial = emptyList<Bookmark>())
             val notes by remember(bookId) { dao.notes(bookId) }.collectAsState(initial = emptyList<Note>())
+            val highlights by remember(bookId) { dao.highlights(bookId) }.collectAsState(initial = emptyList<Highlight>())
             ReaderScreen(
                 target = sc.target, s = settings, onSettings = ::change,
                 onBack = { screen = tab },
@@ -192,6 +194,14 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                     }
                 },
                 onAddNote = { p, text -> scope.launch { dao.addNote(Note(bookId = bookId, page = p, text = text)) } },
+                highlights = highlights,
+                onAddHighlight = { p, st, en, text, color, note ->
+                    scope.launch {
+                        dao.addHighlight(Highlight(bookId = bookId, page = p, startIdx = st, endIdx = en, text = text, color = color, note = note))
+                        snack.showSnackbar(if (note.isBlank()) "형광펜을 칠했어요." else "메모를 남겼어요.")
+                    }
+                },
+                onRemoveHighlight = { id -> scope.launch { dao.removeHighlight(id) } },
             )
             nextVol?.let { (done, next) ->
                 NextVolumeSheet(done, next,

@@ -36,6 +36,9 @@ class PageCurlView @JvmOverloads constructor(
     /** 탭 (0..1 정규화 좌표, 화면 기준). 탭 영역 판정은 바깥(앱)이 한다. */
     var onTap: ((xFrac: Float, yFrac: Float) -> Unit)? = null
 
+    /** 길게 누름 (0..1 정규화 좌표, 화면 기준). 글자 선택(S-28)에 쓴다. 이 콜백이 있으면 그 손가락의 탭·끌기는 무시. */
+    var onLongPress: ((xFrac: Float, yFrac: Float) -> Unit)? = null
+
     /** 보이는 첫 쪽 번호가 바뀔 때 (메인 스레드) */
     var onPageChanged: ((first: Int, spread: Boolean) -> Unit)? = null
 
@@ -85,6 +88,15 @@ class PageCurlView @JvmOverloads constructor(
     private var downY = 0f
     private var downTime = 0L
     private var dragging = false
+    private var longFired = false
+    private val longPressRunnable = Runnable {
+        val cb = onLongPress ?: return@Runnable
+        if (dragging || width <= 0 || height <= 0) return@Runnable
+        longFired = true
+        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        cb(rawDownX / width, downY / height)
+    }
+    private var rawDownX = 0f
 
     init {
         surfaceTextureListener = this
@@ -149,6 +161,7 @@ class PageCurlView @JvmOverloads constructor(
 
     /** 뷰를 다 쓴 뒤 호출 (Activity onDestroy). */
     fun release() {
+        mainHandler.removeCallbacks(longPressRunnable)
         gl.post {
             clearTextures()
             renderer.release()
@@ -220,10 +233,13 @@ class PageCurlView @JvmOverloads constructor(
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 parent?.requestDisallowInterceptTouchEvent(true)
-                downX = lx; downY = event.y; downTime = SystemClock.uptimeMillis(); dragging = false
+                downX = lx; rawDownX = event.x; downY = event.y; downTime = SystemClock.uptimeMillis(); dragging = false; longFired = false
+                if (onLongPress != null) mainHandler.postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout().toLong())
             }
             MotionEvent.ACTION_MOVE -> {
+                if (longFired) return true
                 val dx = lx - downX
+                if (abs(dx) > touchSlop || abs(event.y - downY) > touchSlop) mainHandler.removeCallbacks(longPressRunnable)
                 if (!dragging && abs(dx) > touchSlop && abs(dx) > abs(event.y - downY)) {
                     dragging = true
                     val next = dx < 0
@@ -236,7 +252,10 @@ class PageCurlView @JvmOverloads constructor(
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (dragging) {
+                mainHandler.removeCallbacks(longPressRunnable)
+                if (longFired) {
+                    longFired = false
+                } else if (dragging) {
                     gl.post { endDrag() }
                 } else if (event.actionMasked == MotionEvent.ACTION_UP &&
                     SystemClock.uptimeMillis() - downTime < ViewConfiguration.getLongPressTimeout()

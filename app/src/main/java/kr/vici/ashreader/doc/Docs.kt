@@ -38,7 +38,16 @@ interface ReaderDoc : Closeable {
 
     /** 쪽 글자(듣기·검색·사전용). 글자가 없는 형식은 빈 목록. */
     fun pageLines(index: Int): List<String> = emptyList()
+
+    /** 쪽 글자와 위치(글자 선택·형광펜·검색). 글자 위치를 모르는 형식은 null. */
+    fun pageText(index: Int): TextPage? = null
+
+    /** 목차. 없거나 모르는 형식은 빈 목록. */
+    fun toc(): List<TocEntry> = emptyList()
 }
+
+/** 목차 한 줄. [page] 0부터(-1 = 위치 모름). */
+data class TocEntry(val title: String, val depth: Int, val page: Int)
 
 class OpenFailed(msg: String) : Exception(msg)
 
@@ -171,6 +180,18 @@ class MupdfReaderDoc(
     }
 
     override fun pageLines(index: Int): List<String> = synchronized(lock) { runCatching { doc.pageLines(index) }.getOrDefault(emptyList()) }
+
+    private val textCache = object : android.util.LruCache<Int, TextPage>(24) {}
+
+    override fun pageText(index: Int): TextPage? {
+        textCache.get(index)?.let { return it }
+        val t = synchronized(lock) { runCatching { doc.pageText(index) }.getOrNull() } ?: return null
+        return TextPage(t.text, t.boxes, t.aspect).also { textCache.put(index, it) }
+    }
+
+    override fun toc(): List<TocEntry> = synchronized(lock) {
+        runCatching { doc.outline().map { TocEntry(it.title, it.depth, it.page) } }.getOrDefault(emptyList())
+    }
 
     override fun close() = synchronized(lock) { doc.close() }
 }
