@@ -15,8 +15,8 @@ endforeach()
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 add_subdirectory(${TP}/libarchive ${CMAKE_BINARY_DIR}/libarchive EXCLUDE_FROM_ALL)
 
-# --- ncnn 20261020 프리빌드 (ABI별) ---
-set(ncnn_DIR ${TP}/ncnn/${ANDROID_ABI}/lib/cmake/ncnn)
+# --- ncnn 20261020 (scripts/build-ncnn.sh 가 NDK r28 로 빌드, ABI별) ---
+set(ncnn_DIR ${ASH_NCNN}/${ANDROID_ABI}/lib/cmake/ncnn)
 find_package(ncnn REQUIRED)
 
 add_library(ash_comic SHARED ash_archive_jni.cpp ash_upscale_jni.cpp)
