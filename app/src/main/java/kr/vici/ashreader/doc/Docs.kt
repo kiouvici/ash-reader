@@ -11,6 +11,8 @@ import android.graphics.Rect
 import android.graphics.RectF
 import java.io.Closeable
 import java.io.File
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kr.vici.ashreader.R
 import kr.vici.ashreader.data.BodyFont
 import kr.vici.ashreader.data.DocFormat
@@ -23,8 +25,12 @@ import kr.vici.ashreader.engine.comic.ReadingDirection
 import kr.vici.ashreader.engine.hwp.HwpDoc
 import kr.vici.ashreader.engine.hwp.HwpHealth
 import kr.vici.ashreader.engine.mupdf.MupdfDoc
+import kr.vici.ashreader.office.AgileDecryptor
 import kr.vici.ashreader.office.DocExtractor
 import kr.vici.ashreader.office.DocxConverter
+import kr.vici.ashreader.office.FormatSniffer
+import kr.vici.ashreader.office.RtfConverter
+import kr.vici.ashreader.office.SniffedFormat
 import kr.vici.ashreader.ui.ReadingColors
 
 /** 열린 문서 하나. 모든 엔진이 '쪽 비트맵'만 내보낸다(F-17). 스레드 안전하게 구현한다(엔진 호출은 잠금 안에서). */
@@ -51,6 +57,9 @@ interface ReaderDoc : Closeable {
 data class TocEntry(val title: String, val depth: Int, val page: Int)
 
 class OpenFailed(msg: String) : Exception(msg)
+
+/** 암호 걸린 문서: 암호가 필요함([wrong]=false) 또는 틀림([wrong]=true). 암호는 저장하지 않는다. */
+class PasswordNeeded(val wrong: Boolean) : Exception(if (wrong) "암호가 맞지 않아요." else "암호가 걸린 문서예요.")
 
 /** 번들 글꼴(assets/fonts) → 내부 저장소 복사. 엔진은 파일 경로로 글꼴을 읽는다. */
 object BundledFonts {
@@ -114,7 +123,10 @@ object DocOpener {
      * [file]을 연다. 이북류는 [pageWdp]×[pageHdp] 쪽 크기(dp=pt)로 다시 배치한다.
      * [hwpEbook] = 한글 문서를 이북식(다시 배치)으로 연다(F-28). 무거운 작업이므로 백그라운드에서 부른다.
      */
-    fun open(context: Context, file: File, format: DocFormat, pageWdp: Float, pageHdp: Float, s: Settings, hwpEbook: Boolean = false): ReaderDoc {
+    fun open(
+        context: Context, file: File, format: DocFormat, pageWdp: Float, pageHdp: Float, s: Settings,
+        hwpEbook: Boolean = false, password: String? = null,
+    ): ReaderDoc {
         BundledFonts.install(context)
         return when (format.engine) {
             DocFormat.Engine.MUPDF -> MupdfReaderDoc(file, format, pageWdp, pageHdp, s, context)
@@ -124,8 +136,14 @@ object DocOpener {
             } else HwpReaderDoc(file, format)
             DocFormat.Engine.COMIC -> ComicReaderDoc(file, format)
             DocFormat.Engine.OFFICE -> {
-                val x = OfficeXhtml.convert(context, file, format)
-                MupdfReaderDoc(x, format, pageWdp, pageHdp, s, context)
+                val x = OfficeXhtml.convert(context, file, format, password)
+                val tmp = x.temp
+                val cleanup: (() -> Unit)? = if (tmp != null) { { tmp.deleteRecursively() } } else null
+                try {
+                    MupdfReaderDoc(x.file, format, pageWdp, pageHdp, s, context, onClose = cleanup)
+                } catch (e: Exception) {
+                    tmp?.deleteRecursively(); throw e
+                }
             }
             DocFormat.Engine.NONE -> throw OpenFailed("이 형식은 아직 열 수 없어요.")
         }
@@ -185,6 +203,8 @@ class MupdfReaderDoc(
     context: Context,
     /** 다시 배치(이북식). 기본은 형식에 따름. 한글 이북식 보기는 true 로 넘긴다. */
     reflow: Boolean = format.reflowable,
+    /** 닫은 뒤 할 일(암호 문서 임시 폴더 지우기). */
+    private val onClose: (() -> Unit)? = null,
 ) : ReaderDoc {
     private val lock = Any()
     private val doc: MupdfDoc = try {
@@ -217,7 +237,10 @@ class MupdfReaderDoc(
         runCatching { doc.outline().map { TocEntry(it.title, it.depth, it.page) } }.getOrDefault(emptyList())
     }
 
-    override fun close() = synchronized(lock) { doc.close() }
+    override fun close() {
+        synchronized(lock) { doc.close() }
+        onClose?.invoke()
+    }
 }
 
 /** 한글 원본 보기(쪽 그림). 글자 선택·검색·목차는 이북식 보기([HwpXhtml] → [MupdfReaderDoc])에서 쓴다. */
@@ -257,14 +280,26 @@ class ComicReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
     override val pageCount: Int = arc.pages.size
     override val rtl: Boolean get() = arc.direction == ReadingDirection.RTL
 
-    /** 그림 원본 비트맵(폭 [w] 근처로 줄임). 만화 그림은 테마 색을 입히지 않는다. */
-    fun pageBitmap(index: Int, w: Int): Bitmap {
-        val bytes = synchronized(lock) { arc.readPage(index) }
-        return PageDecoder.decodeFit(bytes, w)
-    }
+    /** 파일별 캐시 열쇠(경로·크기·수정 시각 — 파일이 바뀌면 달라짐). */
+    val cacheKey: String = (file.absolutePath + ":" + file.length() + ":" + file.lastModified()).hashCode().toUInt().toString(16)
 
-    override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap =
-        fitInto(pageBitmap(index, w), w, h, colors, applyTheme = false)
+    /** AI 화질 개선(F-73). 켜져 있으면 읽기 화면이 넣는다. */
+    @Volatile var upscale: ComicUpscale? = null
+    /** 넘김 화면에 2배 결과로 그린 쪽(바꿔 끼울 쪽 판단용). */
+    private val shownUpscaled: MutableSet<Int> = ConcurrentHashMap.newKeySet()
+    fun shownUpscaled(index: Int) = index in shownUpscaled
+
+    /** 압축 안 쪽 그림 원본 바이트. */
+    fun pageBytes(index: Int): ByteArray = synchronized(lock) { arc.readPage(index) }
+
+    /** 그림 원본 비트맵(폭 [w] 근처로 줄임). 만화 그림은 테마 색을 입히지 않는다. */
+    fun pageBitmap(index: Int, w: Int): Bitmap = PageDecoder.decodeFit(pageBytes(index), w.coerceAtLeast(1))
+
+    override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap {
+        val up = upscale?.load(index, w)
+        if (up != null) shownUpscaled += index else shownUpscaled -= index
+        return fitInto(up ?: pageBitmap(index, w), w, h, colors, applyTheme = false)
+    }
 
     /** 칸 인식(F-72). 결과 좌표는 [pageBitmap] 과 같은 비율의 원본 기준(width/height 함께 줌). */
     fun panels(index: Int, dir: ReadingDirection): PagePanels = synchronized(panelCache) {
@@ -272,6 +307,21 @@ class ComicReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
             val b = pageBitmap(index, 1200)
             try { detector.detect(PageDecoder.toGray(b), dir) } finally { b.recycle() }
         }
+    }
+
+    /** 목차 = 압축 안 파일(쪽) 순서. 폴더가 여럿이면 폴더 → 파일 2단. */
+    override fun toc(): List<TocEntry> {
+        val pages = arc.pages
+        val folders = pages.map { it.name.substringBeforeLast('/', "") }
+        val multi = folders.distinct().size > 1
+        val out = ArrayList<TocEntry>(pages.size + 8)
+        var last: String? = null
+        pages.forEachIndexed { i, p ->
+            val f = folders[i]
+            if (multi && f != last) { out += TocEntry(f.substringAfterLast('/').ifEmpty { "(맨 위)" }, 0, i); last = f }
+            out += TocEntry(p.name.substringAfterLast('/'), if (multi) 1 else 0, i)
+        }
+        return out
     }
 
     override fun close() = synchronized(lock) { arc.close() }
@@ -297,23 +347,50 @@ object HwpXhtml {
     }
 }
 
-/** DOCX·DOC → XHTML(이북식 보기). 그림은 같은 폴더에 쓴다. */
+/**
+ * DOCX·DOC·RTF → XHTML(이북식 보기). 그림은 같은 폴더에 쓴다.
+ * 암호 DOCX(Agile·Standard)는 [password] 로 풀어 메모리에서 변환하고, 결과는 읽기 화면을 닫을 때 지우는 임시 폴더에 둔다.
+ * 암호 자체는 어디에도 저장하지 않는다(F-34).
+ */
 object OfficeXhtml {
-    fun convert(context: Context, file: File, format: DocFormat): File {
-        val bytes = file.readBytes()
-        val dir = File(context.cacheDir, "office/" + file.nameWithoutExtension).apply { mkdirs() }
+    /** [temp] = 닫을 때 지울 폴더(암호 문서만). */
+    class Converted(val file: File, val temp: File?)
+
+    fun convert(context: Context, file: File, format: DocFormat, password: String? = null): Converted {
+        val raw = file.readBytes()
+        val sniffed = FormatSniffer.sniff(raw)
+        var temp: File? = null
+        val bytes: ByteArray = when {
+            sniffed == SniffedFormat.ENCRYPTED_OOXML -> {
+                if (password.isNullOrEmpty()) throw PasswordNeeded(wrong = false)
+                val r = try { AgileDecryptor.decrypt(raw, password) } catch (e: Exception) {
+                    throw OpenFailed("암호가 걸린 Word 문서를 풀 수 없어요. 파일이 손상되었을 수 있어요.")
+                }
+                when (r) {
+                    is AgileDecryptor.Result.Ok -> r.zip
+                    is AgileDecryptor.Result.WrongPassword -> throw PasswordNeeded(wrong = true)
+                    is AgileDecryptor.Result.Unsupported -> throw OpenFailed("이 암호 방식은 아직 열 수 없어요. (${r.reason})")
+                }.also { temp = File(context.cacheDir, "office-enc/" + UUID.randomUUID()) }
+            }
+            sniffed == SniffedFormat.DOC && DocExtractor.isEncrypted(raw) ->
+                throw OpenFailed("암호가 걸린 DOC(Word 97-2003) 문서는 아직 열 수 없어요. Word에서 암호를 풀거나 DOCX로 저장한 뒤 열어 주세요.")
+            else -> raw
+        }
+        val dir = (temp ?: File(context.cacheDir, "office/" + file.nameWithoutExtension)).apply { mkdirs() }
         val xhtml = try {
-            if (format == DocFormat.DOCX) {
-                val r = DocxConverter(DocxConverter.Options(simplified = true)).convert(bytes)
-                for ((name, data) in r.images) File(dir, name).apply { parentFile?.mkdirs() }.writeBytes(data)
-                r.xhtml
-            } else {
-                DocExtractor.convert(bytes).xhtml
+            when {
+                sniffed == SniffedFormat.RTF -> RtfConverter.convert(bytes).xhtml
+                bytes.size >= 2 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte() -> {
+                    val r = DocxConverter(DocxConverter.Options(simplified = true)).convert(bytes)
+                    for ((name, data) in r.images) File(dir, name).apply { parentFile?.mkdirs() }.writeBytes(data)
+                    r.xhtml
+                }
+                else -> DocExtractor.convert(bytes).xhtml
             }
         } catch (e: Exception) {
-            // TODO(S-42): 암호 DOCX 는 암호 입력 창 → AgileDecryptor. 지금은 안내만.
-            throw OpenFailed("Word 문서를 열 수 없어요. 암호가 걸렸거나 손상된 파일일 수 있어요.")
+            temp?.deleteRecursively()
+            throw OpenFailed("Word 문서를 열 수 없어요. 손상되었거나 지원하지 않는 형식일 수 있어요.")
         }
-        return File(dir, "doc.xhtml").apply { writeText(xhtml) }
+        return Converted(File(dir, "doc.xhtml").apply { writeText(xhtml) }, temp)
     }
 }

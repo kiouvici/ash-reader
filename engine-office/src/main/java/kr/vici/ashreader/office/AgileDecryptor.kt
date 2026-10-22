@@ -13,6 +13,7 @@ import org.w3c.dom.Element
 
 /**
  * ECMA-376 Agile 암호화(Office 2010+) 해제 자체 구현 (MS-OFFCRYPTO 2.3.4.10~2.3.4.15).
+ * Standard 암호화(Office 2007, 버전 x.2)는 [StandardDecryptor] 로 넘긴다.
  * javax.crypto(AES-CBC)와 MessageDigest만 쓴다. 결과(ZIP 바이트)는 메모리에만 둔다(F-34).
  */
 object AgileDecryptor {
@@ -35,9 +36,8 @@ object AgileDecryptor {
         val pkg = cfb.read("EncryptedPackage") ?: return Result.Unsupported("EncryptedPackage 없음")
         val vMajor = (info[0].toInt() and 0xFF) or ((info[1].toInt() and 0xFF) shl 8)
         val vMinor = (info[2].toInt() and 0xFF) or ((info[3].toInt() and 0xFF) shl 8)
-        if (!(vMajor == 4 && vMinor == 4)) {
-            return Result.Unsupported(if (vMinor == 2) "Standard 암호화(Office 2007) $vMajor.$vMinor" else "암호화 버전 $vMajor.$vMinor")
-        }
+        if (vMinor == 2 && vMajor in 2..4) return StandardDecryptor.decrypt(info, pkg, password)
+        if (!(vMajor == 4 && vMinor == 4)) return Result.Unsupported("암호화 버전 $vMajor.$vMinor")
         val xml = info.copyOfRange(8, info.size)
         val doc = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
             .newDocumentBuilder().parse(xml.inputStream())

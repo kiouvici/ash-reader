@@ -13,6 +13,12 @@ import org.apache.poi.hwpf.usermodel.Range
 object DocExtractor {
     class Result(val xhtml: String, val paragraphTexts: List<String>, val tableGrids: List<List<Int>>)
 
+    /** Word 97-2003 암호 문서(FIB fEncrypted, MS-DOC 2.5.2). 이 형식의 암호 해제는 지원하지 않는다. */
+    fun isEncrypted(bytes: ByteArray): Boolean = runCatching {
+        val wd = Cfb.open(bytes).read("WordDocument")
+        wd != null && wd.size > 0x0B && (wd[0x0B].toInt() and 0x01) != 0
+    }.getOrDefault(false)
+
     fun convert(bytes: ByteArray): Result {
         val doc = HWPFDocument(ByteArrayInputStream(bytes))
         val range: Range = doc.range

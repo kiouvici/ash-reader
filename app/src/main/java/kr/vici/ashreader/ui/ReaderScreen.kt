@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -41,6 +43,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -57,6 +60,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,9 +89,11 @@ import kr.vici.ashreader.data.PanelMode
 import kr.vici.ashreader.data.ReadTheme
 import kr.vici.ashreader.data.Settings
 import kr.vici.ashreader.doc.ComicReaderDoc
+import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.doc.DocOpener
 import kr.vici.ashreader.doc.HwpReaderDoc
 import kr.vici.ashreader.doc.MupdfReaderDoc
+import kr.vici.ashreader.doc.PasswordNeeded
 import kr.vici.ashreader.doc.ReaderDoc
 import kr.vici.ashreader.pagecurl.CurlConfig
 import kr.vici.ashreader.pagecurl.PageCurlView
@@ -117,6 +125,8 @@ private sealed interface Load {
     data object Loading : Load
     data class Ok(val doc: ReaderDoc) : Load
     data class Err(val msg: String) : Load
+    /** 암호 걸린 문서. [wrong] = 방금 넣은 암호가 틀림. */
+    data class Locked(val wrong: Boolean) : Load
 }
 
 /** 닫힌 문서에 렌더 요청이 와도 죽지 않게 감싼다. */
@@ -202,6 +212,9 @@ fun ReaderScreen(
     val reflow = fmt.reflowable || (isHwp && hwpEbook)
     /** 보기 방식을 바꾼 뒤 새 문서에서 이어 볼 위치(읽은 비율). */
     var pendingFrac by remember { mutableStateOf<Float?>(null) }
+    /** 암호 걸린 Word 의 암호. 이 화면 메모리에만 두고 저장하지 않는다. */
+    var password by remember(target.id) { mutableStateOf<String?>(null) }
+    var pwTry by remember(target.id) { mutableIntStateOf(0) }
 
     fun stub(msg: String) { scope.launch { snack.showSnackbar(msg) } }
 
@@ -223,12 +236,13 @@ fun ReaderScreen(
         val pageWdp = if (spread) wDp / 2f else wDp
         val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook) else listOf(spread, hwpEbook)
 
-        val load by produceState<Load>(Load.Loading, target.path, layoutKey) {
+        val load by produceState<Load>(Load.Loading, target.path, layoutKey, pwTry) {
             value = Load.Loading
+            val pw = password
             val r = withContext(Dispatchers.IO) {
-                runCatching { DocOpener.open(context, File(target.path), fmt, pageWdp, hDp, s, hwpEbook = isHwp && hwpEbook) }
+                runCatching { DocOpener.open(context, File(target.path), fmt, pageWdp, hDp, s, hwpEbook = isHwp && hwpEbook, password = pw) }
             }
-            value = r.fold({ Load.Ok(it) }, { Load.Err(it.message ?: "문서를 열 수 없어요.") })
+            value = r.fold({ Load.Ok(it) }, { e -> if (e is PasswordNeeded) Load.Locked(e.wrong) else Load.Err(e.message ?: "문서를 열 수 없어요.") })
             awaitDispose { r.getOrNull()?.let { d -> Thread { GuardedSource.close(d) }.start() } }
         }
 
@@ -244,6 +258,7 @@ fun ReaderScreen(
                 }
                 Button(onClick = onBack, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("서재로") }
             }
+            is Load.Locked -> PasswordDialog(wrong = l.wrong, onSubmit = { password = it; pwTry++ }, onCancel = onBack)
             is Load.Ok -> {
                 val doc = l.doc
                 LaunchedEffect(doc) {
@@ -283,12 +298,24 @@ fun ReaderScreen(
                     }
                 }
                 val panelMode = doc is ComicReaderDoc && s.panelMode != PanelMode.OFF
+                // AI 화질 개선(F-73): 만화 + 설정 켬일 때만. 원본을 먼저 보여 주고 2배 결과로 바꿔 낀다.
+                val upscale = remember(doc, s.aiUpscale) { if (s.aiUpscale && doc is ComicReaderDoc) ComicUpscale(context, doc) else null }
+                DisposableEffect(upscale) {
+                    val cd = doc as? ComicReaderDoc
+                    cd?.upscale = upscale
+                    onDispose {
+                        if (cd != null && cd.upscale === upscale) cd.upscale = null
+                        upscale?.close()
+                    }
+                }
                 if (panelMode) {
                     ComicPanelReader(
                         doc = doc as ComicReaderDoc, startPage = page, autoDefault = s.panelMode == PanelMode.AUTO, colors = colors,
                         menuVisible = menu, onToggleMenu = { menu = !menu },
                         onPage = { if (it != page) { page = it; pagesTurned++ } },
                         turnRequest = turnReq, turnForward = turnFwd,
+                        upscale = upscale,
+                        jumpRequest = jumpReq, onJumpHandled = { jumpReq = null },
                     )
                 } else {
                     val near = if (reflow) 3 else 0
@@ -358,6 +385,19 @@ fun ReaderScreen(
                         modifier = Modifier.fillMaxSize().semantics { contentDescription = "${target.title} ${page + 1}쪽" },
                     )
                     LaunchedEffect(turnReq) { if (turnReq > 0) curlView?.turn(turnFwd) }
+                    if (upscale != null && doc is ComicReaderDoc) {
+                        val readySet by upscale.ready.collectAsState()
+                        LaunchedEffect(upscale, page, pxW, pxH) { upscale.request(page, pxW.toInt(), pxH.toInt()) }
+                        // 보이는 쪽의 2배 결과가 나왔는데 넘김 화면이 원본으로 그렸으면 다시 그린다
+                        LaunchedEffect(readySet, page, source) {
+                            val vis = if (spreadNow) listOf(page, page + 1) else listOf(page)
+                            if (vis.any { it in readySet && !doc.shownUpscaled(it) }) {
+                                delay(300)
+                                curlView?.let { v -> v.tag = source; v.setPageSource(source, page) }
+                            }
+                        }
+                        if (!menu) UpscaleChip(upscale, page, Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 12.dp))
+                    }
                 }
 
                 // 볼륨 키 (화면 설계서 4.5): 메뉴·시트가 열려 있으면 시스템 음량
@@ -665,4 +705,33 @@ private fun noTextMsg(fmt: DocFormat): String = when (fmt.group) {
     FormatGroup.HWP -> "원본 보기에서는 글자를 고를 수 없어요. ‘이북식’으로 바꾸면 글자 선택·검색·형광펜을 쓸 수 있어요."
     FormatGroup.COMIC -> "만화는 그림이라 글자를 고를 수 없어요."
     else -> "이 쪽에는 고를 수 있는 글자가 없어요. (그림으로 된 PDF일 수 있어요)"
+}
+
+/** 암호 걸린 Word 문서 암호 입력(S-42). 틀리면 다시 묻는다. 입력값은 저장하지 않는다. */
+@Composable
+private fun PasswordDialog(wrong: Boolean, onSubmit: (String) -> Unit, onCancel: () -> Unit) {
+    var text by remember(wrong) { mutableStateOf("") }
+    val submit = { if (text.isNotEmpty()) { val t = text; text = ""; onSubmit(t) } }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text("암호가 걸린 문서") },
+        text = {
+            Column {
+                Text(
+                    if (wrong) "암호가 맞지 않아요. 다시 입력해 주세요." else "이 Word 문서를 열려면 암호를 입력하세요. 암호는 저장하지 않아요.",
+                    fontSize = 14.sp, color = if (wrong) Color(0xFFB3261E) else Color.Unspecified,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+                OutlinedTextField(
+                    value = text, onValueChange = { text = it }, singleLine = true, label = { Text("암호") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { submit() }),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { submit() }, enabled = text.isNotEmpty(), modifier = Modifier.heightIn(min = 48.dp)) { Text("열기") } },
+        dismissButton = { TextButton(onClick = onCancel, modifier = Modifier.heightIn(min = 48.dp)) { Text("서재로") } },
+    )
 }

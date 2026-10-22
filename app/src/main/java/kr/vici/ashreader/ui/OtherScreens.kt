@@ -190,7 +190,7 @@ fun AppSettingsScreen(s: Settings, onChange: ((Settings) -> Settings) -> Unit, o
                 onChange { it.copy(panelMode = PanelMode.entries[(it.panelMode.ordinal + 1) % PanelMode.entries.size]) }
             }
             // TODO(F-73): Upscaler(Real-CUGAN) 연결. 지금은 설정값만 저장.
-            SwitchRow("AI 화질 개선", "기기 안에서 처리 · 저화질 만화를 선명하게 · 배터리 더 씀 (준비 중)", s.aiUpscale) { v -> onChange { it.copy(aiUpscale = v) } }
+            SwitchRow("AI 화질 개선", "기기 안에서 처리 · 저화질 만화를 2배 선명하게 · 배터리 더 씀 · 절전 모드에서는 쉼", s.aiUpscale) { v -> onChange { it.copy(aiUpscale = v) } }
         }
         Group("연결") {
             ValueRow("사전", "단어 길게 눌러 찾기", "말글사전") {

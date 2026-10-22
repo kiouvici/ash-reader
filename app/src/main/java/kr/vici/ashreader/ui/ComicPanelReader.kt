@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,11 +18,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -44,13 +48,15 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kr.vici.ashreader.doc.ComicReaderDoc
+import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.engine.comic.PagePanels
 import kr.vici.ashreader.engine.comic.ReadingDirection
 
 /**
  * S-34 칸 단위 보기 (F-72, D-007). 눌러서 확대(기본) / 자동 순서.
- * 탭 규칙(화면 설계서 4.3): 위 12% 띠 = 메뉴, 좌우 15% = 이전/다음 칸(즉시), 칸 위 = 확대 ↔ 쪽 전체.
- * TODO(M-12): 두 번 탭 2배 확대·250ms 대기는 실험 ③ 확정 후.
+ * 탭 규칙(화면 설계서 4.3): 위 12% 띠 = 메뉴, 좌우 15% = 이전/다음 칸, 칸 위 = 확대 ↔ 쪽 전체.
+ * 두 번 탭 = 누른 곳 중심 2배 확대 ↔ 원래대로(M-12). 확대 중에는 끌어서 옮긴다. 쪽·칸이 바뀌면 풀린다.
+ * [upscale] = AI 화질 개선(켜져 있을 때). 원본을 먼저 보여 주고 2배 결과가 나오면 바꿔 낀다.
  */
 @Composable
 fun ComicPanelReader(
@@ -63,6 +69,10 @@ fun ComicPanelReader(
     onPage: (Int) -> Unit,
     turnRequest: Int,
     turnForward: Boolean,
+    upscale: ComicUpscale? = null,
+    /** 목차·쪽 이동 막대에서 고른 쪽(처리 후 [onJumpHandled]). */
+    jumpRequest: Int? = null,
+    onJumpHandled: () -> Unit = {},
 ) {
     var page by remember { mutableIntStateOf(startPage.coerceIn(0, (doc.pageCount - 1).coerceAtLeast(0))) }
     var sel by remember { mutableIntStateOf(if (autoDefault) 0 else -1) }
@@ -73,12 +83,26 @@ fun ComicPanelReader(
     BoxWithConstraints(Modifier.fillMaxSize().background(colors.bgC)) {
         val wPx = with(density) { maxWidth.toPx() }
         val hPx = with(density) { maxHeight.toPx() }
-        val loaded by produceState<Pair<Bitmap, PagePanels>?>(null, page) {
+        val readySet = upscale?.ready?.collectAsState()?.value ?: emptySet()
+        val upHere = page in readySet
+        val loaded by produceState<Pair<Bitmap, PagePanels>?>(null, page, upHere) {
             value = withContext(Dispatchers.IO) {
-                runCatching { doc.pageBitmap(page, wPx.toInt().coerceAtLeast(1)) to doc.panels(page, dir) }.getOrNull()
+                runCatching {
+                    val w = wPx.toInt().coerceAtLeast(1)
+                    // 2배 결과는 칸 확대에 쓰도록 화면 폭 2배까지 남긴다
+                    val b = (if (upHere) upscale?.load(page, w * 2) else null) ?: doc.pageBitmap(page, w)
+                    b to doc.panels(page, dir)
+                }.getOrNull()
             }
         }
         LaunchedEffect(page) { onPage(page) }
+        LaunchedEffect(jumpRequest) {
+            val j = jumpRequest ?: return@LaunchedEffect
+            page = j.coerceIn(0, (doc.pageCount - 1).coerceAtLeast(0))
+            sel = if (auto) 0 else -1
+            onJumpHandled()
+        }
+        LaunchedEffect(page, upscale) { upscale?.request(page, wPx.toInt(), hPx.toInt()) }
 
         val bmp = loaded?.first
         val pp = loaded?.second
@@ -118,12 +142,32 @@ fun ComicPanelReader(
         val atx by animateFloatAsState(tx, tween(250), label = "tx")
         val aty by animateFloatAsState(ty, tween(250), label = "ty")
 
+        // 두 번 탭 확대(사용자 확대): 화면 좌표 = u + uz × 내용 좌표
+        var uz by remember { mutableFloatStateOf(1f) }
+        var ux by remember { mutableFloatStateOf(0f) }
+        var uy by remember { mutableFloatStateOf(0f) }
+        LaunchedEffect(page, sel) { uz = 1f; ux = 0f; uy = 0f }
+        fun clampPan() {
+            ux = ux.coerceIn(wPx - wPx * uz, 0f)
+            uy = uy.coerceIn(hPx - hPx * uz, 0f)
+        }
+        val auz by animateFloatAsState(uz, tween(200), label = "uz")
+        val aux by animateFloatAsState(ux, tween(200), label = "ux")
+        val auy by animateFloatAsState(uy, tween(200), label = "uy")
+
         Box(
             Modifier.fillMaxSize()
                 .pointerInput(rects, sel, auto, page, doc.rtl) {
-                    detectTapGestures { p: Offset ->
+                    detectTapGestures(
+                        onDoubleTap = { p: Offset ->
+                            if (uz > 1f) { uz = 1f; ux = 0f; uy = 0f }
+                            else { uz = 2f; ux = -p.x; uy = -p.y; clampPan() }
+                        },
+                    ) { p: Offset ->
                         val xf = p.x / size.width
                         val yf = p.y / size.height
+                        // 확대 중이면 내용 좌표로 되돌려 칸을 찾는다
+                        val q = Offset((p.x - ux) / uz, (p.y - uy) / uz)
                         when {
                             yf < 0.12f -> onToggleMenu()
                             xf < 0.15f -> go(doc.rtl)
@@ -131,21 +175,29 @@ fun ComicPanelReader(
                             menuVisible -> onToggleMenu()
                             sel >= 0 -> sel = -1
                             else -> {
-                                val hit = rects.indexOfFirst { it.contains(p) }
+                                val hit = rects.indexOfFirst { it.contains(q) }
                                 if (hit >= 0) sel = hit else onToggleMenu()
                             }
                         }
                     }
                 }
-                .graphicsLayer { transformOrigin = TransformOrigin(0f, 0f); scaleX = az; scaleY = az; translationX = atx; translationY = aty },
+                .then(
+                    if (uz > 1f) Modifier.pointerInput(uz) {
+                        detectDragGestures { change, d -> change.consume(); ux += d.x; uy += d.y; clampPan() }
+                    } else Modifier,
+                )
+                .graphicsLayer { transformOrigin = TransformOrigin(0f, 0f); scaleX = auz; scaleY = auz; translationX = aux; translationY = auy },
         ) {
+          Box(Modifier.fillMaxSize().graphicsLayer { transformOrigin = TransformOrigin(0f, 0f); scaleX = az; scaleY = az; translationX = atx; translationY = aty }) {
             if (bmp != null) {
                 Image(bmp.asImageBitmap(), contentDescription = "${page + 1}쪽", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
                 if (sel < 0) Canvas(Modifier.fillMaxSize()) {
                     rects.forEach { r -> drawRect(Color(0x99F0C674), topLeft = r.topLeft, size = Size(r.width, r.height), style = Stroke(width = 2.dp.toPx())) }
                 }
             }
+          }
         }
+        if (upscale != null && !menuVisible) UpscaleChip(upscale, page, Modifier.align(Alignment.TopEnd).padding(top = 48.dp, end = 12.dp))
 
         // 위 띠(메뉴 숨김일 때 안내)
         if (!menuVisible) Text(
@@ -165,4 +217,20 @@ fun ComicPanelReader(
             }
         }
     }
+}
+
+/** AI 화질 표시(작게): 처리 중 / 적용됨. 해당 없으면 아무것도 그리지 않는다. */
+@Composable
+fun UpscaleChip(up: ComicUpscale, page: Int, modifier: Modifier = Modifier) {
+    val ready by up.ready.collectAsState()
+    val busy by up.busy.collectAsState()
+    val text = when {
+        page in ready -> "AI 화질"
+        busy == page -> "AI 화질 처리 중…"
+        else -> null
+    }
+    if (text != null) Text(
+        text, fontSize = 12.sp, color = Color.White,
+        modifier = modifier.background(Color(0x80000000), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
+    )
 }

@@ -51,6 +51,8 @@
                 <data android:mimeType="application/hwp+zip" />
                 <data android:mimeType="application/vnd.hancom.hwpx" />
                 <data android:mimeType="application/msword" />
+                <data android:mimeType="application/rtf" />
+                <data android:mimeType="text/rtf" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
                 <data android:mimeType="application/vnd.comicbook+zip" />
                 <data android:mimeType="application/vnd.comicbook-rar" />
