@@ -250,7 +250,8 @@ fun ReaderScreen(
                 // 볼륨 키 (화면 설계서 4.5): 메뉴·시트가 열려 있으면 시스템 음량
                 val volOn = s.volumeKeys && !menu && !showAa && !showToc
                 DisposableEffect(volOn) {
-                    VolumeKeys.handler = if (volOn) { next -> turnFwd = next; turnReq++; true } else null
+                    val h: (Boolean) -> Boolean = { next -> turnFwd = next; turnReq++; true }
+                    VolumeKeys.handler = if (volOn) h else null
                     onDispose { VolumeKeys.handler = null }
                 }
 
