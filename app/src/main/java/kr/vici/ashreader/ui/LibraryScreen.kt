@@ -2,6 +2,7 @@
 package kr.vici.ashreader.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,6 +39,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -45,6 +47,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -56,6 +61,7 @@ import kr.vici.ashreader.Links
 import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.progress
+import kr.vici.ashreader.doc.Covers
 
 private enum class Shelf(val label: String) { RECENT("최근"), ALL("전체"), FORMAT("형식별"), FOLDER("폴더별"), SERIES("시리즈") }
 
@@ -214,8 +220,11 @@ private fun ContinueCard(b: Book, onClick: () -> Unit) {
         Modifier.padding(bottom = 16.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Ash.Ink).clickable(onClick = onClick).padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(56.dp, 78.dp).clip(RoundedCornerShape(4.dp)).background(Ash.Cover).padding(4.dp), contentAlignment = Alignment.BottomStart) {
-            Text(f.badge, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4A3A2C))
+        val img = rememberCover(b)
+        Box(Modifier.size(56.dp, 78.dp).clip(RoundedCornerShape(4.dp)).background(Ash.Cover), contentAlignment = Alignment.BottomStart) {
+            if (img != null) Image(img, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            if (img == null) Text(f.badge, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4A3A2C), modifier = Modifier.padding(4.dp))
+            else Badge(f, Modifier.padding(3.dp))
         }
         Column(Modifier.weight(1f)) {
             Text("이어 읽기", fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f))
@@ -226,16 +235,30 @@ private fun ContinueCard(b: Book, onClick: () -> Unit) {
     }
 }
 
+/** 책 표지 썸네일(백그라운드에서 뽑아 캐시). 없거나 아직이면 null. */
+@Composable
+fun rememberCover(b: Book): ImageBitmap? {
+    val context = LocalContext.current
+    val img by produceState(Covers.peek(b)?.asImageBitmap(), b.id, b.path) {
+        Covers.load(context, b)?.let { bmp -> value = bmp.asImageBitmap() }
+    }
+    return img
+}
+
 @Composable
 fun Cover(b: Book, modifier: Modifier = Modifier) {
     val f = DocFormat.of(b.format)
+    val img = if (Covers.supported(f)) rememberCover(b) else null
     Box(modifier.aspectRatio(3f / 4.2f).clip(RoundedCornerShape(6.dp)).background(f.coverColor())) {
-        // TODO(2단계 후반): 실제 표지 추출(EPUB cover·PDF 1쪽·만화 1쪽) 썸네일 캐시
-        Text(
-            b.title, fontFamily = Myeongjo, fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis,
-            color = if (f.group == kr.vici.ashreader.data.FormatGroup.COMIC) Color.White else Ash.Text,
-            modifier = Modifier.padding(8.dp),
-        )
+        if (img != null) {
+            Image(img, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        } else {
+            Text(
+                b.title, fontFamily = Myeongjo, fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis,
+                color = if (f.group == kr.vici.ashreader.data.FormatGroup.COMIC) Color.White else Ash.Text,
+                modifier = Modifier.padding(8.dp),
+            )
+        }
         Badge(f, Modifier.align(Alignment.BottomStart).padding(6.dp))
     }
 }

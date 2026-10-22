@@ -10,6 +10,7 @@ import java.security.MessageDigest
 import java.util.zip.ZipFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kr.vici.ashreader.doc.Covers
 import kr.vici.ashreader.office.FormatSniffer
 import kr.vici.ashreader.office.SniffedFormat
 
@@ -31,6 +32,7 @@ enum class DocFormat(val badge: String, val group: FormatGroup, val engine: Engi
     HWPX("HWPX", FormatGroup.HWP, Engine.HWP),
     DOCX("DOCX", FormatGroup.WORD, Engine.OFFICE),
     DOC("DOC", FormatGroup.WORD, Engine.OFFICE),
+    RTF("RTF", FormatGroup.WORD, Engine.OFFICE),
     UNKNOWN("?", FormatGroup.TEXT, Engine.NONE);
 
     enum class Engine { MUPDF, COMIC, HWP, OFFICE, NONE }
@@ -61,7 +63,7 @@ object FormatDetector {
             SniffedFormat.PDF -> DocFormat.PDF
             SniffedFormat.HWP5, SniffedFormat.HWP3 -> DocFormat.HWP
             SniffedFormat.DOC -> DocFormat.DOC
-            SniffedFormat.RTF -> DocFormat.DOC // TODO(2단계): RTF 전용 경로. 지금은 DOC 경로(POI)로 시도
+            SniffedFormat.RTF -> DocFormat.RTF
             SniffedFormat.ENCRYPTED_OOXML -> DocFormat.DOCX
             else -> byExtension(ext)
         }
@@ -95,7 +97,8 @@ object FormatDetector {
         "hwp" -> DocFormat.HWP
         "hwpx" -> DocFormat.HWPX
         "docx" -> DocFormat.DOCX
-        "doc", "rtf" -> DocFormat.DOC
+        "doc" -> DocFormat.DOC
+        "rtf" -> DocFormat.RTF
         else -> DocFormat.UNKNOWN
     }
 }
@@ -191,10 +194,15 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
         return seg.ifBlank { "가져온 파일" }
     }
 
-    fun clearOnce() { onceDir.listFiles()?.forEach { it.delete() } }
+    fun clearOnce() {
+        onceDir.listFiles()?.forEach { it.delete() }
+        // 암호 문서를 풀어 둔 임시 폴더(읽기 화면을 닫을 때 지우지만, 비정상 종료 대비)
+        File(context.cacheDir, "office-enc").deleteRecursively()
+    }
 
     suspend fun remove(b: Book) = withContext(Dispatchers.IO) {
         dao.delete(b.id)
         File(b.path).delete()
+        Covers.delete(context, b.id)
     }
 }
