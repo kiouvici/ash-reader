@@ -126,3 +126,6 @@ androidComponents {
     }
 }
 wireNoInternetChecks()
+
+// C1: 오픈소스 고지 목록 갱신용(손으로 돌림). ./gradlew --no-configuration-cache :app:ashThirdPartyDeps
+registerThirdPartyDepsTask()

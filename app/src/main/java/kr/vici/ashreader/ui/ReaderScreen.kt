@@ -81,6 +81,7 @@ import kr.vici.ashreader.data.ReadTheme
 import kr.vici.ashreader.data.Settings
 import kr.vici.ashreader.doc.ComicReaderDoc
 import kr.vici.ashreader.doc.DocOpener
+import kr.vici.ashreader.doc.MupdfReaderDoc
 import kr.vici.ashreader.doc.ReaderDoc
 import kr.vici.ashreader.pagecurl.CurlConfig
 import kr.vici.ashreader.pagecurl.PageCurlView
@@ -182,6 +183,12 @@ fun ReaderScreen(
     var tocTab by remember { mutableIntStateOf(0) }
     var openDoc by remember { mutableStateOf<ReaderDoc?>(null) }
     val fmt = target.format
+    // 한글 문서 보기 방식(F-28): false = 원본(쪽 그림), true = 이북식(다시 배치 — 글꼴·크기·테마·글자 선택·검색·목차)
+    val isHwp = fmt.group == FormatGroup.HWP
+    var hwpEbook by remember(target.id) { mutableStateOf(false) }
+    val reflow = fmt.reflowable || (isHwp && hwpEbook)
+    /** 보기 방식을 바꾼 뒤 새 문서에서 이어 볼 위치(읽은 비율). */
+    var pendingFrac by remember { mutableStateOf<Float?>(null) }
 
     fun stub(msg: String) { scope.launch { snack.showSnackbar(msg) } }
 
@@ -201,12 +208,12 @@ fun ReaderScreen(
         val hDp = maxHeight.value
         val spread = wDp > hDp && minOf(wDp, hDp) >= 600f
         val pageWdp = if (spread) wDp / 2f else wDp
-        val layoutKey = if (fmt.reflowable) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt()) else listOf(spread)
+        val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook) else listOf(spread, hwpEbook)
 
         val load by produceState<Load>(Load.Loading, target.path, layoutKey) {
             value = Load.Loading
             val r = withContext(Dispatchers.IO) {
-                runCatching { DocOpener.open(context, File(target.path), fmt, pageWdp, hDp, s) }
+                runCatching { DocOpener.open(context, File(target.path), fmt, pageWdp, hDp, s, hwpEbook = isHwp && hwpEbook) }
             }
             value = r.fold({ Load.Ok(it) }, { Load.Err(it.message ?: "문서를 열 수 없어요.") })
             awaitDispose { r.getOrNull()?.let { d -> Thread { GuardedSource.close(d) }.start() } }
@@ -219,11 +226,17 @@ fun ReaderScreen(
             }
             is Load.Err -> Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(l.msg, color = colors.fgC, fontSize = 16.sp)
+                if (isHwp && hwpEbook) {
+                    Button(onClick = { hwpEbook = false }, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("원본 보기로") }
+                }
                 Button(onClick = onBack, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("서재로") }
             }
             is Load.Ok -> {
                 val doc = l.doc
-                LaunchedEffect(doc) { openDoc = doc; sel = null; hit = null }
+                LaunchedEffect(doc) {
+                    openDoc = doc; sel = null; hit = null
+                    pendingFrac?.let { f -> pendingFrac = null; if (doc.pageCount > 0) jumpReq = (f * doc.pageCount).toInt().coerceIn(0, doc.pageCount - 1) }
+                }
                 val pxW = constraints.maxWidth.toFloat()
                 val pxH = constraints.maxHeight.toFloat()
                 val count = doc.pageCount
@@ -243,7 +256,7 @@ fun ReaderScreen(
                         turnRequest = turnReq, turnForward = turnFwd,
                     )
                 } else {
-                    val near = if (fmt.reflowable) 3 else 0
+                    val near = if (reflow) 3 else 0
                     val source = remember(doc, s.theme, highlights, hit) {
                         val hl = highlights; val h = hit
                         GuardedSource(doc, colors) { i, tpOf ->
@@ -323,13 +336,20 @@ fun ReaderScreen(
                 if (!menu && !panelMode) InfoLine(page, count, colors, Modifier.align(Alignment.BottomCenter))
 
                 // S-40 한 번만 보기 띠
-                if (target.once) OnceBar(fmt, page, count, colors, onAdd = onAddToLibrary, onEbookView = { stub("이북식으로 보기는 다음 판에서 열려요.") },
+                fun toggleHwpView() {
+                    pendingFrac = if (count > 0) (page + 0.5f) / count else 0f
+                    menu = false; sel = null; hit = null
+                    hwpEbook = !hwpEbook
+                }
+                if (target.once) OnceBar(fmt, page, count, colors, ebook = hwpEbook, onAdd = onAddToLibrary, onEbookView = { toggleHwpView() },
                     modifier = Modifier.align(if (menu) Alignment.Center else Alignment.BottomCenter).padding(bottom = if (menu) 0.dp else 28.dp))
 
                 if (menu) {
                     TopBar(target.title, colors, bookmarked = bookmarks.any { it.page == page }, onBack = onBack,
                         onBookmark = { onToggleBookmark(page) },
-                        onSearch = { if (doc is kr.vici.ashreader.doc.MupdfReaderDoc) { menu = false; searchOpen = true } else stub(noTextMsg(fmt)) },
+                        onSearch = { if (doc is MupdfReaderDoc) { menu = false; searchOpen = true } else stub(noTextMsg(fmt)) },
+                        viewToggle = if (isHwp && !target.once) (if (hwpEbook) "원본" else "이북식") else null,
+                        onViewToggle = { toggleHwpView() },
                         modifier = Modifier.align(Alignment.TopCenter))
                     BottomMenu(
                         page, count, colors, s.theme, Modifier.align(Alignment.BottomCenter),
@@ -338,7 +358,7 @@ fun ReaderScreen(
                         onAa = { showAa = true },
                         onTheme = { onSettings { it.copy(theme = ReadTheme.entries[(it.theme.ordinal + 1) % 3]) } },
                         onListen = { speak(context, doc, page) { stub(it) } },
-                        onHighlight = { menu = false; stub(if (doc is kr.vici.ashreader.doc.MupdfReaderDoc) "칠할 글자를 길게 눌러 고른 뒤 ‘형광펜’을 누르세요." else noTextMsg(fmt)) },
+                        onHighlight = { menu = false; stub(if (doc is MupdfReaderDoc) "칠할 글자를 길게 눌러 고른 뒤 ‘형광펜’을 누르세요." else noTextMsg(fmt)) },
                         onMemo = { memoOpen = true },
                     )
                 }
@@ -380,7 +400,7 @@ fun ReaderScreen(
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = 140.dp))
     }
 
-    if (showAa) ViewSettingsSheet(s, fmt.reflowable, onSettings) { showAa = false }
+    if (showAa) ViewSettingsSheet(s, reflow, onSettings) { showAa = false }
     val toc by produceState<List<kr.vici.ashreader.doc.TocEntry>?>(null, openDoc, showToc) {
         val d = openDoc
         value = if (d == null) emptyList() else withContext(Dispatchers.IO) { d.toc() }
@@ -480,11 +500,18 @@ private fun clockText(context: Context): String {
 }
 
 @Composable
-private fun TopBar(title: String, c: ReadingColors, bookmarked: Boolean, onBack: () -> Unit, onBookmark: () -> Unit, onSearch: () -> Unit, modifier: Modifier) {
+private fun TopBar(
+    title: String, c: ReadingColors, bookmarked: Boolean, onBack: () -> Unit, onBookmark: () -> Unit, onSearch: () -> Unit,
+    modifier: Modifier, viewToggle: String? = null, onViewToggle: () -> Unit = {},
+) {
     Column(modifier.fillMaxWidth().background(c.barC).statusBarsPadding()) {
         Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) { Icon(Icons.Back, "뒤로", tint = c.fgC) }
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = c.fgC, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            // 한글 문서: 원본 ↔ 이북식 전환 (라벨 = 바꿀 대상)
+            if (viewToggle != null) TextButton(onClick = onViewToggle, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "${viewToggle}으로 보기" }) {
+                Text(viewToggle, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = c.accentC)
+            }
             IconButton(onClick = onBookmark, modifier = Modifier.size(48.dp)) { Icon(Icons.Bookmark, if (bookmarked) "책갈피 빼기" else "책갈피", tint = if (bookmarked) Color(0xFF8C5A2B) else c.fgC) }
             IconButton(onClick = onSearch, modifier = Modifier.size(48.dp)) { Icon(Icons.Search, "검색", tint = c.fgC) }
         }
@@ -533,7 +560,7 @@ private fun MenuButton(label: String, c: ReadingColors, modifier: Modifier, onCl
 }
 
 @Composable
-private fun OnceBar(fmt: DocFormat, page: Int, count: Int, c: ReadingColors, onAdd: () -> Unit, onEbookView: () -> Unit, modifier: Modifier) {
+private fun OnceBar(fmt: DocFormat, page: Int, count: Int, c: ReadingColors, ebook: Boolean, onAdd: () -> Unit, onEbookView: () -> Unit, modifier: Modifier) {
     Column(
         modifier.padding(horizontal = 16.dp).fillMaxWidth().background(c.barC, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
@@ -542,11 +569,14 @@ private fun OnceBar(fmt: DocFormat, page: Int, count: Int, c: ReadingColors, onA
             TextButton(onClick = onAdd, modifier = Modifier.heightIn(min = 48.dp)) { Text("서재에 추가", color = c.accentC, fontWeight = FontWeight.Bold) }
         }
         if (fmt.group == FormatGroup.HWP) {
-            Text("원본 보기 — 표·서식·도장까지 한글 문서 그대로 표시", fontSize = 12.sp, color = c.subC)
+            Text(
+                if (ebook) "이북식 보기 — 글자 크기·줄 간격·테마를 바꾸고 글자를 고를 수 있어요" else "원본 보기 — 표·서식·도장까지 한글 문서 그대로 표시",
+                fontSize = 12.sp, color = c.subC,
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${page + 1} / ${count}쪽", fontSize = 12.sp, color = c.subC, modifier = Modifier.weight(1f))
-                Text("원본", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = c.accentC, modifier = Modifier.padding(horizontal = 8.dp))
-                TextButton(onClick = onEbookView, modifier = Modifier.heightIn(min = 48.dp)) { Text("이북식으로 보기", color = c.fgC) }
+                Text(if (ebook) "이북식" else "원본", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = c.accentC, modifier = Modifier.padding(horizontal = 8.dp))
+                TextButton(onClick = onEbookView, modifier = Modifier.heightIn(min = 48.dp)) { Text(if (ebook) "원본으로 보기" else "이북식으로 보기", color = c.fgC) }
             }
         }
     }
@@ -582,7 +612,7 @@ private fun slotAt(x: Float, w: Float, h: Float, first: Int, spread: Boolean, rt
 }
 
 private fun noTextMsg(fmt: DocFormat): String = when (fmt.group) {
-    FormatGroup.HWP -> "한글 원본 보기는 아직 글자 선택·검색을 할 수 없어요."
+    FormatGroup.HWP -> "원본 보기에서는 글자를 고를 수 없어요. ‘이북식’으로 바꾸면 글자 선택·검색·형광펜을 쓸 수 있어요."
     FormatGroup.COMIC -> "만화는 그림이라 글자를 고를 수 없어요."
     else -> "이 쪽에는 고를 수 있는 글자가 없어요. (그림으로 된 PDF일 수 있어요)"
 }

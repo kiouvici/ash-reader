@@ -20,8 +20,8 @@ val Context.ash: AshApp get() = applicationContext as AshApp
 
 /** 다른 앱 연결 (F-36 서점 바로가기, F-66 사전). 인터넷 없이 인텐트만 쓴다. */
 object Links {
-    /** 예스24 eBook 앱. TODO(대표님 확인): 기기에서 패키지명 확인 후 고정. 매니페스트 <queries> 와 같이 바꿀 것. */
-    const val YES24 = "com.yes24.ebook.fanbook"
+    /** 예스24 eBook 앱(실제 APK 로 확인, 시작 화면 com.yes24.ebook.fourth.MainActivity). 매니페스트 <queries> 와 같이 바꿀 것. */
+    const val YES24 = "com.yes24.ebook.fourth"
     const val MALGEUL = "kr.vici.malgeul"
 
     fun isInstalled(context: Context, pkg: String): Boolean =

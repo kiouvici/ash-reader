@@ -14,6 +14,7 @@ internal object HwpNative {
     @JvmStatic external fun nativePageSizePx96(h: Long, i: Int): IntArray
     @JvmStatic external fun nativeRenderPage(h: Long, i: Int, bitmap: Bitmap): Int
     @JvmStatic external fun nativePageTextChars(h: Long, i: Int): Int
+    @JvmStatic external fun nativeToXhtml(h: Long, dir: String, title: String): String?
     @JvmStatic external fun nativeClose(h: Long)
 }
 
@@ -42,6 +43,16 @@ class HwpDoc private constructor(private var handle: Long) : Closeable {
 
     /** 쪽 본문 글자 수(공백 제외). */
     fun pageTextChars(i: Int): Int = HwpNative.nativePageTextChars(handle, i)
+
+    /**
+     * 이북식 보기(F-28)용 XHTML. 제목·문단·표·그림·각주를 옮기고, 그림은 [dir]/images 에 쓴다.
+     * 결과 XHTML 은 [dir] 기준 상대 경로로 그림을 가리킨다.
+     */
+    fun toXhtml(dir: File, title: String): String {
+        dir.mkdirs()
+        return HwpNative.nativeToXhtml(handle, dir.absolutePath, title)
+            ?: throw HwpException("이북식 변환 실패: ${HwpNative.nativeLastError()}")
+    }
 
     override fun close() {
         if (handle != 0L) { HwpNative.nativeClose(handle); handle = 0L }

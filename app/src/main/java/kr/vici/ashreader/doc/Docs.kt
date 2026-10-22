@@ -53,11 +53,17 @@ class OpenFailed(msg: String) : Exception(msg)
 
 /** 번들 글꼴(assets/fonts) → 내부 저장소 복사. 엔진은 파일 경로로 글꼴을 읽는다. */
 object BundledFonts {
-    /** 본문 글꼴 파일. 리디바탕·마루부리는 라이선스 원문 확인 전이라 아직 번들하지 않음(TODO C1) → 나눔명조로 대체. */
+    /** 본문 글꼴 파일(모두 SIL OFL 1.1, 고지는 라이선스 화면). 파일이 없으면 나눔명조로 대체. */
     private val files = mapOf(
         BodyFont.NANUM_MYEONGJO to "NanumMyeongjo-Regular.ttf",
         BodyFont.RIDI_BATANG to "RIDIBatang.otf",
         BodyFont.MARUBURI to "MaruBuri-Regular.ttf",
+    )
+
+    /** 굵은 글꼴 파일(있는 것만). 없으면 MuPDF 가 굵게를 흉내 낸다. */
+    private val boldFiles = mapOf(
+        BodyFont.NANUM_MYEONGJO to "NanumMyeongjo-Bold.ttf",
+        BodyFont.MARUBURI to "MaruBuri-Bold.ttf",
     )
 
     @Volatile private var installed = false
@@ -69,6 +75,9 @@ object BundledFonts {
         R.font.nanum_myeongjo_regular to "NanumMyeongjo-Regular.ttf",
         R.font.nanum_myeongjo_bold to "NanumMyeongjo-Bold.ttf",
         R.font.nanum_gothic_regular to "NanumGothic-Regular.ttf",
+        R.font.ridibatang to "RIDIBatang.otf",
+        R.font.maruburi_regular to "MaruBuri-Regular.ttf",
+        R.font.maruburi_bold to "MaruBuri-Bold.ttf",
     )
 
     @Synchronized
@@ -90,19 +99,28 @@ object BundledFonts {
         return if (want.exists()) want else File(dir(context), files.getValue(BodyFont.NANUM_MYEONGJO))
     }
 
+    /** 고른 글꼴의 굵은 파일. 없으면 null. 본문 글꼴이 대체됐으면(파일 없음) 대체 글꼴 기준. */
+    fun boldFile(context: Context, f: BodyFont): File? {
+        val base = if (available(context, f)) f else BodyFont.NANUM_MYEONGJO
+        return boldFiles[base]?.let { File(dir(context), it) }?.takeIf { it.exists() }
+    }
+
     fun available(context: Context, f: BodyFont): Boolean = File(dir(context), files.getValue(f)).exists()
 }
 
 object DocOpener {
     /**
      * [file]을 연다. 이북류는 [pageWdp]×[pageHdp] 쪽 크기(dp=pt)로 다시 배치한다.
-     * 무거운 작업이므로 백그라운드에서 부른다.
+     * [hwpEbook] = 한글 문서를 이북식(다시 배치)으로 연다(F-28). 무거운 작업이므로 백그라운드에서 부른다.
      */
-    fun open(context: Context, file: File, format: DocFormat, pageWdp: Float, pageHdp: Float, s: Settings): ReaderDoc {
+    fun open(context: Context, file: File, format: DocFormat, pageWdp: Float, pageHdp: Float, s: Settings, hwpEbook: Boolean = false): ReaderDoc {
         BundledFonts.install(context)
         return when (format.engine) {
             DocFormat.Engine.MUPDF -> MupdfReaderDoc(file, format, pageWdp, pageHdp, s, context)
-            DocFormat.Engine.HWP -> HwpReaderDoc(file, format)
+            DocFormat.Engine.HWP -> if (hwpEbook) {
+                val x = HwpXhtml.convert(context, file)
+                MupdfReaderDoc(x, format, pageWdp, pageHdp, s, context, reflow = true)
+            } else HwpReaderDoc(file, format)
             DocFormat.Engine.COMIC -> ComicReaderDoc(file, format)
             DocFormat.Engine.OFFICE -> {
                 val x = OfficeXhtml.convert(context, file, format)
@@ -114,8 +132,11 @@ object DocOpener {
 
     fun css(context: Context, s: Settings): String {
         val font = BundledFonts.file(context, s.font).absolutePath
+        val bold = BundledFonts.boldFile(context, s.font)?.absolutePath
+        val boldFace = if (bold != null) "@font-face { font-family: ashbody; font-weight: bold; src: url(\"$bold\"); }" else ""
         return """
             @font-face { font-family: ashbody; src: url("$font"); }
+            $boldFace
             @page { margin: 0; }
             body { font-family: ashbody, serif; line-height: ${"%.2f".format(java.util.Locale.ROOT, s.lineHeight)};
                    margin: 1.4em 1.5em 2.2em 1.5em; text-align: justify; word-break: keep-all; color: #000; background: #fff; }
@@ -161,13 +182,15 @@ class MupdfReaderDoc(
     pageHdp: Float,
     s: Settings,
     context: Context,
+    /** 다시 배치(이북식). 기본은 형식에 따름. 한글 이북식 보기는 true 로 넘긴다. */
+    reflow: Boolean = format.reflowable,
 ) : ReaderDoc {
     private val lock = Any()
     private val doc: MupdfDoc = try {
         MupdfDoc.open(
             file.absolutePath,
-            if (format.reflowable) MupdfDoc.LayoutSpec(pageWdp, pageHdp, s.fontSize.toFloat()) else null,
-            if (format.reflowable) DocOpener.css(context, s) else null,
+            if (reflow) MupdfDoc.LayoutSpec(pageWdp, pageHdp, s.fontSize.toFloat()) else null,
+            if (reflow) DocOpener.css(context, s) else null,
         )
     } catch (e: Exception) {
         throw OpenFailed("문서를 열 수 없어요. 파일이 손상되었거나 지원하지 않는 형식일 수 있어요.")
@@ -196,6 +219,7 @@ class MupdfReaderDoc(
     override fun close() = synchronized(lock) { doc.close() }
 }
 
+/** 한글 원본 보기(쪽 그림). 글자 선택·검색·목차는 이북식 보기([HwpXhtml] → [MupdfReaderDoc])에서 쓴다. */
 class HwpReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
     private val lock = Any()
     private val doc: HwpDoc = try { HwpDoc.open(file.absolutePath) } catch (e: Exception) {
@@ -239,6 +263,26 @@ class ComicReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
     }
 
     override fun close() = synchronized(lock) { arc.close() }
+}
+
+/**
+ * HWP·HWPX → XHTML(이북식 보기, F-28). rhwp 문서 모델에서 제목·문단·표·그림·각주를 옮긴다.
+ * 결과는 파일 크기·수정 시각별로 캐시에 둔다(다시 열면 재사용).
+ */
+object HwpXhtml {
+    fun convert(context: Context, file: File): File {
+        val key = (file.absolutePath + ":" + file.length() + ":" + file.lastModified()).hashCode().toUInt().toString(16)
+        val dir = File(context.cacheDir, "hwp-ebook/$key")
+        val out = File(dir, "doc.xhtml")
+        if (out.exists() && out.length() > 0) return out
+        val xhtml = try {
+            HwpDoc.open(file.absolutePath).use { it.toXhtml(dir, file.nameWithoutExtension) }
+        } catch (e: Exception) {
+            throw OpenFailed("한글 문서를 이북식으로 바꾸지 못했어요. 원본 보기로 읽어 주세요.")
+        }
+        out.writeText(xhtml)
+        return out
+    }
 }
 
 /** DOCX·DOC → XHTML(이북식 보기). 그림은 같은 폴더에 쓴다. */

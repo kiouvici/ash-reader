@@ -1,0 +1,3891 @@
+{
+ "generatedBy": "scripts/third-party/gen_notices.py",
+ "components": [
+  {
+   "group": "ASH Reader",
+   "name": "ASH Reader",
+   "version": "",
+   "license": "AGPL-3.0-or-later",
+   "copyright": "",
+   "note": "소스 코드: https://github.com/kiouvici/ash-reader",
+   "texts": [
+    "texts/820aab1cae56.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "MuPDF",
+   "version": "1.28.5",
+   "license": "AGPL-3.0-or-later",
+   "copyright": "Copyright (C) Artifex Software, Inc.",
+   "note": "한국어 줄바꿈·금칙 패치를 더해 빌드(engine-mupdf/patches). 자바 바인딩(platform/java) 포함.",
+   "texts": [
+    "texts/982d3edc3bf6.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "FreeType",
+   "version": "",
+   "license": "FTL OR GPL-2.0-or-later",
+   "copyright": "",
+   "note": "MuPDF 에 함께 들어 있는 판(thirdparty/freetype)",
+   "texts": [
+    "texts/1b6fba7a6010.txt",
+    "texts/bf33161cc143.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "Gumbo HTML5 parser",
+   "version": "",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "MuPDF 에 함께 들어 있는 판(thirdparty/gumbo-parser)",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "jbig2dec",
+   "version": "",
+   "license": "AGPL-3.0-or-later",
+   "copyright": "",
+   "note": "MuPDF 에 함께 들어 있는 판(thirdparty/jbig2dec)",
+   "texts": [
+    "texts/79f9e32c4bfe.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "HarfBuzz",
+   "version": "",
+   "license": "MIT-Modern-Variant",
+   "copyright": "",
+   "note": "MuPDF 에 함께 들어 있는 판(thirdparty/harfbuzz)",
+   "texts": [
+    "texts/fca26fce6374.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "Little CMS (lcms2mt, Artifex 판)",
+   "version": "",
+   "license": "MIT",
+   "copyright": "",
+   "note": "MuPDF 에 함께 들어 있는 판(thirdparty/lcms2)",
+   "texts": [
+    "texts/2774aae1b5d7.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "IJG libjpeg",
+   "version": "",
+   "license": "IJG",
+   "copyright": "",
+   "note": "MuPDF 에 함께 들어 있는 판(thirdparty/libjpeg)",
+   "texts": [
+    "texts/52a69186d4b4.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "MuJS",
+   "version": "",
+   "license": "ISC",
+   "copyright": "",
+   "note": "MuPDF 에 함께 들어 있는 판(thirdparty/mujs)",
+   "texts": [
+    "texts/dce8b3adb900.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "OpenJPEG",
+   "version": "",
+   "license": "BSD-2-Clause",
+   "copyright": "",
+   "note": "MuPDF 에 함께 들어 있는 판(thirdparty/openjpeg)",
+   "texts": [
+    "texts/adebc10a1de2.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "Brotli",
+   "version": "",
+   "license": "MIT",
+   "copyright": "",
+   "note": "MuPDF 에 함께 들어 있는 판(thirdparty/brotli)",
+   "texts": [
+    "texts/bd2a061db6b4.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "cmark-gfm",
+   "version": "",
+   "license": "BSD-2-Clause AND MIT",
+   "copyright": "",
+   "note": "MuPDF 에 함께 들어 있는 판(thirdparty/cmark-gfm)",
+   "texts": [
+    "texts/60e4e392c450.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "Extract",
+   "version": "",
+   "license": "AGPL-3.0-or-later",
+   "copyright": "",
+   "note": "MuPDF 에 함께 들어 있는 판(thirdparty/extract)",
+   "texts": [
+    "texts/982d3edc3bf6.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "URW base35 글꼴 (Nimbus 등)",
+   "version": "",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2016 by (URW)++ Design & Development.",
+   "note": "MuPDF 내장 PDF 기본 글꼴",
+   "texts": [
+    "texts/3140cb045875.txt"
+   ]
+  },
+  {
+   "group": "PDF·EPUB 엔진 (C)",
+   "name": "TeX 하이픈 패턴 (hyph-utf8)",
+   "version": "",
+   "license": "언어별 (MIT·LPPL·LGPL 등)",
+   "copyright": "",
+   "note": "MuPDF 내장, 서양 언어 낱말 나누기",
+   "texts": [
+    "texts/2e8057c47d56.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "adler2",
+   "version": "2.0.1",
+   "license": "0BSD OR MIT OR Apache-2.0",
+   "copyright": "Jonas Schievink, oyvindln",
+   "note": "",
+   "texts": [
+    "texts/0fa13159f9ca.txt",
+    "texts/498247d433c3.txt",
+    "texts/8c2ae25ecb0d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "aead",
+   "version": "0.6.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/071d75fa6b48.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "aes",
+   "version": "0.9.3",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/17f2bc3f5d5d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "argon2",
+   "version": "0.6.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/3cc3d0b7b1be.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "arrayref",
+   "version": "0.3.9",
+   "license": "BSD-2-Clause",
+   "copyright": "David Roundy",
+   "note": "",
+   "texts": [
+    "texts/ce372c812f49.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "arrayvec",
+   "version": "0.7.8",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "bluss",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/cf0846f09c3d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "base64",
+   "version": "0.22.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Marshall Pierce",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/27e571ba60d4.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "base64",
+   "version": "0.23.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Marshall Pierce",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/41f9c3c7eaa0.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "base64ct",
+   "version": "1.8.3",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/be8e76c71e78.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "bitflags",
+   "version": "1.3.2",
+   "license": "MIT/Apache-2.0",
+   "copyright": "The Rust Project Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/0a8c387a83fc.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "bitflags",
+   "version": "2.13.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The Rust Project Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/0a8c387a83fc.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "blake2",
+   "version": "0.11.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/702b8a360782.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "blake3",
+   "version": "1.8.7",
+   "license": "CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception",
+   "copyright": "Jack O'Connor, Samuel Neves",
+   "note": "",
+   "texts": [
+    "texts/c4c9d76e6030.txt",
+    "texts/09efe6012f2b.txt",
+    "texts/0e5b12d2073f.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "block-buffer",
+   "version": "0.12.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/b2de415d71da.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "block-padding",
+   "version": "0.4.2",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/b2de415d71da.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "bumpalo",
+   "version": "3.20.3",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Nick Fitzgerald",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/6e0c2006007b.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "bytemuck",
+   "version": "1.25.2",
+   "license": "Zlib OR Apache-2.0 OR MIT",
+   "copyright": "Lokathor",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/753092aade9b.txt",
+    "texts/6fe31431197b.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "byteorder",
+   "version": "1.5.0",
+   "license": "Unlicense OR MIT",
+   "copyright": "Andrew Gallant",
+   "note": "",
+   "texts": [
+    "texts/434652371098.txt",
+    "texts/33b5d8ff2715.txt",
+    "texts/b928afa4b81a.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "byteorder-lite",
+   "version": "0.1.0",
+   "license": "Unlicense OR MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/33b5d8ff2715.txt",
+    "texts/b928afa4b81a.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "bytes",
+   "version": "1.12.1",
+   "license": "MIT",
+   "copyright": "Carl Lerche, Sean McArthur",
+   "note": "",
+   "texts": [
+    "texts/8f5fa37c36fb.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "cbc",
+   "version": "0.2.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/ab3af12554d3.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "cesu8",
+   "version": "1.1.0",
+   "license": "Apache-2.0/MIT",
+   "copyright": "Eric Kidd",
+   "note": "",
+   "texts": [
+    "texts/104ba602fa2f.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "cfb",
+   "version": "0.15.0",
+   "license": "MIT",
+   "copyright": "Matthew D. Steele",
+   "note": "",
+   "texts": [
+    "texts/6b69d7afe848.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "cfg-if",
+   "version": "1.0.4",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Alex Crichton",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/073e810ec6f3.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "chacha20",
+   "version": "0.10.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/b06b50f16965.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "chacha20poly1305",
+   "version": "0.11.0",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/b06b50f16965.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "cipher",
+   "version": "0.5.2",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/9f38feaec5dc.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "cmov",
+   "version": "0.5.4",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/5270a0b03d38.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "codepage",
+   "version": "0.1.3",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "Henri Sivonen",
+   "note": "",
+   "texts": [
+    "texts/2f3aeb775561.txt",
+    "texts/1a65b7361320.txt",
+    "texts/e81506b53010.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "color_quant",
+   "version": "1.1.0",
+   "license": "MIT",
+   "copyright": "nwin",
+   "note": "",
+   "texts": [
+    "texts/9a60bde0b7a8.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "combine",
+   "version": "4.6.9",
+   "license": "MIT",
+   "copyright": "Markus Westerlind",
+   "note": "",
+   "texts": [
+    "texts/f357a0b0c5f2.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "const-oid",
+   "version": "0.10.2",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/cd4f1d1a3408.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "constant_time_eq",
+   "version": "0.4.2",
+   "license": "CC0-1.0 OR MIT-0 OR Apache-2.0",
+   "copyright": "Cesar Eduardo Barros",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/0e5b12d2073f.txt",
+    "texts/78e2070751f1.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "core_maths",
+   "version": "0.1.1",
+   "license": "MIT",
+   "copyright": "Robert Bastian <me@robertbastian.dev",
+   "note": "",
+   "texts": [
+    "texts/239f128be8ba.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "cpubits",
+   "version": "0.1.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/5ed1e37f12d9.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "cpufeatures",
+   "version": "0.3.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/3707d630b25c.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "crc32fast",
+   "version": "1.5.2",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Sam Rijs, Alex Crichton",
+   "note": "",
+   "texts": [
+    "texts/dc75e2f74a47.txt",
+    "texts/9203e7723bf1.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "crypto-common",
+   "version": "0.2.2",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/4866e0b22e8b.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "ctutils",
+   "version": "0.4.2",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/869a97ebe8aa.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "curve25519-dalek",
+   "version": "5.0.0",
+   "license": "BSD-3-Clause",
+   "copyright": "Isis Lovecruft, Henry de Valence",
+   "note": "",
+   "texts": [
+    "texts/4cb5da71468f.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "data-url",
+   "version": "0.3.2",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Simon Sapin",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/353b9f5040ec.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "der",
+   "version": "0.8.1",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/cd4f1d1a3408.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "des",
+   "version": "0.9.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/4bef7633cc2a.txt",
+    "texts/2bc71463aaa6.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "digest",
+   "version": "0.11.3",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/5249e2274b38.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "ed25519",
+   "version": "3.0.0",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/ff8fedf6d92b.txt",
+    "texts/e91a7e95787b.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "ed25519-dalek",
+   "version": "3.0.0",
+   "license": "BSD-3-Clause",
+   "copyright": "isis lovecruft, Tony Arcieri, Michael Rosenberg",
+   "note": "",
+   "texts": [
+    "texts/b6cf3b422101.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "embedded-io",
+   "version": "0.7.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/167457a95d02.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "encoding_rs",
+   "version": "0.8.42",
+   "license": "(Apache-2.0 OR MIT) AND BSD-3-Clause",
+   "copyright": "Henri Sivonen",
+   "note": "",
+   "texts": [
+    "texts/90325a949b8d.txt",
+    "texts/1a65b7361320.txt",
+    "texts/e81506b53010.txt",
+    "texts/5df8be3ad17d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "equivalent",
+   "version": "1.0.2",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/eb2bdd66272e.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "euclid",
+   "version": "0.22.14",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The Servo Project Developers",
+   "note": "",
+   "texts": [
+    "texts/7ac8f0756a6a.txt",
+    "texts/1a65b7361320.txt",
+    "texts/2fcdc8f4170d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "fax",
+   "version": "0.2.7",
+   "license": "MIT",
+   "copyright": "Sebastian K",
+   "note": "",
+   "texts": [
+    "texts/d2526f26710c.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "fdeflate",
+   "version": "0.3.7",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The image-rs Developers",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/aad3c5053f69.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "flate2",
+   "version": "1.1.10",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Alex Crichton, Josh Triplett",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/e9dc2062217a.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "float-cmp",
+   "version": "0.9.0",
+   "license": "MIT",
+   "copyright": "Mike Dilger",
+   "note": "",
+   "texts": [
+    "texts/bd6d0487b6c8.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "fnv",
+   "version": "1.0.7",
+   "license": "Apache-2.0 / MIT",
+   "copyright": "Alex Crichton",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/0a803ef6fd19.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "font-types",
+   "version": "0.11.3",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/557d2649698f.txt",
+    "texts/205f3d69ba03.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "fontdb",
+   "version": "0.23.0",
+   "license": "MIT",
+   "copyright": "Yevhenii Reizner",
+   "note": "",
+   "texts": [
+    "texts/aab5bd9ca813.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "getrandom",
+   "version": "0.4.3",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The Rand Project Developers",
+   "note": "",
+   "texts": [
+    "texts/da82b7e16afd.txt",
+    "texts/a5061fb162c1.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "gif",
+   "version": "0.13.3",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The image-rs Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/5ff6b59953ab.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "gif",
+   "version": "0.14.2",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The image-rs Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/5ff6b59953ab.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "half",
+   "version": "2.7.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Kathryn Long",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/aad3c5053f69.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "hashbrown",
+   "version": "0.17.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/cddb1864b09b.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "hmac",
+   "version": "0.13.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/52b67a7152b1.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "hybrid-array",
+   "version": "0.4.14",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/5270a0b03d38.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "image",
+   "version": "0.25.10",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The image-rs Developers",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/aad3c5053f69.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "image-webp",
+   "version": "0.2.4",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/aad3c5053f69.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "imagesize",
+   "version": "0.13.0",
+   "license": "MIT",
+   "copyright": "Maid Dog",
+   "note": "",
+   "texts": [
+    "texts/3a66221268cd.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "indexmap",
+   "version": "2.14.0",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/3949e50c2c2a.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "inout",
+   "version": "0.2.2",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/fa647af0e510.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "itoa",
+   "version": "1.0.18",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "David Tolnay",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/8c2ae25ecb0d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "jni",
+   "version": "0.21.1",
+   "license": "MIT/Apache-2.0",
+   "copyright": "Josh Chase",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/446594194ba9.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "jni-sys",
+   "version": "0.3.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Steven Fackler",
+   "note": "",
+   "texts": [
+    "texts/dc75e2f74a47.txt",
+    "texts/b19f2074950c.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "jni-sys",
+   "version": "0.4.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Steven Fackler, Robert Bragg",
+   "note": "",
+   "texts": [
+    "texts/dc75e2f74a47.txt",
+    "texts/b19f2074950c.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "keccak",
+   "version": "0.2.1",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/742d9f9a152c.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "kem",
+   "version": "0.3.0",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/54623650401b.txt",
+    "texts/4866e0b22e8b.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "kurbo",
+   "version": "0.11.3",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "Raph Levien",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/250638c82350.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "kurbo",
+   "version": "0.13.1",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/250638c82350.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "libc",
+   "version": "0.2.189",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/4c9503d83d5a.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "libm",
+   "version": "0.2.16",
+   "license": "MIT",
+   "copyright": "Alex Crichton, Amanieu d'Antras, Jorge Aparicio, Trevor Gross",
+   "note": "",
+   "texts": [
+    "texts/dc73b80d2e1d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "log",
+   "version": "0.4.34",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The Rust Project Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/0a8c387a83fc.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "memchr",
+   "version": "2.8.3",
+   "license": "Unlicense OR MIT",
+   "copyright": "Andrew Gallant, bluss",
+   "note": "",
+   "texts": [
+    "texts/434652371098.txt",
+    "texts/33b5d8ff2715.txt",
+    "texts/b928afa4b81a.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "memmap2",
+   "version": "0.9.11",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Dan Burkert, Yevhenii Reizner, The Contributors",
+   "note": "",
+   "texts": [
+    "texts/b7ff6fc282c5.txt",
+    "texts/66e33fa3f85b.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "miniz_oxide",
+   "version": "0.8.9",
+   "license": "MIT OR Zlib OR Apache-2.0",
+   "copyright": "Frommi, oyvindln, Rich Geldreich richgel99@gmail.com",
+   "note": "",
+   "texts": [
+    "texts/048974586d9d.txt",
+    "texts/4241d3e083c6.txt",
+    "texts/048974586d9d.txt",
+    "texts/2d519d475421.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "miniz_oxide",
+   "version": "0.9.1",
+   "license": "MIT OR Zlib OR Apache-2.0",
+   "copyright": "Frommi, oyvindln, Rich Geldreich richgel99@gmail.com",
+   "note": "",
+   "texts": [
+    "texts/048974586d9d.txt",
+    "texts/4241d3e083c6.txt",
+    "texts/048974586d9d.txt",
+    "texts/2d519d475421.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "ml-dsa",
+   "version": "0.1.1",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/bfbbac87bf6a.txt",
+    "texts/3ccb9ce1f5ee.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "ml-kem",
+   "version": "0.3.2",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/3ccb9ce1f5ee.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "module-lattice",
+   "version": "0.2.3",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/3ccb9ce1f5ee.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "moxcms",
+   "version": "0.8.1",
+   "license": "BSD-3-Clause OR Apache-2.0",
+   "copyright": "Radzivon Bartoshyk",
+   "note": "",
+   "texts": [
+    "texts/414a6b3d19b0.txt",
+    "texts/cedbb24eaeda.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "num-traits",
+   "version": "0.2.19",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The Rust Project Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/0a8c387a83fc.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "once_cell",
+   "version": "1.21.4",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Aleksey Kladov",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/8c2ae25ecb0d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "password-hash",
+   "version": "0.6.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/2affc57a5c6d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "pbkdf2",
+   "version": "0.13.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/ec996c06b639.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "pcx",
+   "version": "0.2.5",
+   "license": "MIT OR Apache-2.0 OR WTFPL",
+   "copyright": "kryptan",
+   "note": "",
+   "texts": [
+    "texts/9e2f9929fa61.txt",
+    "texts/4a99d9fee149.txt",
+    "texts/5dde2d85cdbc.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "pdf-writer",
+   "version": "0.12.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Laurenz",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/aad3c5053f69.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "phc",
+   "version": "0.6.1",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/3cc3d0b7b1be.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "pico-args",
+   "version": "0.5.0",
+   "license": "MIT",
+   "copyright": "Yevhenii Reizner",
+   "note": "",
+   "texts": [
+    "texts/ba7f96aba309.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "pkcs8",
+   "version": "0.11.0",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/cd4f1d1a3408.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "png",
+   "version": "0.17.16",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The image-rs Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/4aada43263c0.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "png",
+   "version": "0.18.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The image-rs Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/4aada43263c0.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "poly1305",
+   "version": "0.9.1",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/6f9ab2cc2a36.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "polycool",
+   "version": "0.4.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/250638c82350.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "pxfm",
+   "version": "0.1.30",
+   "license": "BSD-3-Clause OR Apache-2.0",
+   "copyright": "Radzivon Bartoshyk",
+   "note": "",
+   "texts": [
+    "texts/414a6b3d19b0.txt",
+    "texts/cedbb24eaeda.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "quick-error",
+   "version": "2.0.1",
+   "license": "MIT/Apache-2.0",
+   "copyright": "Paul Colomiets, Colin Kiegel",
+   "note": "",
+   "texts": [
+    "texts/dc75e2f74a47.txt",
+    "texts/e0b9674b67b2.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "quick-xml",
+   "version": "0.42.0",
+   "license": "MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/93417a78f491.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "rand_core",
+   "version": "0.10.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The Rand Project Developers",
+   "note": "",
+   "texts": [
+    "texts/bc5306140974.txt",
+    "texts/d7581e179889.txt",
+    "texts/068319fdab09.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "read-fonts",
+   "version": "0.39.2",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/557d2649698f.txt",
+    "texts/205f3d69ba03.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "resvg",
+   "version": "0.45.1",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/427417b482e8.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "rgb",
+   "version": "0.8.53",
+   "license": "MIT",
+   "copyright": "Kornel Lesiński, James Forster",
+   "note": "",
+   "texts": [
+    "texts/a0b4b62bc161.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "rhwp",
+   "version": "0.8.7",
+   "license": "MIT",
+   "copyright": "",
+   "note": "HWP·HWPX 파서·조판(v0.8.7, 1a76570)",
+   "texts": [
+    "texts/dc502f912ad0.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "rhwp-contracts",
+   "version": "0.1.0",
+   "license": "MIT",
+   "copyright": "",
+   "note": "rhwp 저장소의 LICENSE 를 따름",
+   "texts": [
+    "texts/dc502f912ad0.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "rhwp-ooxml-chart",
+   "version": "0.1.0",
+   "license": "MIT",
+   "copyright": "",
+   "note": "rhwp 저장소의 LICENSE 를 따름",
+   "texts": [
+    "texts/dc502f912ad0.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "rhwp-password-crypto",
+   "version": "0.1.0",
+   "license": "MIT",
+   "copyright": "",
+   "note": "rhwp 저장소의 LICENSE 를 따름",
+   "texts": [
+    "texts/dc502f912ad0.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "roxmltree",
+   "version": "0.20.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Yevhenii Reizner",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/029f12a167c1.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "roxmltree",
+   "version": "0.21.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Yevhenii Reizner",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/029f12a167c1.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "rustc-hash",
+   "version": "2.1.3",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "The Rust Project Developers",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/8c2ae25ecb0d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "rustybuzz",
+   "version": "0.20.1",
+   "license": "MIT",
+   "copyright": "Caleb Maclennan, Laurenz Stampfl, Yevhenii Reizner, خالد حسني (Khaled Hosny)",
+   "note": "",
+   "texts": [
+    "texts/58e9977d241d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "ryu",
+   "version": "1.0.23",
+   "license": "Apache-2.0 OR BSL-1.0",
+   "copyright": "David Tolnay",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/fe03b2feea55.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "scopeguard",
+   "version": "1.2.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "bluss",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/092f8c4a424c.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "serde",
+   "version": "1.0.229",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Erick Tryzelaar, David Tolnay",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/8c2ae25ecb0d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "serde_core",
+   "version": "1.0.229",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Erick Tryzelaar, David Tolnay",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/8c2ae25ecb0d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "serde_json",
+   "version": "1.0.151",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Erick Tryzelaar, David Tolnay",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/8c2ae25ecb0d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "sha1",
+   "version": "0.11.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/9469d53034fb.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "sha2",
+   "version": "0.11.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/9469d53034fb.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "sha3",
+   "version": "0.11.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/58283869ed32.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "shake",
+   "version": "0.1.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/0bcd13ddc15e.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "signature",
+   "version": "3.0.0",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/e91a7e95787b.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "simd-adler32",
+   "version": "0.3.10",
+   "license": "MIT",
+   "copyright": "Marvin Countryman",
+   "note": "",
+   "texts": [
+    "texts/aca5f149b325.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "simdutf8",
+   "version": "0.1.5",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Hans Kratz",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/aad3c5053f69.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "simplecss",
+   "version": "0.2.2",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/58c4a1356c61.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "siphasher",
+   "version": "1.0.3",
+   "license": "MIT/Apache-2.0",
+   "copyright": "Frank Denis",
+   "note": "",
+   "texts": [
+    "texts/f788f08e10bd.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "skrifa",
+   "version": "0.42.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/557d2649698f.txt",
+    "texts/205f3d69ba03.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "slotmap",
+   "version": "1.1.1",
+   "license": "Zlib",
+   "copyright": "Orson Peters",
+   "note": "",
+   "texts": [
+    "texts/c68d655355ce.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "smallvec",
+   "version": "1.15.2",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The Servo Project Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/efc284d759f6.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "snafu",
+   "version": "0.9.2",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Jake Goulding",
+   "note": "",
+   "texts": [
+    "texts/82f2cf9741dc.txt",
+    "texts/87fc82e4aae7.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "spki",
+   "version": "0.8.0",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/3cc3d0b7b1be.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "sponge-cursor",
+   "version": "0.1.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/0bcd13ddc15e.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "strict-num",
+   "version": "0.1.1",
+   "license": "MIT",
+   "copyright": "Yevhenii Reizner",
+   "note": "",
+   "texts": [
+    "texts/d4ef90d218fe.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "strum",
+   "version": "0.28.0",
+   "license": "MIT",
+   "copyright": "Peter Glotfelty",
+   "note": "",
+   "texts": [
+    "texts/88d1548f38a8.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "subsetter",
+   "version": "0.2.6",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Laurenz Mädje, Laurenz Stampfl",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/aad3c5053f69.txt",
+    "texts/e8670887fb4e.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "subtle",
+   "version": "2.6.1",
+   "license": "BSD-3-Clause",
+   "copyright": "Isis Lovecruft, Henry de Valence",
+   "note": "",
+   "texts": [
+    "texts/aac749b67950.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "svg2pdf",
+   "version": "0.13.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Laurenz Stampfl, Martin Haug",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/aad3c5053f69.txt",
+    "texts/eedf8dfece1e.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "svgtypes",
+   "version": "0.15.3",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/4e86ee1cc347.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "svgtypes",
+   "version": "0.16.1",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/4e86ee1cc347.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "thiserror",
+   "version": "1.0.69",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "David Tolnay",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/8c2ae25ecb0d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "tiff",
+   "version": "0.11.3",
+   "license": "MIT",
+   "copyright": "The image-rs Developers",
+   "note": "",
+   "texts": [
+    "texts/632c9e7f558f.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "tiny-skia",
+   "version": "0.11.4",
+   "license": "BSD-3-Clause",
+   "copyright": "Yevhenii Reizner",
+   "note": "",
+   "texts": [
+    "texts/153fe8d139a4.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "tiny-skia-path",
+   "version": "0.11.4",
+   "license": "BSD-3-Clause",
+   "copyright": "Yevhenii Reizner",
+   "note": "",
+   "texts": [
+    "texts/153fe8d139a4.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "tinyvec",
+   "version": "1.12.0",
+   "license": "Zlib OR Apache-2.0 OR MIT",
+   "copyright": "Lokathor",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/8c2ae25ecb0d.txt",
+    "texts/6fe31431197b.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "tinyvec_macros",
+   "version": "0.1.1",
+   "license": "MIT OR Apache-2.0 OR Zlib",
+   "copyright": "Soveu",
+   "note": "",
+   "texts": [
+    "texts/9e3258c04c91.txt",
+    "texts/dd858ea4b947.txt",
+    "texts/03301228f5fe.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "ttf-parser",
+   "version": "0.25.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Caleb Maclennan, Laurenz Stampfl, Yevhenii Reizner, خالد حسني (Khaled Hosny)",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/4e86ee1cc347.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "typed-path",
+   "version": "0.12.3",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Chip Senkbeil",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/8c2ae25ecb0d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "typenum",
+   "version": "1.20.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/481e4be7d70c.txt",
+    "texts/c3b5ffe5a337.txt",
+    "texts/b33dc4fb7bcf.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "unicode-bidi",
+   "version": "0.3.18",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The Servo Project Developers",
+   "note": "",
+   "texts": [
+    "texts/08c2c64de707.txt",
+    "texts/1a65b7361320.txt",
+    "texts/5eebadbf56b7.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "unicode-bidi-mirroring",
+   "version": "0.4.0",
+   "license": "MIT/Apache-2.0",
+   "copyright": "Yevhenii Reizner",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/aab5bd9ca813.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "unicode-ccc",
+   "version": "0.4.0",
+   "license": "MIT/Apache-2.0",
+   "copyright": "Yevhenii Reizner",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/aab5bd9ca813.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "unicode-ident",
+   "version": "1.0.24",
+   "license": "(MIT OR Apache-2.0) AND Unicode-3.0",
+   "copyright": "David Tolnay",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/8c2ae25ecb0d.txt",
+    "texts/85067e8c0212.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "unicode-properties",
+   "version": "0.1.4",
+   "license": "MIT/Apache-2.0",
+   "copyright": "Charles Lew, Manish Goregaokar",
+   "note": "",
+   "texts": [
+    "texts/7ac8f0756a6a.txt",
+    "texts/1a65b7361320.txt",
+    "texts/5eebadbf56b7.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "unicode-script",
+   "version": "0.5.8",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "Manish Goregaokar",
+   "note": "",
+   "texts": [
+    "texts/b12092125115.txt",
+    "texts/a2938d18aa93.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "unicode-segmentation",
+   "version": "1.13.3",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "kwantam, Manish Goregaokar",
+   "note": "",
+   "texts": [
+    "texts/7ac8f0756a6a.txt",
+    "texts/1a65b7361320.txt",
+    "texts/5eebadbf56b7.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "unicode-vo",
+   "version": "0.1.0",
+   "license": "MIT/Apache-2.0",
+   "copyright": "Evgeniy Reizner",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/58c4a1356c61.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "unicode-width",
+   "version": "0.2.2",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "kwantam, Manish Goregaokar",
+   "note": "",
+   "texts": [
+    "texts/7ac8f0756a6a.txt",
+    "texts/1a65b7361320.txt",
+    "texts/5eebadbf56b7.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "universal-hash",
+   "version": "0.6.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "RustCrypto Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/6fc6829e5e1e.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "usvg",
+   "version": "0.45.1",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/4241d3e083c6.txt",
+    "texts/427417b482e8.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "uuid",
+   "version": "1.24.1",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "Ashley Mannix, Dylan DPC, Hunar Roop Kahlon",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/3be303053f07.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "wasm-bindgen",
+   "version": "0.2.127",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The wasm-bindgen Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/073e810ec6f3.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "wasm-bindgen-shared",
+   "version": "0.2.127",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The wasm-bindgen Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/073e810ec6f3.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "web-time",
+   "version": "1.1.0",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/5bc2bcb05207.txt",
+    "texts/51845d95c041.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "weezl",
+   "version": "0.1.12",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "The image-rs Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/003c6b6e43a8.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "write-fonts",
+   "version": "0.48.1",
+   "license": "MIT OR Apache-2.0",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/557d2649698f.txt",
+    "texts/205f3d69ba03.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "xmlwriter",
+   "version": "0.1.0",
+   "license": "MIT",
+   "copyright": "Evgeniy Reizner",
+   "note": "",
+   "texts": [
+    "texts/0691a780c316.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "zerocopy",
+   "version": "0.8.56",
+   "license": "BSD-2-Clause OR Apache-2.0 OR MIT",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/0935a7a423c1.txt",
+    "texts/38e4b6d44404.txt",
+    "texts/882ae6048626.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "zeroize",
+   "version": "1.9.0",
+   "license": "Apache-2.0 OR MIT",
+   "copyright": "The RustCrypto Project Developers",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/742d9f9a152c.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "zip",
+   "version": "8.6.0",
+   "license": "MIT",
+   "copyright": "Mathijs van de Nes, Marli Frost, Ryan Levick, Chris Hennick",
+   "note": "",
+   "texts": [
+    "texts/c50efd1348b6.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "zlib-rs",
+   "version": "0.6.7",
+   "license": "Zlib",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/d77985056e4c.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "zmij",
+   "version": "1.0.23",
+   "license": "MIT",
+   "copyright": "David Tolnay",
+   "note": "",
+   "texts": [
+    "texts/8c2ae25ecb0d.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "zopfli",
+   "version": "0.8.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/7f8f1c01e938.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "zune-core",
+   "version": "0.4.12",
+   "license": "MIT OR Apache-2.0 OR Zlib",
+   "copyright": "",
+   "note": "크레이트에 원문 파일이 없어 SPDX 표준 원문을 붙임",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "zune-core",
+   "version": "0.5.3",
+   "license": "MIT OR Apache-2.0 OR Zlib",
+   "copyright": "",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/3aabb937ff9b.txt",
+    "texts/75c54e1bf481.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "zune-jpeg",
+   "version": "0.4.21",
+   "license": "MIT OR Apache-2.0 OR Zlib",
+   "copyright": "caleb",
+   "note": "크레이트에 원문 파일이 없어 SPDX 표준 원문을 붙임",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "한글 엔진 (Rust)",
+   "name": "zune-jpeg",
+   "version": "0.5.15",
+   "license": "MIT OR Apache-2.0 OR Zlib",
+   "copyright": "caleb",
+   "note": "",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/3aabb937ff9b.txt",
+    "texts/75c54e1bf481.txt"
+   ]
+  },
+  {
+   "group": "만화 엔진 (C·C++)",
+   "name": "libarchive",
+   "version": "3.8.10",
+   "license": "BSD-2-Clause",
+   "copyright": "",
+   "note": "CBR(RAR·RAR5)·CBZ 읽기만, 외부 압축 라이브러리 없이 정적 링크",
+   "texts": [
+    "texts/70eba6aa3725.txt"
+   ]
+  },
+  {
+   "group": "만화 엔진 (C·C++)",
+   "name": "ncnn",
+   "version": "20261020",
+   "license": "BSD-3-Clause (+ 포함 구성요소 각 라이선스)",
+   "copyright": "Copyright (C) 2017 Tencent",
+   "note": "AI 화질 개선(Real-CUGAN) 추론, Vulkan 켬",
+   "texts": [
+    "texts/b1e929bb37c2.txt"
+   ]
+  },
+  {
+   "group": "만화 엔진 (C·C++)",
+   "name": "glslang (ncnn 포함)",
+   "version": "",
+   "license": "BSD-3-Clause AND BSD-2-Clause AND MIT AND Apache-2.0 외",
+   "copyright": "",
+   "note": "ncnn 에 함께 들어 있는 판, Vulkan 셰이더 컴파일",
+   "texts": [
+    "texts/6d0eab501b10.txt"
+   ]
+  },
+  {
+   "group": "만화 엔진 (C·C++)",
+   "name": "Real-CUGAN 2x 모델 (realcugan-ncnn-vulkan)",
+   "version": "395302c",
+   "license": "MIT",
+   "copyright": "Copyright (c) 2019 nihui",
+   "note": "모델 파일(se-up2x-conservative, nose-up2x-no-denoise)을 앱에 넣음. 원래 가중치: bilibili/ailab Real-CUGAN (MIT)",
+   "texts": [
+    "texts/2361e8b97c8f.txt"
+   ]
+  },
+  {
+   "group": "만화 엔진 (C·C++)",
+   "name": "Kumiko (칸 인식 방식)",
+   "version": "1.5",
+   "license": "AGPL-3.0",
+   "copyright": "",
+   "note": "njean42/kumiko 의 처리 순서를 순수 Kotlin 으로 옮겨 씀(engine-comic PanelDetector)",
+   "texts": [
+    "texts/820aab1cae56.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.activity:activity",
+   "version": "1.13.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Activity",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.activity:activity-compose",
+   "version": "1.13.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Activity Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.activity:activity-ktx",
+   "version": "1.13.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Activity Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.annotation:annotation",
+   "version": "1.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Annotation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.annotation:annotation-experimental",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Experimental annotation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.annotation:annotation-jvm",
+   "version": "1.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Annotation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.arch.core:core-common",
+   "version": "2.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Android Arch-Common",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.arch.core:core-runtime",
+   "version": "2.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Android Arch-Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.autofill:autofill",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "AndroidX Autofill",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.collection:collection",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "collections",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.collection:collection-jvm",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "collections",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.collection:collection-ktx",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Collections Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.animation:animation",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Animation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.animation:animation-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Animation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.animation:animation-core",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Animation Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.animation:animation-core-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Animation Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.foundation:foundation",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Foundation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.foundation:foundation-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Foundation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.foundation:foundation-layout",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Layouts",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.foundation:foundation-layout-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Layouts",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.material3:material3",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Material3 Components",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.material3:material3-android",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Material3 Components",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.material:material-ripple",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Material Ripple",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.material:material-ripple-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Material Ripple",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-annotation",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Runtime Annotation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-annotation-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Runtime Annotation",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-retain",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Runtime Retain",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-retain-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Runtime Retain",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-saveable",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Saveable",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.runtime:runtime-saveable-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Saveable",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose UI",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose UI",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-geometry",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Geometry",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-geometry-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Geometry",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-graphics",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Graphics",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-graphics-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Graphics",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-text",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose UI Text",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-text-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose UI Text",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-tooling-preview",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose UI Preview Tooling",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-tooling-preview-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose UI Preview Tooling",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-unit",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Unit",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-unit-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Unit",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-util",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Util",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose.ui:ui-util-android",
+   "version": "1.12.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Compose Util",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.compose:compose-bom",
+   "version": "2026.09.00",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Jetpack Compose Libraries BOM",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.concurrent:concurrent-futures",
+   "version": "1.1.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "AndroidX Futures",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.core:core",
+   "version": "1.19.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.core:core-ktx",
+   "version": "1.19.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Core Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.core:core-viewtree",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "androidx.core:core-viewtree",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.customview:customview-poolingcontainer",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "androidx.customview:poolingcontainer",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "DataStore",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-android",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "DataStore",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-core",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "DataStore Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-core-android",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "DataStore Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-core-okio",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "DataStore Core Okio",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-core-okio-jvm",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "DataStore Core Okio",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-preferences",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Preferences DataStore",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-preferences-android",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Preferences DataStore",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-preferences-core",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Preferences DataStore Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-preferences-core-android",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Preferences DataStore Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-preferences-external-protobuf",
+   "version": "1.2.0",
+   "license": "BSD-3-Clause",
+   "copyright": "",
+   "note": "Preferences External Protobuf",
+   "texts": [
+    "texts/a2103031c679.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.datastore:datastore-preferences-proto",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Preferences DataStore Proto",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.emoji2:emoji2",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Emoji2",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.graphics:graphics-path",
+   "version": "1.0.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Android Graphics Path",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.interpolator:interpolator",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Android Support Library Interpolators",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-common",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle-Common",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-common-java8",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle-Common for Java 8",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-common-jvm",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle-Common",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-livedata-core",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle LiveData Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-process",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Process",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-runtime",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-runtime-android",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-runtime-compose",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Runtime Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-runtime-compose-android",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Runtime Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-runtime-ktx",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-runtime-ktx-android",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel-android",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel-compose",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel-compose-android",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel-ktx",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel-savedstate",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel with SavedState",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.lifecycle:lifecycle-viewmodel-savedstate-android",
+   "version": "2.10.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Lifecycle ViewModel with SavedState",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.navigationevent:navigationevent",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Navigation Event",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.navigationevent:navigationevent-android",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Navigation Event",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.navigationevent:navigationevent-compose",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "NavigationEvent Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.navigationevent:navigationevent-compose-android",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "NavigationEvent Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.profileinstaller:profileinstaller",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Profile Installer",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.room:room-common",
+   "version": "2.8.4",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Room-Common",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.room:room-common-jvm",
+   "version": "2.8.4",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Room-Common",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.room:room-ktx",
+   "version": "2.8.4",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Room Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.room:room-runtime",
+   "version": "2.8.4",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Room-Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.room:room-runtime-android",
+   "version": "2.8.4",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Room-Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.savedstate:savedstate",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Saved State",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.savedstate:savedstate-android",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Saved State",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.savedstate:savedstate-compose",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Saved State Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.savedstate:savedstate-compose-android",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Saved State Compose",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.savedstate:savedstate-ktx",
+   "version": "1.4.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "SavedState Kotlin Extensions",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.sqlite:sqlite",
+   "version": "2.6.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "SQLite",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.sqlite:sqlite-android",
+   "version": "2.6.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "SQLite",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.sqlite:sqlite-framework",
+   "version": "2.6.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "SQLite Framework Integration",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.sqlite:sqlite-framework-android",
+   "version": "2.6.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "SQLite Framework Integration",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.startup:startup-runtime",
+   "version": "1.1.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Android App Startup Runtime",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.tracing:tracing",
+   "version": "1.2.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Android Tracing",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.versionedparcelable:versionedparcelable",
+   "version": "1.1.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "VersionedParcelable",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.window:window",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "WindowManager",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.window:window-core",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "WindowManager Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "androidx.window:window-core-android",
+   "version": "1.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "WindowManager Core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "com.google.guava:listenablefuture",
+   "version": "1.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Guava ListenableFuture only",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "com.squareup.okio:okio",
+   "version": "3.9.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "okio",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "com.squareup.okio:okio-jvm",
+   "version": "3.9.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "okio",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "com.zaxxer:SparseBitSet",
+   "version": "1.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "SparseBitSet",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "commons-codec:commons-codec",
+   "version": "1.20.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Apache Commons Codec",
+   "texts": [
+    "texts/dd797d66fe6f.txt",
+    "texts/d6eb90e47181.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "commons-io:commons-io",
+   "version": "2.21.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Apache Commons IO",
+   "texts": [
+    "texts/dd797d66fe6f.txt",
+    "texts/6a9d93037a98.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.apache.commons:commons-collections4",
+   "version": "4.5.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Apache Commons Collections",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/ff099075a7ea.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.apache.commons:commons-math3",
+   "version": "3.6.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Apache Commons Math",
+   "texts": [
+    "texts/2f5a276af3f8.txt",
+    "texts/20b3794b9058.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.apache.logging.log4j:log4j-api",
+   "version": "2.24.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Apache Log4j API",
+   "texts": [
+    "texts/1a65b7361320.txt",
+    "texts/6cc94946d404.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.apache.poi:poi",
+   "version": "5.5.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Apache POI - Common",
+   "texts": [
+    "texts/a5d47c5778dd.txt",
+    "texts/6f35aeb09afb.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.apache.poi:poi-scratchpad",
+   "version": "5.5.1",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Apache POI",
+   "texts": [
+    "texts/a5d47c5778dd.txt",
+    "texts/6f35aeb09afb.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlin:kotlin-stdlib",
+   "version": "2.4.21",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "Kotlin Stdlib",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-coroutines-android",
+   "version": "1.10.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-coroutines-android",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-coroutines-bom",
+   "version": "1.10.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-coroutines-bom",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-coroutines-core",
+   "version": "1.10.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-coroutines-core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm",
+   "version": "1.10.2",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-coroutines-core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-serialization-bom",
+   "version": "1.7.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-serialization-bom",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-serialization-core",
+   "version": "1.7.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-serialization-core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm",
+   "version": "1.7.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-serialization-core",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-serialization-json",
+   "version": "1.7.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-serialization-json",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm",
+   "version": "1.7.3",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "kotlinx-serialization-json",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jetbrains:annotations",
+   "version": "23.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "JetBrains Java Annotations",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "자바·코틀린 라이브러리",
+   "name": "org.jspecify:jspecify",
+   "version": "1.0.0",
+   "license": "Apache-2.0",
+   "copyright": "",
+   "note": "JSpecify annotations",
+   "texts": [
+    "texts/1a65b7361320.txt"
+   ]
+  },
+  {
+   "group": "글꼴",
+   "name": "MaruBuri",
+   "version": "2.000",
+   "license": "OFL-1.1",
+   "copyright": "© NAVER Corp. © NAVER Cultural Foundation Corp.",
+   "note": "앱에 넣은 파일: maruburi_bold.ttf, maruburi_regular.ttf",
+   "texts": [
+    "texts/4ebc375d84b0.txt"
+   ]
+  },
+  {
+   "group": "글꼴",
+   "name": "NanumGothic",
+   "version": "3.020",
+   "license": "OFL-1.1",
+   "copyright": "Copyright © 2011 NHN Corporation. All rights reserved. Font designed by Sandoll Communications Inc.",
+   "note": "앱에 넣은 파일: nanum_gothic_regular.ttf",
+   "texts": [
+    "texts/4ebc375d84b0.txt"
+   ]
+  },
+  {
+   "group": "글꼴",
+   "name": "NanumMyeongjo",
+   "version": "2.032",
+   "license": "OFL-1.1",
+   "copyright": "Copyright © 2010 NHN Corporation. All rights reserved. Font designed by FONTRIX.",
+   "note": "앱에 넣은 파일: nanum_myeongjo_bold.ttf, nanum_myeongjo_regular.ttf",
+   "texts": [
+    "texts/4ebc375d84b0.txt"
+   ]
+  },
+  {
+   "group": "글꼴",
+   "name": "RIDIBatang",
+   "version": "1.0.1 Build 20191001",
+   "license": "OFL-1.1",
+   "copyright": "Copyright © 2019 RIDI & Sandoll. All rights reserved. Font designed by Sandoll Inc.",
+   "note": "앱에 넣은 파일: ridibatang.otf",
+   "texts": [
+    "texts/4ebc375d84b0.txt"
+   ]
+  }
+ ]
+}

@@ -26,7 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -36,7 +35,6 @@ import kr.vici.ashreader.data.BodyFont
 import kr.vici.ashreader.data.Prefs
 import kr.vici.ashreader.data.ReadTheme
 import kr.vici.ashreader.data.Settings
-import kr.vici.ashreader.doc.BundledFonts
 
 private enum class AaTab(val label: String) { TEXT("글자"), THEME("테마"), PARA("문단") }
 
@@ -44,7 +42,6 @@ private enum class AaTab(val label: String) { TEXT("글자"), THEME("테마"), P
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ViewSettingsSheet(s: Settings, reflowable: Boolean, onChange: ((Settings) -> Settings) -> Unit, onDismiss: () -> Unit) {
-    val context = LocalContext.current
     var tab by remember { mutableStateOf(AaTab.TEXT) }
     val cs = MaterialTheme.colorScheme
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -67,7 +64,6 @@ fun ViewSettingsSheet(s: Settings, reflowable: Boolean, onChange: ((Settings) ->
                     Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BodyFont.entries.forEach { f ->
                             val sel = f == s.font
-                            val ok = f == BodyFont.NANUM_MYEONGJO || BundledFonts.available(context, f)
                             Column(
                                 Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
                                     .border(if (sel) 2.dp else 1.dp, if (sel) cs.primary else cs.outlineVariant, RoundedCornerShape(12.dp))
@@ -77,7 +73,6 @@ fun ViewSettingsSheet(s: Settings, reflowable: Boolean, onChange: ((Settings) ->
                             ) {
                                 Text("가나다", fontFamily = previewFamily(f), fontSize = 20.sp)
                                 Text(f.label, fontSize = 12.sp, textAlign = TextAlign.Center)
-                                if (!ok) Text("준비 중 · 나눔명조로 표시", fontSize = 12.sp, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
                             }
                         }
                     }
@@ -115,6 +110,9 @@ private fun Stepper(label: String, value: String, small: String, big: String, on
     }
 }
 
-/** 미리보기 글꼴. 리디바탕·마루부리는 번들 전이라 나눔명조로 보인다. */
-@Suppress("UNUSED_PARAMETER")
-private fun previewFamily(f: BodyFont): FontFamily = Myeongjo
+/** 미리보기 글꼴(앱에 넣은 본문 글꼴). */
+private fun previewFamily(f: BodyFont): FontFamily = when (f) {
+    BodyFont.NANUM_MYEONGJO -> Myeongjo
+    BodyFont.RIDI_BATANG -> RidiBatang
+    BodyFont.MARUBURI -> MaruBuri
+}
