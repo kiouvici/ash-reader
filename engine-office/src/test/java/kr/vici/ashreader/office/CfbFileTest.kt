@@ -46,7 +46,7 @@ class CfbFileTest {
     }
 
     @Test fun notCfb() {
-        val f = File.createTempFile("x", ".bin").apply { deleteOnExit(); writeBytes(ByteArray(1024)) }
+        val f = File.createTempFile("notcfb", ".bin").apply { deleteOnExit(); writeBytes(ByteArray(1024)) }
         assertNull(CfbFile.open(f))
         assertNull(CfbFile.hwpProperties(f))
     }
