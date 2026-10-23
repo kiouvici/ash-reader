@@ -10,13 +10,14 @@
 //!   nativeRenderPage(h, i, bitmap) -> int  0=성공. 비트맵 크기에 맞춰 축척
 //!   nativePageTextChars(h, i) -> int  공백 제외 글자 수(F-28 판정용)
 //!   nativeToXhtml(h, dir, title) -> String?  이북식 보기용 XHTML(그림은 dir/images 에 씀). 실패 시 null
+//!   nativeImageRects(h, i) -> float[]  쪽 안 그림 영역(쪽 기준 0..1, l t r b 반복) — 야간 '그림은 반전 안 함'(F-21)
 //!   nativeClose(h)
 //! 패닉은 catch_unwind로 잡아 오류로 돌려준다(앱 종료 없음, N-03).
 
 use jni::objects::{JClass, JString};
 #[cfg(target_os = "android")]
 use jni::objects::JObject;
-use jni::sys::{jint, jintArray, jlong, jstring};
+use jni::sys::{jfloatArray, jint, jintArray, jlong, jstring};
 use jni::JNIEnv;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -140,6 +141,37 @@ impl Doc {
     pub fn to_xhtml(&self, img_dir: &str, title: &str) -> Result<String, String> {
         catch_unwind(AssertUnwindSafe(|| reflow::to_xhtml(self.core.document(), std::path::Path::new(img_dir), title)))
             .map_err(|_| "이북식 변환 패닉".to_string())
+    }
+
+    /// 쪽 안 그림(래스터·내장 SVG 그림) 영역. 쪽 기준 0..1 비율로 l, t, r, b 를 차례로 담는다.
+    /// SVG 트리를 한 번 더 만들 뿐이라 싸다(렌더 없음).
+    pub fn image_rects(&self, i: u32) -> Result<Vec<f32>, String> {
+        let tree = self.tree(i)?;
+        let (w, h) = (tree.size().width(), tree.size().height());
+        if w <= 0.0 || h <= 0.0 {
+            return Ok(Vec::new());
+        }
+        fn walk(g: &resvg::usvg::Group, w: f32, h: f32, out: &mut Vec<f32>) {
+            for n in g.children() {
+                match n {
+                    resvg::usvg::Node::Group(c) => walk(c, w, h, out),
+                    resvg::usvg::Node::Image(_) => {
+                        let r = n.abs_bounding_box();
+                        let l = (r.left() / w).clamp(0.0, 1.0);
+                        let t = (r.top() / h).clamp(0.0, 1.0);
+                        let rr = (r.right() / w).clamp(0.0, 1.0);
+                        let b = (r.bottom() / h).clamp(0.0, 1.0);
+                        if rr - l > 0.002 && b - t > 0.002 {
+                            out.extend_from_slice(&[l, t, rr, b]);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let mut out = Vec::new();
+        catch_unwind(AssertUnwindSafe(|| walk(tree.root(), w, h, &mut out))).map_err(|_| "그림 영역 패닉".to_string())?;
+        Ok(out)
     }
 
     pub fn page_text_chars(&self, i: u32) -> u32 {
@@ -308,6 +340,18 @@ pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeToXhtml
                 std::ptr::null_mut()
             }
         }
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeImageRects(mut env: JNIEnv, _c: JClass, h: jlong, i: jint) -> jfloatArray {
+    guarded(&mut env, std::ptr::null_mut(), |env| {
+        let v = doc(h).and_then(|d| d.image_rects(i as u32).map_err(set_err).ok()).unwrap_or_default();
+        let Ok(arr) = env.new_float_array(v.len() as i32) else { return std::ptr::null_mut() };
+        if !v.is_empty() {
+            env.set_float_array_region(&arr, 0, &v).ok();
+        }
+        arr.into_raw()
     })
 }
 

@@ -66,6 +66,8 @@ interface ComicPages : Closeable {
     val extractBlocks: Boolean get() = false
     /** 풀기 멈추기(S-41 [멈추기]). */
     fun stopExtract() {}
+    /** 멈춘 풀기를 이어 하기('일부만 준비됨' → [이어 풀기]). 이미 풀린 쪽은 그대로 둔다. */
+    fun resumeExtract() {}
 }
 
 /**
@@ -94,29 +96,47 @@ class ArchivePages(file: File, private val work: File? = null) : ComicPages {
 
     private class Stopped : RuntimeException()
 
-    init { if (rar && pageCount > 0) startExtract(work!!) }
+    init { if (rar && pageCount > 0) startExtract(work!!, fresh = true) }
 
-    private fun startExtract(dir: File) {
-        dir.deleteRecursively(); dir.mkdirs()
+    /**
+     * [fresh] = 처음부터(폴더 비움). 이어 풀기는 임시 폴더(r/)에 풀어, 아직 없는 쪽만 옮긴다
+     * (이미 보이는 쪽 파일을 덮어쓰는 동안 읽어 깨지는 일을 막는다).
+     */
+    private fun startExtract(dir: File, fresh: Boolean) {
+        if (fresh) { dir.deleteRecursively(); dir.mkdirs() }
+        val into = if (fresh) dir else File(dir, "r").apply { deleteRecursively(); mkdirs() }
         val byName = HashMap<String, Int>(pageCount * 2)
         arc.pages.forEachIndexed { i, p -> byName[p.name] = i }
         worker = Thread({
             try {
-                arc.extractAll(dir, MAX_EXTRACT) { i, name ->
+                arc.extractAll(into, MAX_EXTRACT) { i, name ->
                     if (stop || closed) throw Stopped()
                     val p = byName[name]
-                    if (p != null) {
-                        files.set(p, File(dir, "%06d.bin".format(i)))
+                    val written = File(into, "%06d.bin".format(i))
+                    if (p != null && files.get(p) == null) {
+                        val f = if (fresh) written else File(dir, "%06d.bin".format(i)).also { t -> if (!written.renameTo(t)) written.copyTo(t, overwrite = true) }
+                        files.set(p, f)
                         state.update { it?.copy(done = it.done + 1) }
-                    }
+                    } else if (!fresh) written.delete()
                 }
             } catch (e: Throwable) {
                 // 멈춤·손상·암호: 풀린 쪽까지만 캐시에서, 나머지는 아래 규칙대로
             } finally {
                 state.update { it?.copy(finished = true, stopped = stop) }
+                if (!fresh) into.deleteRecursively()
                 if (closed) dir.deleteRecursively()
             }
         }, "ash-unrar").apply { isDaemon = true; priority = Thread.NORM_PRIORITY - 1; start() }
+    }
+
+    override fun resumeExtract() {
+        val dir = work ?: return
+        if (!rar || closed || worker?.isAlive == true) return
+        val st = state.value ?: return
+        if (!st.stopped) return
+        stop = false
+        state.value = ExtractState((0 until pageCount).count { files.get(it) != null }, pageCount)
+        startExtract(dir, fresh = false)
     }
 
     override fun ready(index: Int): Boolean {
@@ -266,6 +286,7 @@ class ComicReaderDoc(
     /** solid CBR: 풀리기 전 쪽은 '쪽 준비 중'(S-41). */
     val extractBlocks: Boolean get() = src.extractBlocks
     fun stopExtract() = src.stopExtract()
+    fun resumeExtract() = src.resumeExtract()
     fun ready(sourcePage: Int): Boolean = sourcePage !in 0 until sourceCount || src.ready(sourcePage)
 
     /** 자리 [index] 의 원본 쪽(빈 자리는 다음 쪽). */
@@ -287,7 +308,56 @@ class ComicReaderDoc(
         val n = if (identity) null else new
         if (old == n) return null
         slots = n
+        clearAhead()
         return { SpreadLayout.translate(old, n, it) }
+    }
+
+    // ---- 미리 풀기(F-58) ----
+    /**
+     * 넘김 방향으로 2쪽, 반대로 1쪽을 미리 디코딩해 둔 그림. 쓰는 쪽이 꺼내 가면(소유권 넘김) 지운다.
+     * 상한([aheadBudget], 기기 RAM 의 1/8)을 넘으면 지금 쪽에서 먼 것부터 버린다.
+     */
+    private class Ahead(val index: Int, val bmp: Bitmap)
+    private val ahead = LinkedHashMap<String, Ahead>()
+    @Volatile var aheadBudget: Long = 256L shl 20
+    @Volatile private var aheadCenter = 0
+
+    private fun aheadKey(kind: String, index: Int, w: Int) = "$kind:$index:$w:${look.hashCode()}:${System.identityHashCode(slots)}"
+
+    /** 미리 풀어 둔 그림을 꺼낸다(없으면 null). 꺼낸 그림은 부른 쪽 것이다. */
+    fun takeAhead(kind: String, index: Int, w: Int): Bitmap? = synchronized(ahead) { ahead.remove(aheadKey(kind, index, w))?.bmp }
+
+    private fun clearAhead() = synchronized(ahead) { ahead.clear() }
+
+    /**
+     * [center] 를 보는 중: 넘김 방향([forward])으로 2자리, 반대로 1자리를 [make] 로 미리 만들어 둔다. 백그라운드에서 부른다.
+     * [make] 는 자리 번호 → 그림(못 만들면 null).
+     */
+    fun prefetch(kind: String, center: Int, forward: Boolean, w: Int, count: Int, make: (Int) -> Bitmap?) {
+        aheadCenter = center
+        val step = if (forward) 1 else -1
+        val want = listOf(center + step, center + 2 * step, center - step).filter { it in 0 until count }
+        // 먼 것부터 버리기
+        synchronized(ahead) {
+            val it = ahead.entries.iterator()
+            while (it.hasNext()) { val e = it.next(); if (kotlin.math.abs(e.value.index - center) > 2) it.remove() }
+        }
+        for (i in want) {
+            if (aheadCenter != center) return // 그새 넘김
+            val key = aheadKey(kind, i, w)
+            if (synchronized(ahead) { ahead.containsKey(key) }) continue
+            if (i < sourceCount && !src.ready(sourceOf(i))) continue
+            val b = try { make(i) } catch (e: Exception) { null } catch (e: OutOfMemoryError) { clearAhead(); null } ?: continue
+            synchronized(ahead) {
+                ahead[key] = Ahead(i, b)
+                var total = ahead.values.sumOf { it.bmp.allocationByteCount.toLong() }
+                while (total > aheadBudget && ahead.isNotEmpty()) {
+                    val far = ahead.entries.maxByOrNull { kotlin.math.abs(it.value.index - aheadCenter) } ?: break
+                    ahead.remove(far.key)
+                    total -= far.value.bmp.allocationByteCount
+                }
+            }
+        }
     }
 
     // ---- 쪽 크기(배치·웹툰) ----
@@ -344,6 +414,68 @@ class ComicReaderDoc(
 
     /** 그림 원본 비트맵(폭 [w] 근처로 줄임). 만화 그림은 테마 색을 입히지 않는다. */
     fun pageBitmap(index: Int, w: Int): Bitmap = src.bitmap(index, w.coerceAtLeast(1))
+
+    /**
+     * 맞춤 방식 보기(F-54)용: 원본 쪽 [p] 를 테두리 자르기·그림 보기 값을 입혀 잘린 모양 그대로(바탕 없이) 그린다.
+     * 폭은 [maxW] 이하, 화소 수는 [maxPixels] 이하. [nativeW] = 자른 뒤 원본 화소 폭(원본 맞춤 배율 계산).
+     */
+    class Free(val bmp: Bitmap, val nativeW: Int)
+
+    fun renderFree(p: Int, maxW: Int, maxPixels: Long = 12_000_000L): Free? {
+        if (p !in 0 until sourceCount || !src.ready(p)) return null
+        val (pw, ph) = pageSize(p)
+        var w = maxW.coerceAtLeast(1)
+        if (pw > 0) w = minOf(w, pw)
+        if (pw > 0 && ph > 0 && w.toLong() * w * ph / pw > maxPixels) w = kotlin.math.sqrt(maxPixels.toDouble() * pw / ph).toInt().coerceAtLeast(64)
+        val up = upscale?.load(p, w)
+        val raw = try { up ?: src.bitmap(p, w) } catch (e: PageNotReady) { return null }
+        val l = look
+        val box = if (l.crop) cropOf(p, raw) else CropBox(0, 0, raw.width, raw.height)
+        if (box.width <= 0 || box.height <= 0) { raw.recycle(); return null }
+        val k = minOf(1f, w.toFloat() / box.width)
+        val ow = (box.width * k).toInt().coerceAtLeast(1); val oh = (box.height * k).toInt().coerceAtLeast(1)
+        val out = Bitmap.createBitmap(ow, oh, Bitmap.Config.ARGB_8888)
+        Canvas(out).drawBitmap(raw, Rect(box.l, box.t, box.r, box.b), RectF(0f, 0f, ow.toFloat(), oh.toFloat()),
+            Paint(if (l.hq) Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG or Paint.DITHER_FLAG else 0))
+        val nativeW = if (pw > 0 && raw.width > 0) (box.width.toLong() * pw / raw.width).toInt() else box.width
+        raw.recycle()
+        return Free(withLook(out), nativeW.coerceAtLeast(1))
+    }
+
+    private val freeNative = ConcurrentHashMap<String, Int>()
+
+    /** 맞춤 방식 보기에서 미리 풀어 둔 쪽(F-58). 꺼내면 부른 쪽 것. */
+    fun takeAheadFree(i: Int, w: Int): Free? {
+        val b = takeAhead("free", i, w) ?: return null
+        return Free(b, freeNative.remove("$i:$w") ?: b.width)
+    }
+
+    /** 맞춤 방식 보기: 넘김 방향 2쪽·반대 1쪽을 미리 그려 둔다(백그라운드). */
+    fun prefetchFree(center: Int, forward: Boolean, w: Int) = prefetch("free", center, forward, w, pageCount) { i ->
+        renderFree(sourceOf(i), w)?.also { freeNative["$i:$w"] = it.nativeW }?.bmp
+    }
+
+    /** F-59 쪽 그림 원본(공유·저장): 압축 안 그림 파일 바이트와 MIME. 그림 파일이 아니면(PDF) PNG 로 만든다. */
+    fun pageImage(p: Int): Pair<ByteArray, String>? {
+        if (p !in 0 until sourceCount || !src.ready(p)) return null
+        val raw = runCatching { src.bytes(p) }.getOrNull()
+        if (raw != null && raw.size > 8) {
+            val mime = when {
+                raw[0] == 0xFF.toByte() && raw[1] == 0xD8.toByte() -> "image/jpeg"
+                raw[0] == 0x89.toByte() && raw[1] == 'P'.code.toByte() -> "image/png"
+                raw[0] == 'G'.code.toByte() && raw[1] == 'I'.code.toByte() -> "image/gif"
+                raw[0] == 'R'.code.toByte() && raw[8] == 'W'.code.toByte() -> "image/webp"
+                else -> null
+            }
+            if (mime != null) return raw to mime
+        }
+        val b = runCatching { src.full(p) }.getOrNull() ?: return null
+        return try {
+            val o = java.io.ByteArrayOutputStream()
+            b.compress(Bitmap.CompressFormat.PNG, 100, o)
+            o.toByteArray() to "image/png"
+        } finally { b.recycle() }
+    }
 
     /** 밝기·대비·선명하게(F-56·57)를 입힌 그림(칸 단위 보기). 바꿀 것이 없으면 [b] 그대로. */
     fun withLook(b: Bitmap): Bitmap {
@@ -456,12 +588,18 @@ class ComicReaderDoc(
      * 웹툰 띠 하나: 원본 [y0, y1) 줄을 폭 [displayW] 근처로 디코딩(보이는 띠만, 큰 그림은 영역 디코딩 — 메모리 한도).
      * 아직 풀리지 않은 쪽이면 [PageNotReady].
      */
-    fun strip(p: Int, y0: Int, y1: Int, displayW: Int): Bitmap? {
+    fun strip(p: Int, y0: Int, y1: Int, displayW: Int, cropL: Float = 0f, cropR: Float = 1f): Bitmap? {
         if (!src.ready(p)) throw PageNotReady()
         val (pw, ph) = sizeCache.getOrNull(p) ?: src.size(p)
         if (pw <= 0 || ph <= 0) return null
-        // 웹툰은 좌우 여백 설정(F-53)을 쓰므로 테두리 자르기는 하지 않는다
-        val cl = 0; val cr = pw
+        // 웹툰 테두리 자르기: 책 전체에 같은 좌우 비율로만 자른다([webtoonCrop]) — 띠 높이가 쪽마다 흔들리지 않게
+        val cl = (cropL * pw).toInt().coerceIn(0, pw - 1); val cr = (cropR * pw).toInt().coerceIn(cl + 1, pw)
+        // AI 화질 향상(F-73) 결과가 있으면 2배 그림에서 같은 자리를 읽는다
+        upDecoder(p)?.let { (ud, k) ->
+            val o = BitmapFactory.Options().apply { inSampleSize = Webtoon.sampleFor((cr - cl) * k, displayW); inPreferredConfig = Bitmap.Config.ARGB_8888 }
+            val b = runCatching { synchronized(ud) { ud.decodeRegion(Rect(cl * k, y0.coerceIn(0, ph) * k, cr * k, y1.coerceIn(0, ph) * k), o) } }.getOrNull()
+            if (b != null) return withLook(b)
+        }
         val d = decoder(p)
         val b: Bitmap = (if (d != null) {
             val o = BitmapFactory.Options().apply {
@@ -479,6 +617,54 @@ class ComicReaderDoc(
         return withLook(b)
     }
 
+    /** 2배 결과 영역 디코더(정수 배율 2). 결과가 없으면 null. */
+    private val upDecoders = LinkedHashMap<Int, BitmapRegionDecoder>(4, 0.75f, true)
+
+    private fun upDecoder(p: Int): Pair<BitmapRegionDecoder, Int>? {
+        val u = upscale ?: return null
+        if (p !in u.ready.value) return null
+        synchronized(regionLock) {
+            upDecoders[p]?.let { return it to 2 }
+            val f = u.file(p)
+            val bytes = runCatching { f.readBytes() }.getOrNull() ?: return null
+            val d = runCatching { PageDecoder.regionDecoder(bytes) }.getOrNull() ?: return null
+            val (pw, _) = pageSize(p)
+            if (pw <= 0 || d.width != pw * 2) { d.recycle(); return null }
+            upDecoders[p] = d
+            while (upDecoders.size > 3) { val e = upDecoders.entries.iterator().next(); upDecoders.remove(e.key); e.value.recycle() }
+            return d to 2
+        }
+    }
+
+    /**
+     * 웹툰 좌우 테두리(F-52 웹툰판): 앞쪽 몇 장을 재서 모든 쪽에 같이 쓸 좌우 자르기 비율(l, r).
+     * 그림을 자르지 않도록 쪽들 중 가장 덜 자르는 값을 쓴다. 자를 것이 없으면 (0, 1).
+     */
+    fun webtoonCrop(samples: Int = 6): Pair<Float, Float> {
+        var l = 1f; var r = 0f; var n = 0
+        for (p in 0 until minOf(sourceCount, samples * 2)) {
+            if (n >= samples) break
+            if (!src.ready(p)) continue
+            val (pw, ph) = runCatching { pageSize(p) }.getOrNull() ?: continue
+            if (pw <= 0 || ph <= 0) continue
+            val d = runCatching { decoder(p) }.getOrNull()
+            // 위쪽 한 화면 정도만 작게 읽는다
+            val b = runCatching {
+                if (d != null) synchronized(d) {
+                    d.decodeRegion(Rect(0, 0, pw, minOf(ph, pw * 3)), BitmapFactory.Options().apply { inSampleSize = Webtoon.sampleFor(pw, 240) })
+                } else src.bitmap(p, 240)
+            }.getOrNull() ?: continue
+            try {
+                val px = IntArray(b.width * b.height)
+                b.getPixels(px, 0, b.width, 0, 0, b.width, b.height)
+                val box = BorderCrop.detect(px, b.width, b.height, look.cropSens)
+                l = minOf(l, box.l / b.width.toFloat()); r = maxOf(r, box.r / b.width.toFloat()); n++
+            } finally { b.recycle() }
+        }
+        if (n == 0 || r <= l || r - l < 0.5f) return 0f to 1f
+        return l to r
+    }
+
     /** 칸 인식(F-72). 결과 좌표는 [pageBitmap] 과 같은 비율의 원본 기준(width/height 함께 줌). */
     fun panels(index: Int, dir: ReadingDirection): PagePanels = synchronized(panelCache) {
         panelCache.getOrPut(index) {
@@ -490,7 +676,11 @@ class ComicReaderDoc(
     override fun toc(): List<TocEntry> = src.toc().map { if (slots == null) it else it.copy(page = if (it.page >= 0) indexOf(it.page) else it.page) }
 
     override fun close() {
-        synchronized(regionLock) { decoders.values.forEach { it.recycle() }; decoders.clear() }
+        synchronized(regionLock) {
+            decoders.values.forEach { it.recycle() }; decoders.clear()
+            upDecoders.values.forEach { it.recycle() }; upDecoders.clear()
+        }
+        clearAhead()
         src.close()
     }
 

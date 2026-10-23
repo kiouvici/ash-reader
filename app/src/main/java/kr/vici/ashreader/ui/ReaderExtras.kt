@@ -47,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -113,7 +114,11 @@ fun LightOverlay(s: Settings, dimNow: Int) {
  * [chapterLeft] = 이번 장 남은 쪽(모르면 null), [msPerPage] = 최근 읽기 속도(모르면 null → 남은 시간 숨김).
  */
 @Composable
-fun ReaderInfoLine(page: Int, count: Int, chapterLeft: Int?, msPerPage: Long?, s: Settings, c: ReadingColors, modifier: Modifier) {
+fun ReaderInfoLine(
+    page: Int, count: Int, chapterLeft: Int?, msPerPage: Long?, s: Settings, c: ReadingColors, modifier: Modifier,
+    /** 태블릿 두 쪽 펼침에서 쪽마다 정보줄(F-45, S-20): (왼쪽 쪽, 오른쪽 쪽). 빈 자리는 null. null = 한 줄. */
+    halves: Pair<Int?, Int?>? = null,
+) {
     val context = LocalContext.current
     val tick by produceState(0L) { while (true) { delay(30_000); value = SystemClock.elapsedRealtime() } }
     val clock = remember(tick) { SimpleDateFormat("HH:mm", Locale.KOREA).format(Date()) }
@@ -126,8 +131,24 @@ fun ReaderInfoLine(page: Int, count: Int, chapterLeft: Int?, msPerPage: Long?, s
     if (on(InfoItem.CHAPTER_LEFT) && chapterLeft != null) right += if (chapterLeft <= 0) "이 장 마지막 쪽" else "이 장 ${chapterLeft}쪽 남음"
     if (on(InfoItem.PROGRESS) && count > 0) right += "${(page + 1) * 100 / count}% · ${page + 1}/${count}쪽"
     if (on(InfoItem.TIME_LEFT) && msPerPage != null && count > 0) right += "약 " + durationLabel((count - page - 1).coerceAtLeast(0) * msPerPage)
-    if (left.isEmpty() && right.isEmpty()) return
     val pad = if (s.infoTop) Modifier.statusBarsPadding() else Modifier.navigationBarsPadding()
+    if (halves != null) {
+        // 쪽마다: 각 쪽 가운데에 그 쪽 번호, 왼쪽 쪽 바깥에 시계·배터리, 오른쪽 쪽 바깥에 진행 정보
+        val (lp, rp) = halves
+        val desc = (left + listOfNotNull(lp?.let { "왼쪽 ${it + 1}쪽" }, rp?.let { "오른쪽 ${it + 1}쪽" }) + right).joinToString(", ")
+        Row(modifier.fillMaxWidth().then(pad).padding(vertical = 6.dp).semantics { contentDescription = desc }) {
+            Box(Modifier.weight(1f).padding(horizontal = 20.dp)) {
+                Text(left.joinToString(" · "), fontSize = 12.sp, color = c.subC, maxLines = 1, modifier = Modifier.align(Alignment.CenterStart))
+                if (lp != null) Text("${lp + 1}", fontSize = 12.sp, color = c.subC, modifier = Modifier.align(Alignment.Center))
+            }
+            Box(Modifier.weight(1f).padding(horizontal = 20.dp)) {
+                if (rp != null) Text("${rp + 1}", fontSize = 12.sp, color = c.subC, modifier = Modifier.align(Alignment.Center))
+                Text(right.joinToString("  "), fontSize = 12.sp, color = c.subC, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.align(Alignment.CenterEnd))
+            }
+        }
+        return
+    }
+    if (left.isEmpty() && right.isEmpty()) return
     Row(modifier.fillMaxWidth().then(pad).padding(horizontal = 20.dp, vertical = 6.dp).semantics { contentDescription = (left + right).joinToString(", ") }) {
         Text(left.joinToString(" · "), fontSize = 12.sp, color = c.subC, maxLines = 1, modifier = Modifier.weight(1f))
         Text(right.joinToString("  "), fontSize = 12.sp, color = c.subC, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -149,27 +170,57 @@ fun durationLabel(ms: Long): String {
 fun TurnSheet(
     s: Settings, onChange: ((Settings) -> Settings) -> Unit, autoOn: Boolean, onAuto: (Boolean) -> Unit,
     onGuide: () -> Unit, onDismiss: () -> Unit,
+    /** 스크롤 보기(F-22)를 고를 수 있는 문서인가(만화는 웹툰 보기로 대신). */
+    scrollAvailable: Boolean = true,
+    /** 지금 보기가 위아래 연속(스크롤 보기·웹툰)이면 자동 넘김 대신 자동 스크롤 속도. */
+    continuous: Boolean = scrollAvailable && s.scrollView,
 ) {
     val cs = MaterialTheme.colorScheme
     var editor by remember { mutableStateOf(false) }
+    val scroll = continuous
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             SheetLabel("넘김 효과")
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Pill("종이책", !s.noTurnEffect && s.curl) { onChange { it.copy(curl = true, noTurnEffect = false) } }
-                Pill("슬라이드", !s.noTurnEffect && !s.curl) { onChange { it.copy(curl = false, noTurnEffect = false) } }
-                Pill("없음", s.noTurnEffect) { onChange { it.copy(noTurnEffect = true) } }
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp).alpha(if (scroll) 0.38f else 1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Pill("종이책", !s.noTurnEffect && s.curl) { if (!scroll) onChange { it.copy(curl = true, noTurnEffect = false) } }
+                Pill("슬라이드", !s.noTurnEffect && !s.curl) { if (!scroll) onChange { it.copy(curl = false, noTurnEffect = false) } }
+                Pill("없음", s.noTurnEffect) { if (!scroll) onChange { it.copy(noTurnEffect = true) } }
             }
-            SwitchLine("자동 넘김", if (autoOn) "켜짐 · 화면을 누르면 멈춰요" else "${s.autoTurnSec}초마다 다음 쪽", autoOn, onAuto)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("간격", fontSize = 14.sp, modifier = Modifier.padding(end = 12.dp))
-                var v by remember(s.autoTurnSec) { mutableFloatStateOf(s.autoTurnSec.toFloat()) }
-                Slider(
-                    value = v, onValueChange = { v = it }, valueRange = 3f..60f, steps = 56,
-                    onValueChangeFinished = { val n = Math.round(v); onChange { it.copy(autoTurnSec = n) } },
-                    modifier = Modifier.weight(1f).semantics { contentDescription = "자동 넘김 간격" },
-                )
-                Text("${Math.round(v)}초", fontSize = 14.sp, modifier = Modifier.widthIn(min = 48.dp).padding(start = 8.dp), textAlign = TextAlign.End)
+            if (scrollAvailable) {
+                SheetLabel("보기 방식")
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Pill("쪽 넘김", !s.scrollView) { onChange { it.copy(scrollView = false) } }
+                    Pill("스크롤", s.scrollView) { onChange { it.copy(scrollView = true) } }
+                }
+                if (s.scrollView) Text("스크롤 보기에서는 효과를 쓰지 않아요. 쪽은 빈칸 없이 이어서 보여요.", fontSize = 12.sp, color = cs.onSurfaceVariant)
+            }
+            if (scroll) {
+                SwitchLine("자동 스크롤", if (autoOn) "켜짐 · 화면을 누르면 멈춰요" else "${s.autoScrollSpeed}단계 속도로 내려가요", autoOn, onAuto)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("속도", fontSize = 14.sp, modifier = Modifier.padding(end = 12.dp))
+                    var v by remember(s.autoScrollSpeed) { mutableFloatStateOf(s.autoScrollSpeed.toFloat()) }
+                    Slider(
+                        value = v, onValueChange = { v = it }, valueRange = 1f..10f, steps = 8,
+                        onValueChangeFinished = { val n = Math.round(v); onChange { it.copy(autoScrollSpeed = n) } },
+                        modifier = Modifier.weight(1f).semantics { contentDescription = "자동 스크롤 속도" },
+                    )
+                    Text("${Math.round(v)}단계", fontSize = 14.sp, modifier = Modifier.widthIn(min = 56.dp).padding(start = 8.dp), textAlign = TextAlign.End)
+                }
+            } else {
+                SwitchLine("자동 넘김", if (autoOn) "켜짐 · 화면을 누르면 멈춰요" else "${s.autoTurnSec}초마다 다음 쪽", autoOn, onAuto)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("간격", fontSize = 14.sp, modifier = Modifier.padding(end = 12.dp))
+                    var v by remember(s.autoTurnSec) { mutableFloatStateOf(s.autoTurnSec.toFloat()) }
+                    Slider(
+                        value = v, onValueChange = { v = it }, valueRange = 3f..60f, steps = 56,
+                        onValueChangeFinished = { val n = Math.round(v); onChange { it.copy(autoTurnSec = n) } },
+                        modifier = Modifier.weight(1f).semantics { contentDescription = "자동 넘김 간격" },
+                    )
+                    Text("${Math.round(v)}초", fontSize = 14.sp, modifier = Modifier.widthIn(min = 48.dp).padding(start = 8.dp), textAlign = TextAlign.End)
+                }
             }
             SheetLabel("화면 누르는 곳")
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

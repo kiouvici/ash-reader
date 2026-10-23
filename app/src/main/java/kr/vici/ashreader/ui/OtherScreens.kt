@@ -239,6 +239,10 @@ fun AppSettingsScreen(
             ValueRow("자동 넘김 간격", "읽기 화면 '넘김'에서 켜요", "${s.autoTurnSec}초") {
                 onChange { it.copy(autoTurnSec = gaps[(gaps.indexOf(it.autoTurnSec).let { i -> if (i < 0) 0 else i + 1 }) % gaps.size]) }
             }
+            SwitchRow("스크롤 보기", "쪽을 위아래로 이어서 보기(넘김 효과는 쓰지 않아요)", s.scrollView) { v -> onChange { it.copy(scrollView = v) } }
+            ValueRow("자동 스크롤 속도", "스크롤 보기에서 '넘김'의 자동 스크롤", "${s.autoScrollSpeed}단계") {
+                onChange { it.copy(autoScrollSpeed = it.autoScrollSpeed % 10 + 1) }
+            }
             ValueRow("탭 영역 안내 다시 보기", "다음에 책을 열 때 보여 줘요", "") { onChange { it.copy(tapGuideShown = false) }; info = "다음에 책을 열면 안내가 다시 나와요." }
         }
         Group("읽는 동안") {
@@ -246,6 +250,7 @@ fun AppSettingsScreen(
             ValueRow("화면 회전", "읽기 메뉴의 회전 잠금 버튼과 같아요", s.rotation.label) { onChange { it.copy(rotation = Rotation.entries[(it.rotation.ordinal + 1) % Rotation.entries.size]) } }
             ValueRow("정보줄 항목", "시계·배터리·이번 장 남은 쪽·진행률·남은 시간", "${InfoItem.entries.count { s.infoItems and it.bit != 0 }}개") { infoItems = true }
             SwitchRow("정보줄을 위에", "끄면 아래", s.infoTop) { v -> onChange { it.copy(infoTop = v) } }
+            SwitchRow("두 쪽 펼침에서 쪽마다 정보줄", "태블릿 가로: 각 쪽 아래에 쪽 번호. 끄면 전체 아래 한 줄", s.infoPerPage) { v -> onChange { it.copy(infoPerPage = v) } }
         }
         Group("문서(PDF·한글)") {
             SwitchRow("야간에 그림은 반전 안 함", "글자 있는 PDF 등 고정 쪽 문서", s.nightKeepImages) { v -> onChange { it.copy(nightKeepImages = v) } }

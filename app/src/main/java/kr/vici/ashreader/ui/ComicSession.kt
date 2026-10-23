@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
@@ -198,7 +200,7 @@ fun ComicSessionEffects(
  * [pages] = 지금 보이는 원본 쪽. 보이는 쪽이 풀리면 [onReady] 로 다시 그리게 한다.
  */
 @Composable
-fun ComicExtractOverlay(doc: ComicReaderDoc, pages: List<Int>, colors: ReadingColors, onReady: () -> Unit) {
+fun ComicExtractOverlay(doc: ComicReaderDoc, pages: List<Int>, colors: ReadingColors, menuVisible: Boolean = false, onReady: () -> Unit) {
     val flow = doc.extract ?: return
     if (!doc.extractBlocks) return
     val st by flow.collectAsState()
@@ -219,10 +221,20 @@ fun ComicExtractOverlay(doc: ComicReaderDoc, pages: List<Int>, colors: ReadingCo
             if (s.stopped) {
                 Text("이 쪽은 준비되지 않았어요.", fontSize = 16.sp, color = colors.fgC)
                 Text("풀기를 멈춰서 ${s.done}쪽까지만 볼 수 있어요.", fontSize = 14.sp, color = colors.subC, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+                if (s.finished) OutlinedButton(onClick = { doc.resumeExtract() }, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("이어 풀기", color = colors.accentC) }
             } else {
                 Text("쪽 준비 중… ${s.done} / ${s.total}", fontSize = 16.sp, color = colors.fgC)
                 OutlinedButton(onClick = { doc.stopExtract() }, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("멈추기", color = colors.accentC) }
             }
+        }
+        // 멈춘 뒤(S-41): '일부만 준비됨'을 메뉴와 함께 남긴다. [이어 풀기]로 나머지를 마저 푼다.
+        if (ready && s.stopped && s.finished && menuVisible) Row(
+            Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 68.dp)
+                .background(colors.barC, RoundedCornerShape(24.dp)).padding(start = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("일부만 준비됨 · ${s.done} / ${s.total}쪽", fontSize = 13.sp, color = colors.fgC)
+            TextButton(onClick = { doc.resumeExtract() }, modifier = Modifier.heightIn(min = 48.dp)) { Text("이어 풀기", color = colors.accentC) }
         }
         if (!s.finished && s.total > 0) LinearProgressIndicator(
             progress = { s.done.toFloat() / s.total },

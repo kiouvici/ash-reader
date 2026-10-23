@@ -27,6 +27,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -50,8 +53,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.doc.PageNotReady
 import kr.vici.ashreader.engine.comic.Webtoon
 
@@ -75,6 +80,13 @@ fun ComicWebtoonReader(
     turnForward: Boolean,
     jumpRequest: Int? = null,
     onJumpHandled: () -> Unit = {},
+    /** AI 화질 향상(F-73): 2배 결과가 나온 쪽은 결과에서 띠를 읽는다. */
+    upscale: ComicUpscale? = null,
+    /** 길게 누름(F-59): 원본 쪽 번호. */
+    onLongPress: (Int) -> Unit = {},
+    /** F-44 자동 스크롤(초당 dp, 0 = 끔)과 끝에 닿았을 때. */
+    autoDpPerSec: Int = 0,
+    onAutoEnd: () -> Unit = {},
 ) {
     val doc = cs.doc
     val p = cs.prefs
@@ -90,19 +102,28 @@ fun ComicWebtoonReader(
             value = withContext(Dispatchers.IO) { doc.sizes() }
         }
         val list = sizes
+        // 테두리 자르기(웹툰판): 책 전체에 같은 좌우 비율(쪽마다 다르면 띠 폭이 흔들린다)
+        // 앞쪽이 풀리기 전(solid CBR)에는 재지 못하므로 풀린 쪽 수가 늘면 다시 잰다. 재기 전에는 띠를 만들지 않는다(자리 흔들림 방지).
+        val cropOrNull by produceState<Pair<Float, Float>?>(null, doc, p.crop, p.cropSens, ext?.done?.coerceAtMost(12)) {
+            value = if (!p.crop) 0f to 1f else withContext(Dispatchers.IO) { runCatching { doc.webtoonCrop() }.getOrDefault(0f to 1f) }
+        }
+        val crop = cropOrNull ?: (0f to 1f)
+        val cropW = (crop.second - crop.first).coerceIn(0.5f, 1f)
         val stripH = (hPx * 3 / 4).coerceIn(256, 2048)
-        val strips = remember(list, dispW, stripH, hPx) {
+        val strips = remember(list, dispW, stripH, hPx, cropW, cropOrNull == null) {
             val out = ArrayList<Strip>()
-            list?.forEachIndexed { i, s ->
+            if (cropOrNull != null) list?.forEachIndexed { i, s ->
                 if (s == null || s.first <= 0) { out += Strip(i, 0, 0, hPx, true); return@forEachIndexed }
-                val parts = Webtoon.strips(s.first, s.second, dispW, stripH)
+                val effW = (s.first * cropW).toInt().coerceAtLeast(1)
+                val parts = Webtoon.strips(effW, s.second, dispW, stripH)
                 parts.forEachIndexed { k, r ->
-                    val h = ((r[1] - r[0]).toLong() * dispW / s.first).toInt().coerceAtLeast(1)
+                    val h = ((r[1] - r[0]).toLong() * dispW / effW).toInt().coerceAtLeast(1)
                     out += Strip(i, r[0], r[1], h, k == parts.size - 1)
                 }
             }
             out
         }
+        val readyUp = upscale?.ready?.collectAsState()?.value ?: emptySet()
         val firstOf = remember(strips) {
             val a = IntArray(doc.sourceCount) { -1 }
             strips.forEachIndexed { idx, s -> if (a.getOrNull(s.page) == -1) a[s.page] = idx }
@@ -126,6 +147,28 @@ fun ComicWebtoonReader(
         val curPage by remember(strips) { derivedStateOf { strips.getOrNull(state.firstVisibleItemIndex)?.page ?: startPage } }
         val pageCb by rememberUpdatedState(onPage)
         LaunchedEffect(curPage, positioned) { if (positioned) pageCb(curPage) }
+        LaunchedEffect(curPage, upscale) { upscale?.request(curPage, wPx, hPx) }
+        // F-44 자동 스크롤: 화면 프레임마다 조금씩 내린다(누르면 읽기 화면이 멈춘다)
+        val autoEnd by rememberUpdatedState(onAutoEnd)
+        LaunchedEffect(autoDpPerSec, state) {
+            if (autoDpPerSec <= 0) return@LaunchedEffect
+            val pxPerSec = with(density) { autoDpPerSec.dp.toPx() }
+            var last = 0L
+            var carry = 0f
+            while (true) {
+                val t = withFrameNanos { it }
+                if (last != 0L) {
+                    carry += pxPerSec * ((t - last) / 1e9f).coerceAtMost(0.1f)
+                    if (carry >= 1f) {
+                        val step = carry.toInt().toFloat()
+                        carry -= step
+                        if (!state.isScrollInProgress) state.dispatchRawDelta(step)
+                    }
+                    if (!state.canScrollForward) { autoEnd(); break }
+                }
+                last = t
+            }
+        }
         LaunchedEffect(jumpRequest, strips) {
             val j = jumpRequest ?: return@LaunchedEffect
             if (strips.isEmpty()) return@LaunchedEffect
@@ -137,6 +180,7 @@ fun ComicWebtoonReader(
         // 확대(두 손가락·두 번 탭). 좌우는 확대했을 때만 끌어서 옮긴다.
         var zoom by remember { mutableFloatStateOf(1f) }
         var panX by remember { mutableFloatStateOf(0f) }
+        var zoomTick by remember { mutableIntStateOf(0) }
         fun clampPan() { val m = (zoom - 1f) * wPx / 2f; panX = panX.coerceIn(-m, m) }
         LaunchedEffect(turnRequest) {
             if (turnRequest > 0) state.animateScrollBy((if (turnForward) 1f else -1f) * hPx * 0.9f / zoom)
@@ -154,6 +198,7 @@ fun ComicWebtoonReader(
                             val down = ev.changes.count { it.pressed }
                             if (down >= 2) {
                                 zoom = (zoom * ev.calculateZoom()).coerceIn(1f, 4f)
+                                zoomTick++
                                 panX += ev.calculatePan().x
                                 clampPan()
                                 ev.changes.forEach { it.consume() }
@@ -165,10 +210,15 @@ fun ComicWebtoonReader(
                         } while (ev.changes.any { it.pressed })
                     }
                 }
-                .pointerInput(menuVisible, hPx) {
+                .pointerInput(menuVisible, hPx, strips) {
                     detectTapGestures(
                         onDoubleTap = { o ->
                             if (zoom > 1f) { zoom = 1f; panX = 0f } else { zoom = 2f; panX = (wPx / 2f - o.x) * 1f; clampPan() }
+                            zoomTick++
+                        },
+                        onLongPress = { o ->
+                            val info = state.layoutInfo.visibleItemsInfo.firstOrNull { o.y >= it.offset && o.y < it.offset + it.size }
+                            strips.getOrNull(info?.index ?: -1)?.let { s -> onLongPress(s.page) }
                         },
                     ) { o ->
                         val yf = o.y / hPx
@@ -189,13 +239,14 @@ fun ComicWebtoonReader(
             ) {
                 items(strips.size, key = { i -> strips[i].let { "${it.page}:${it.y0}:${it.y1}" } }) { i ->
                     val s = strips[i]
-                    val key = "${s.page}:${s.y0}:${s.y1}"
+                    val up = s.page in readyUp
+                    val key = "${s.page}:${s.y0}:${s.y1}:${crop.first}:${if (up) 2 else 1}"
                     val ready = doc.ready(s.page) && s.y1 > 0
                     val img by produceState<ImageBitmap?>(cache.get(key)?.asImageBitmap(), key, ready, cache) {
                         if (value != null || !ready) return@produceState
                         value = withContext(Dispatchers.IO) {
                             try {
-                                doc.strip(s.page, s.y0, s.y1, dispW)?.also { cache.put(key, it) }?.asImageBitmap()
+                                doc.strip(s.page, s.y0, s.y1, dispW, crop.first, crop.second)?.also { cache.put(key, it) }?.asImageBitmap()
                             } catch (e: PageNotReady) { null } catch (e: Exception) { null } catch (e: OutOfMemoryError) { cache.evictAll(); null }
                         }
                     }
@@ -218,9 +269,11 @@ fun ComicWebtoonReader(
                 }
             }
         }
-        if (zoom > 1f && !menuVisible) Text(
-            "${(zoom * 100).toInt()}%", fontSize = 12.sp, color = colors.subC,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+        // 확대 배율(F-55, S-32): 바뀐 뒤 2초
+        LaunchedEffect(zoomTick) { if (zoomTick > 0) { delay(2000); zoomTick = 0 } }
+        if (zoomTick > 0 && !menuVisible) Text(
+            "${(zoom * 100).toInt()}%", fontSize = 12.sp, color = colors.fgC,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).background(colors.barC, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
         )
     }
 }

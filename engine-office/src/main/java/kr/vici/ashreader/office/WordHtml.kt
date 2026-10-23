@@ -24,6 +24,8 @@ object WordHtml {
         object Tab : Item()
         object LineBreak : Item()
         object PageBreak : Item()
+        /** 단 나눔(다단 구역에서 다음 단으로, 한 단이면 쪽 나눔). */
+        object ColumnBreak : Item()
     }
 
     class TabStop(val pos: Float, val align: String = "left", val leader: String? = null)
@@ -46,6 +48,10 @@ object WordHtml {
         val id: String? = null,
         /** 문단 테두리 top/bottom/left/right → (테두리, 글자와 간격 pt) */
         val borders: Map<String, Pair<Border, Float>> = emptyMap(),
+        /** 과부·고아 줄 방지(Word widowControl): 합성기가 문단 첫·마지막 줄을 혼자 두지 않는다. */
+        val widow: Boolean = false,
+        /** 목차 제목 표지 id(제목 문단만). */
+        val headId: String? = null,
     )
 
     class Border(val width: Float, val style: String, val color: String)
@@ -134,13 +140,14 @@ object WordHtml {
     fun para(p: Para, contentW: Float, out: StringBuilder): Int {
         // 쪽 나눔에서 문단을 나눈다
         val parts = ArrayList<List<Item>>()
+        val breaks = ArrayList<Item>()
         var cur = ArrayList<Item>()
-        for (it in p.items) if (it is Item.PageBreak) { parts += cur; cur = ArrayList() } else cur += it
+        for (it in p.items) if (it is Item.PageBreak || it is Item.ColumnBreak) { parts += cur; breaks += it; cur = ArrayList() } else cur += it
         parts += cur
         var tabParas = 0
         if (p.pageBreakBefore) out.append(PagedWord.PB)
         for ((pi, items) in parts.withIndex()) {
-            if (pi > 0) out.append(PagedWord.PB)
+            if (pi > 0) out.append(if (breaks[pi - 1] is Item.ColumnBreak) PagedWord.CB else PagedWord.PB)
             val first = pi == 0; val last = pi == parts.size - 1
             if (!first && items.isEmpty() && last) {
                 // 쪽 나눔이 문단 끝: Word 는 문단 기호를 다음 쪽 첫 줄로 둔다(빈 줄)
@@ -161,7 +168,12 @@ object WordHtml {
             if (hasTab) {
                 tabParas++
                 out.append("<div").append(p.id?.let { " id=\"$it\"" } ?: "").append(" style=\"").append(st).append("\">")
-                if (first && p.before > 0f) out.append("<div style=\"font-size:0.1pt;line-height:0.1pt\">").append(PagedWord.sbMark(p.before)).append("</div>")
+                if ((first && p.before > 0f) || (first && p.headId != null)) {
+                    out.append("<div style=\"font-size:0.1pt;line-height:0.1pt\">")
+                    if (p.before > 0f) out.append(PagedWord.sbMark(p.before))
+                    if (p.headId != null) out.append(PagedWord.hMark(p.headId))
+                    out.append("</div>")
+                }
                 tabTable(p, items, contentW, lh, out)
                 out.append("</div>\n")
                 continue
@@ -177,7 +189,10 @@ object WordHtml {
             }
             out.append("<p").append(if (first) p.id?.let { " id=\"$it\"" } ?: "" else "").append(" style=\"").append(st).append("\">")
             if (first && p.before > 0f) out.append(PagedWord.sbMark(p.before))
+            if (first && p.headId != null) out.append(PagedWord.hMark(p.headId))
+            if (first && p.widow) out.append(PagedWord.pMark(true))
             inline(items, p, out)
+            if (last && p.widow) out.append(PagedWord.P_END)
             out.append("</p>\n")
         }
         return tabParas
@@ -190,7 +205,7 @@ object WordHtml {
             is Item.Raw -> { out.append(it.html); if (it.w > 0f || it.h > 0f) any = true }
             Item.LineBreak -> { out.append("<br/>"); any = true }
             Item.Tab -> out.append(' ')
-            Item.PageBreak -> {}
+            Item.PageBreak, Item.ColumnBreak -> {}
         }
         if (!any) {
             // 빈 문단: 문단 기호 크기의 빈 줄

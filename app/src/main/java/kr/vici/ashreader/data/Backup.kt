@@ -186,6 +186,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("rotation", rotation.name).put("nightKeepImages", nightKeepImages)
             .put("brightness", brightness.toDouble()).put("dim", dim)
             .put("ttsRate", ttsRate.toDouble()).put("ttsPitch", ttsPitch.toDouble()).put("ttsSleep", ttsSleep).put("showStores", showStores)
+            .put("scrollView", scrollView).put("autoScrollSpeed", autoScrollSpeed).put("infoPerPage", infoPerPage)
 
         private fun settingsOf(o: JSONObject, base: Settings) = base.copy(
             font = BodyFont.entries.firstOrNull { it.name == o.optString("font") } ?: base.font,
@@ -226,6 +227,9 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             ttsPitch = o.optDouble("ttsPitch", base.ttsPitch.toDouble()).toFloat().coerceIn(0.5f, 2f),
             ttsSleep = o.optInt("ttsSleep", base.ttsSleep),
             showStores = o.optBoolean("showStores", base.showStores),
+            scrollView = o.optBoolean("scrollView", base.scrollView),
+            autoScrollSpeed = o.optInt("autoScrollSpeed", base.autoScrollSpeed).coerceIn(1, 10),
+            infoPerPage = o.optBoolean("infoPerPage", base.infoPerPage),
         )
     }
 }

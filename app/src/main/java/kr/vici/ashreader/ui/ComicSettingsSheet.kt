@@ -1,6 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -60,15 +74,17 @@ fun ComicSettingsSheet(
     upscale: ComicUpscale?,
     upscaleLimitMb: Int,
     onDismiss: () -> Unit,
+    /** 태블릿 가로: 바텀시트 대신 오른쪽 측면 시트. */
+    side: Boolean = false,
 ) {
     var tab by remember { mutableStateOf(ComicTab.TURN) }
     val p = cs.prefs
     val cs3 = MaterialTheme.colorScheme
     var savedNote by remember { mutableStateOf(false) }
     LaunchedEffect(savedNote) { if (savedNote) { delay(2000); savedNote = false } }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    val content: @Composable () -> Unit = {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
-            Text("만화 설정", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("만화 설정", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = if (side) 16.dp else 0.dp))
             Text("이 책에만 적용돼요.", fontSize = 12.sp, color = cs3.onSurfaceVariant)
             Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ComicTab.entries.forEach { t -> Pill(t.label, t == tab) { tab = t } }
@@ -85,6 +101,24 @@ fun ComicSettingsSheet(
             }
         }
     }
+    if (side) {
+        // 태블릿 가로(S-33): 오른쪽 측면 시트 360dp — 펼침 화면을 가리지 않아 바꾸는 즉시 보인다
+        BackHandler(onBack = onDismiss)
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().background(Color(0x33000000)).clickable(onClick = onDismiss).semantics { contentDescription = "만화 설정 닫기" })
+            Surface(
+                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(360.dp).clickable(enabled = true, onClick = {}),
+                shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp), tonalElevation = 2.dp, shadowElevation = 8.dp,
+            ) {
+                Column(Modifier.statusBarsPadding().navigationBarsPadding()) {
+                    Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp), horizontalArrangement = Arrangement.End) {
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) { Icon(Icons.Close, "닫기") }
+                    }
+                    content()
+                }
+            }
+        }
+    } else ModalBottomSheet(onDismissRequest = onDismiss) { content() }
 }
 
 @Composable
@@ -167,9 +201,11 @@ private fun TurnTab(cs: ComicSession, p: ComicBookPrefs, globalPanel: PanelMode)
 
 @Composable
 private fun ViewTab(cs: ComicSession, p: ComicBookPrefs) {
-    SwitchLine("테두리 자동 자르기", p.crop, enabled = !p.webtoon, sub = if (p.webtoon) "웹툰 보기에서는 좌우 여백 설정을 써요" else "흰·검은 테두리를 잘라 그림을 크게") { v -> cs.update { it.copy(crop = v) } }
-    Text("자르기 민감도", fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp).alpha(if (p.crop && !p.webtoon) 1f else 0.38f))
-    Choices(listOf("약", "보통", "강"), p.cropSens, enabled = p.crop && !p.webtoon) { i -> cs.update { it.copy(cropSens = i) } }
+    Label("맞춤", if (p.webtoon) "웹툰 보기는 폭 맞춤이에요" else "폭·높이·원본은 쪽 안을 밀어 보고, 끝에 닿으면 다음 쪽으로 넘어가요")
+    Choices(listOf("화면", "폭", "높이", "원본"), p.fit, enabled = !p.webtoon) { i -> cs.update { it.copy(fit = i) } }
+    SwitchLine("테두리 자동 자르기", p.crop, sub = if (p.webtoon) "웹툰은 좌우 흰 여백만 같은 폭으로 잘라요" else "흰·검은 테두리를 잘라 그림을 크게") { v -> cs.update { it.copy(crop = v) } }
+    Text("자르기 민감도", fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp).alpha(if (p.crop) 1f else 0.38f))
+    Choices(listOf("약", "보통", "강"), p.cropSens, enabled = p.crop) { i -> cs.update { it.copy(cropSens = i) } }
 
     Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("밝기·대비·감마", fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))

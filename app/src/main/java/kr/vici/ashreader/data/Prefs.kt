@@ -105,7 +105,20 @@ data class Settings(
     val ttsVolumeHint: Boolean = false,
     /** F-36 서재 위 '내 서점 앱' 줄 보이기. */
     val showStores: Boolean = true,
+    // ── 5묶음 ──
+    /** F-22 스크롤 보기(쪽을 위아래로 이어 붙여 보기). false = 쪽 넘김. 만화는 웹툰 보기(F-53)를 쓴다. */
+    val scrollView: Boolean = false,
+    /** F-44 자동 스크롤 속도 1(느림)~10(빠름). [AutoScroll.dpPerSec] 로 바꾼다. */
+    val autoScrollSpeed: Int = 4,
+    /** F-45 태블릿 두 쪽 펼침에서 정보줄을 쪽마다(각 쪽 아래 쪽 번호). false = 전체 아래 한 줄. */
+    val infoPerPage: Boolean = false,
 )
+
+/** F-44 자동 스크롤 속도 눈금(1~10) → 초당 이동 dp. */
+object AutoScroll {
+    private val DP = intArrayOf(6, 9, 12, 16, 20, 25, 31, 38, 47, 60)
+    fun dpPerSec(speed: Int): Int = DP[(speed - 1).coerceIn(0, DP.size - 1)]
+}
 
 class Prefs(private val context: Context) {
     private object K {
@@ -150,6 +163,9 @@ class Prefs(private val context: Context) {
         val ttsSleep = intPreferencesKey("tts_sleep")
         val ttsHint = booleanPreferencesKey("tts_volume_hint")
         val showStores = booleanPreferencesKey("show_stores")
+        val scrollView = booleanPreferencesKey("scroll_view")
+        val autoScroll = intPreferencesKey("auto_scroll_speed")
+        val infoPerPage = booleanPreferencesKey("info_per_page")
     }
 
     val settings: Flow<Settings> = context.dataStore.data
@@ -198,6 +214,9 @@ class Prefs(private val context: Context) {
         ttsSleep = p[K.ttsSleep] ?: 0,
         ttsVolumeHint = p[K.ttsHint] ?: false,
         showStores = p[K.showStores] ?: true,
+        scrollView = p[K.scrollView] ?: false,
+        autoScrollSpeed = (p[K.autoScroll] ?: 4).coerceIn(1, 10),
+        infoPerPage = p[K.infoPerPage] ?: false,
     )
 
     /**
@@ -248,6 +267,9 @@ class Prefs(private val context: Context) {
             p[K.ttsSleep] = s.ttsSleep
             p[K.ttsHint] = s.ttsVolumeHint
             p[K.showStores] = s.showStores
+            p[K.scrollView] = s.scrollView
+            p[K.autoScroll] = s.autoScrollSpeed
+            p[K.infoPerPage] = s.infoPerPage
         }
     }
 

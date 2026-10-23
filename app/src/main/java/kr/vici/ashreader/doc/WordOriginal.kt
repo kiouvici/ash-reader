@@ -23,7 +23,7 @@ import kr.vici.ashreader.office.SniffedFormat
  */
 object WordOriginal {
     /** 변환 규칙이 바뀌면 올린다(옛 캐시를 다시 만들게). */
-    private const val VERSION = 1
+    private const val VERSION = 2 // 2: 다단·과부/고아 줄·표 조건부 서식·EMF/WMF·목차·DOC 각주/탭
 
     fun open(context: Context, file: File, format: DocFormat, pageWdp: Float, pageHdp: Float, s: Settings, password: String?, key: String): ReaderDoc {
         val raw = file.readBytes()
@@ -47,6 +47,10 @@ object WordOriginal {
         }
         val dir = (temp ?: File(context.cacheDir, "office/$key")).apply { mkdirs() }
         val pdf = File(dir, "original-v$VERSION.pdf")
+        // 목차(제목 문단 → 쪽): 합성할 때 함께 쓴다. 한 줄 = 단계 \t 쪽 \t 제목
+        val tocFile = File(dir, "original-v$VERSION.toc")
+        // 옛 규칙으로 만든 결과는 지운다
+        dir.listFiles()?.forEach { f -> if (f.name.startsWith("original-v") && !f.name.startsWith("original-v$VERSION.")) f.delete() }
         try {
             if (!pdf.isFile || pdf.length() == 0L) {
                 val work = File(dir, "paged-work").apply { deleteRecursively(); mkdirs() }
@@ -56,8 +60,10 @@ object WordOriginal {
                         bytes.size >= 2 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte() -> DocxPaged().convert(bytes)
                         else -> DocPaged.convert(bytes)
                     }
-                    paged.writeTo(work)
-                    PagedComposer.compose(work, fontCss(context), pdf)
+                    // EMF·WMF 그림은 Canvas 로 PNG 로 그려 넣는다(못 그리면 회색 상자)
+                    paged.writeTo(work) { m, w, h -> MetafileRaster.png(m, w, h) }
+                    val r = PagedComposer.compose(work, fontCss(context), pdf)
+                    runCatching { tocFile.writeText(r.toc.joinToString("\n") { "${it.level}\t${it.page}\t${it.title.replace('\n', ' ')}" }) }
                 } finally {
                     work.deleteRecursively()
                 }
@@ -73,8 +79,14 @@ object WordOriginal {
         }
         val tmp = temp
         val cleanup: (() -> Unit)? = if (tmp != null) { { tmp.deleteRecursively() } } else null
+        val toc = runCatching {
+            tocFile.readLines().mapNotNull { line ->
+                val t = line.split('\t', limit = 3)
+                if (t.size < 3) null else TocEntry(t[2], t[0].toIntOrNull() ?: 0, t[1].toIntOrNull() ?: -1)
+            }
+        }.getOrDefault(emptyList())
         return try {
-            MupdfReaderDoc(pdf, format, pageWdp, pageHdp, s, context, reflow = false, onClose = cleanup)
+            MupdfReaderDoc(pdf, format, pageWdp, pageHdp, s, context, reflow = false, onClose = cleanup).also { if (toc.isNotEmpty()) it.tocOverride = toc }
         } catch (e: Exception) {
             tmp?.deleteRecursively(); throw e
         }

@@ -86,6 +86,20 @@ object Covers {
         return bmp
     }
 
+    /**
+     * F-59 '서재 표지로 지정': 지금 쪽 그림을 이 책의 표지로 쓴다. 표지 캐시 이름(책 id·파일 크기·수정 시각)에 그대로 덮어쓰므로
+     * 파일이 바뀌면(다시 받음 등) 자동 표지로 돌아간다.
+     */
+    fun setCustom(context: Context, id: String, src: File, bmp: Bitmap) {
+        val k = id + "-" + src.length().toString(16) + "-" + src.lastModified().toString(16)
+        val d = dir(context).apply { mkdirs() }
+        File(d, "$k.none").delete()
+        d.listFiles()?.forEach { if (it.name.startsWith("$id-") && it.name != "$k.webp") it.delete() }
+        save(bmp, File(d, "$k.webp"))
+        mem.remove(k)
+        lastKey.remove(id)
+    }
+
     fun delete(context: Context, id: String) {
         lastKey.remove(id)?.let { mem.remove(it) }
         dir(context).listFiles()?.forEach { if (it.name.startsWith("$id-")) it.delete() }
@@ -128,7 +142,7 @@ object Covers {
         try {
             val tmp = File(out.parentFile, out.name + ".tmp")
             tmp.outputStream().use { o -> scaled.compress(webpFormat(), 82, o) }
-            if (!tmp.renameTo(out)) tmp.delete()
+            if (!tmp.renameTo(out)) { out.delete(); if (!tmp.renameTo(out)) tmp.delete() }
         } finally {
             if (scaled !== bmp) scaled.recycle()
         }

@@ -165,4 +165,35 @@ class WordPagedTest {
         // 한글 묶음은 1em 글꼴 폭에 맞춰 키운다
         assertTrue(h.contains("font-size:10.5pt"))
     }
+
+    /** 5묶음: 다단·단 나눔, 과부·고아 줄 표지, 목차, 표 조건부 서식, EMF 그림. */
+    @Test fun batch5ColumnsWidowTocTableStyleEmf() {
+        val pw = DocxPaged().convert(SyntheticDocx.buildBatch5())
+        wellFormed(pw)
+        val s = pw.sections.single()
+        assertEquals(2, s.cols)
+        assertEquals(36f, s.colSpace, 0.1f)
+        assertTrue(s.body.contains(PagedWord.CB))
+        assertTrue(s.body.contains("#ash-pw") && s.body.contains("#ash-pe"))
+        assertEquals(listOf("1장 다단 시험", "2장 끝"), pw.headings.map { it.title })
+        assertEquals(listOf(0, 0), pw.headings.map { it.level })
+        assertTrue(s.body.contains("#ash-h-h0") && s.body.contains("#ash-h-h1"))
+        // 첫 행: 진한 파랑 바탕 + 흰 굵은 글자, 다음 행(줄무늬 1): 연한 파랑
+        assertTrue(s.body.contains("background-color:#4472C4"))
+        assertTrue(s.body.contains("color:#FFFFFF"))
+        assertTrue(s.body.contains("background-color:#D9E2F3"))
+        // EMF 는 PNG 자리로(앱이 그린다)
+        assertEquals(1, pw.metafiles.size)
+        val name = pw.metafiles.keys.single()
+        assertTrue(name.endsWith(".png") && s.body.contains(name))
+        assertTrue(Metafile.parse(pw.metafiles.getValue(name).data) != null)
+        // 그리기 함수가 없으면 회색 PNG 를 쓴다
+        val dir = Files.createTempDirectory("pw5").toFile()
+        try {
+            pw.writeTo(dir)
+            assertTrue(File(dir, name).readBytes().contentEquals(PagedWord.GRAY_PNG))
+            assertTrue(File(dir, "headings.txt").readText().contains("2장 끝"))
+            assertTrue(File(dir, "paged.txt").readText().contains("cols 2 36.00"))
+        } finally { dir.deleteRecursively() }
+    }
 }

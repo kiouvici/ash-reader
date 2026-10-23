@@ -12,11 +12,13 @@ import org.apache.poi.hwpf.usermodel.TableCell
 /**
  * DOC(Word 97-2003) → Word 원본 쪽 묶음(F-30). POI HWPF 의 Range·Table·Section·CharacterRun·PicturesTable 만 쓴다(java.awt 경로 회피).
  *  - 구역별 쪽 크기·여백, 문단 정렬·들여쓰기·간격·쪽 나눔, 글자 글꼴·크기·굵게·기울임·밑줄·취소선·색·첨자·숨김
- *  - 표 칸 너비·병합(가로·세로)·테두리·세로 정렬, 그림(PNG/JPEG; EMF/WMF 는 회색 상자), 머리글/바닥글(글자)
+ *  - 표 칸 너비·병합(가로·세로)·테두리·세로 정렬, 그림(PNG/JPEG, EMF/WMF 는 그리기 목록 → 앱이 PNG 로), 머리글/바닥글(글자)
  *  - 필드는 결과만(\u0013 명령 \u0014 결과 \u0015), 쪽 번호 필드는 {{ASH_PAGE}}
- * 각주 본문·떠 있는 그림·탭 위치(사용자 지정)는 옮기지 않는다(기본 탭 간격으로 근사).
+ *  - 5묶음: 각주(쪽 아래, 글자만), 사용자 지정 탭 위치(왼쪽 맞춤으로), 다단, 과부·고아 줄 방지, 목차(제목 스타일)
+ * 떠 있는 그림, 탭 맞춤 종류(가운데·오른쪽·소수점)와 채움 문자는 옮기지 않는다.
  */
 object DocPaged {
+    private val HEADING = Regex("^(heading|제목)\\s*(\\d)$")
     fun convert(bytes: ByteArray): PagedWord {
         val doc = HWPFDocument(ByteArrayInputStream(bytes))
         val ctx = Ctx(doc)
@@ -27,6 +29,15 @@ object DocPaged {
         val images = LinkedHashMap<String, ByteArray>()
         var imgSeq = 0; var paras = 0; var tables = 0; var tabParas = 0; var pageBreaks = 0
         val pics = runCatching { doc.picturesTable }.getOrNull()
+        val metas = LinkedHashMap<String, PagedWord.MetaPic>()
+        val headings = ArrayList<PagedWord.Heading>()
+        /** 각주: 본문 CP(참조 글자 자리) → 각주 번호(0..). */
+        val footnotes = runCatching { doc.footnotes }.getOrNull()
+        val noteByCp: Map<Int, Int> = runCatching {
+            val n = footnotes!!
+            (0 until n.notesCount).associateBy { n.getNoteAnchorPosition(it) }
+        }.getOrDefault(emptyMap())
+        val noteOrder = ArrayList<Int>()
 
         fun run(): PagedWord {
             val range = doc.range
@@ -42,12 +53,45 @@ object DocPaged {
                 val mt = sec?.let { runCatching { kotlin.math.abs(it.marginTop) / 20f }.getOrNull() } ?: 72f
                 val mb = sec?.let { runCatching { kotlin.math.abs(it.marginBottom) / 20f }.getOrNull() } ?: 72f
                 val cw = (w - ml - mr).coerceAtLeast(72f)
+                // 다단(같은 폭으로)
+                val nCols = sec?.let { runCatching { it.numColumns }.getOrNull() }?.coerceIn(1, 6) ?: 1
+                val colSpace = sec?.let { runCatching { it.distanceBetweenColumns / 20f }.getOrNull() }?.takeIf { it >= 0f } ?: 36f
+                val colW = if (nCols <= 1) cw else ((cw - (nCols - 1) * colSpace) / nCols).coerceAtLeast(36f)
                 val sb = StringBuilder()
-                if (sec != null) body(sec, cw, sb) else body(range, cw, sb)
+                if (sec != null) body(sec, colW, sb) else body(range, colW, sb)
                 sections += PagedWord.Section(w, h, mt, mr, mb, ml, 36f, 36f, hs.containsKey("first"), hs.containsKey("even") || fs.containsKey("even"),
-                    if (si == 0) 1 else -1, "decimal", sb.toString(), hs, fs, emptyList())
+                    if (si == 0) 1 else -1, "decimal", sb.toString(), hs, fs, emptyList(), nCols, colSpace)
             }
-            return PagedWord(sections, emptyList(), images, PagedWord.Stats(sections.size, paras, tables, imgSeq, 0, hs.size, fs.size, 0, tabParas, pageBreaks))
+            val notes = noteBodies(sections.firstOrNull()?.let { it.pageW - it.left - it.right } ?: 400f)
+            return PagedWord(
+                sections, notes, images,
+                PagedWord.Stats(sections.size, paras, tables, imgSeq, 0, hs.size, fs.size, notes.size, tabParas, pageBreaks, metas.size, headings.size),
+                metas, headings,
+            )
+        }
+
+        /** 각주 본문(글자만): 참조 순서대로, 첫 글자(자동 번호 표지 0x02)는 번호로 바꾼다. */
+        fun noteBodies(cw: Float): List<Pair<String, String>> {
+            val n = footnotes ?: return emptyList()
+            if (noteOrder.isEmpty()) return emptyList()
+            val all = runCatching { doc.footnoteRange.text() }.getOrNull() ?: return emptyList()
+            val out = ArrayList<Pair<String, String>>()
+            for ((k, ni) in noteOrder.withIndex()) {
+                val a = runCatching { n.getNoteTextStartOffset(ni) }.getOrDefault(-1)
+                val b = runCatching { n.getNoteTextEndOffset(ni) }.getOrDefault(-1)
+                if (a < 0 || b <= a || b > all.length) continue
+                val raw = all.substring(a, b).replaceFirst("\u0002", "")
+                val sb = StringBuilder()
+                val lines = clean(raw).split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+                for ((li, line) in lines.withIndex()) {
+                    val items = ArrayList<Item>()
+                    if (li == 0) items += Item.Raw("<span style=\"font-size:9pt\"><a class=\"nr\">${k + 1}</a></span>", 4f)
+                    items += Item.Text(WordHtml.Run((if (li == 0) " " else "") + line, null, null, 9f))
+                    WordHtml.para(WordHtml.Para(items, markSize = 9f), cw, sb)
+                }
+                out += "d$ni" to sb.toString()
+            }
+            return out
         }
 
         fun headersFooters(): Pair<Map<String, String>, Map<String, String>> {
@@ -103,13 +147,25 @@ object DocPaged {
                 val raw = cr.text() ?: continue
                 val sb = StringBuilder()
                 fun flush() { if (sb.isNotEmpty()) { if (!cr.isVanished) items += Item.Text(run(cr, sb.toString())); sb.setLength(0) } }
-                for (ch in raw) {
+                for ((ci, ch) in raw.withIndex()) {
                     val code = ch.code
                     if (code == 0x13) { flush(); inInstr++; continue }
                     if (code == 0x14) { if (inInstr > 0) inInstr--; flush(); continue }
                     if (code == 0x15) { flush(); continue }
                     if (inInstr > 0) continue
                     when (code) {
+                        0x02 -> {
+                            // 각주 참조(자동 번호): 이 CP 에 걸린 각주
+                            flush()
+                            val cp = runCatching { cr.startOffset }.getOrDefault(-1) + ci
+                            val ni = noteByCp[cp] ?: noteByCp.entries.firstOrNull { kotlin.math.abs(it.key - cp) <= 1 }?.value
+                            if (ni != null) {
+                                if (ni !in noteOrder) noteOrder += ni
+                                val num = noteOrder.indexOf(ni) + 1
+                                val sz = (cr.fontSize / 2f).takeIf { it > 0f } ?: 10f
+                                items += Item.Raw("<span style=\"font-size:${WordHtml.f(sz)}pt\"><a class=\"nr\" href=\"#ash-fn-d$ni\">$num</a></span>", sz * 0.4f)
+                            }
+                        }
                         0x0C -> { flush(); items += Item.PageBreak; pageBreaks++ }
                         0x0B -> { flush(); items += Item.LineBreak }
                         0x09 -> { flush(); items += Item.Tab }
@@ -122,6 +178,20 @@ object DocPaged {
             // 끝의 쪽 나눔(구역 끝 \f)은 쪽 나눔으로 두지 않는다
             while (items.lastOrNull() == Item.PageBreak) { items.removeAt(items.size - 1); pageBreaks-- }
             val jc = when (runCatching { p.justification.toInt() }.getOrDefault(0)) { 1 -> "center"; 2 -> "right"; 3, 4 -> "both"; else -> "left" }
+            // 사용자 지정 탭 위치(맞춤 종류는 POI 가 내주지 않아 왼쪽 맞춤으로)
+            val tabs = runCatching {
+                val k = p.tabStopsNumber
+                val pos = p.tabStopsPositions
+                (0 until minOf(k, pos?.size ?: 0)).map { WordHtml.TabStop(pos!![it] / 20f) }
+            }.getOrDefault(emptyList())
+            // 목차: 제목 스타일(heading N / 제목 N)
+            val level = runCatching { doc.styleSheet.getStyleDescription(p.styleIndex.toInt())?.name }.getOrNull()?.lowercase()
+                ?.let { HEADING.find(it)?.groupValues?.get(2)?.toInt()?.minus(1) }
+            val inTable = p.isInTable
+            val headId = if (level != null && !inTable) {
+                val title = items.filterIsInstance<Item.Text>().joinToString("") { it.run.text }.trim()
+                if (title.isNotEmpty()) "h${headings.size}".also { headings += PagedWord.Heading(it, level, title.take(120)) } else null
+            } else null
             val para = WordHtml.Para(
                 items, jc,
                 left = runCatching { p.indentFromLeft / 20f }.getOrDefault(0f),
@@ -129,8 +199,11 @@ object DocPaged {
                 firstLine = runCatching { p.firstLineIndent / 20f }.getOrDefault(0f),
                 before = runCatching { p.spacingBefore / 20f }.getOrDefault(0f),
                 after = runCatching { p.spacingAfter / 20f }.getOrDefault(0f),
+                tabs = tabs,
                 markSize = markSize, markFont = markFont,
                 pageBreakBefore = runCatching { p.pageBreakBefore() }.getOrDefault(false) && !p.isInTable,
+                widow = !inTable && runCatching { p.isWidowControlled }.getOrDefault(false),
+                headId = headId,
             )
             tabParas += WordHtml.para(para, cw, out)
         }
@@ -155,6 +228,14 @@ object DocPaged {
             val sy = pic.verticalScalingFactor.takeIf { it > 0 } ?: 1000
             val w = pic.dxaGoal / 20f * sx / 1000f
             val h = pic.dyaGoal / 20f * sy / 1000f
+            if (ext == "emf" || ext == "wmf") {
+                val data = pic.content
+                if (data != null && (Metafile.isEmf(data) || Metafile.isWmf(data))) {
+                    val name = "images/doc${imgSeq++}.$ext.png"
+                    metas[name] = PagedWord.MetaPic(data, w, h)
+                    return Item.Raw("<img src=\"$name\" alt=\"\" style=\"width:${WordHtml.f(w)}pt;height:${WordHtml.f(h)}pt\"/>", w, h)
+                }
+            }
             if (ext != "png" && ext != "jpg" && ext != "jpeg" && ext != "gif") {
                 return Item.Raw("<span class=\"img-unsupported\" style=\"font-size:9pt\">[그림]</span>", 30f, 12f)
             }

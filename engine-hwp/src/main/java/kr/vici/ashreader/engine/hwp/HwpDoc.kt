@@ -15,6 +15,7 @@ internal object HwpNative {
     @JvmStatic external fun nativeRenderPage(h: Long, i: Int, bitmap: Bitmap): Int
     @JvmStatic external fun nativePageTextChars(h: Long, i: Int): Int
     @JvmStatic external fun nativeToXhtml(h: Long, dir: String, title: String): String?
+    @JvmStatic external fun nativeImageRects(h: Long, i: Int): FloatArray?
     @JvmStatic external fun nativeClose(h: Long)
 }
 
@@ -40,6 +41,15 @@ class HwpDoc private constructor(private var handle: Long) : Closeable {
         if (r != 0) throw HwpException("렌더 실패($r): ${HwpNative.nativeLastError()}")
         return bmp
     }
+
+    /** 쪽 세로/가로 비율(F-22 스크롤 보기). 모르면 null. */
+    fun pageAspect(i: Int): Float? {
+        val (w96, h96) = HwpNative.nativePageSizePx96(handle, i).let { it[0] to it[1] }
+        return if (w96 > 0 && h96 > 0) h96.toFloat() / w96 else null
+    }
+
+    /** 쪽 안 그림 영역(쪽 기준 0..1, l t r b 반복). 야간 '그림은 반전 안 함'(F-21)에 쓴다. 없으면 빈 배열. */
+    fun imageRects(i: Int): FloatArray = HwpNative.nativeImageRects(handle, i) ?: FloatArray(0)
 
     /** 쪽 본문 글자 수(공백 제외). */
     fun pageTextChars(i: Int): Int = HwpNative.nativePageTextChars(handle, i)

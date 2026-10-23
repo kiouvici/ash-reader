@@ -53,6 +53,9 @@ interface ReaderDoc : Closeable {
 
     /** 목차. 없거나 모르는 형식은 빈 목록. */
     fun toc(): List<TocEntry> = emptyList()
+
+    /** 쪽 세로/가로 비율(F-22 스크롤 보기 자리). 모르면 null. 백그라운드에서 부른다. */
+    fun pageAspect(index: Int): Float? = null
 }
 
 /** 목차 한 줄. [page] 0부터(-1 = 위치 모름). */
@@ -272,6 +275,15 @@ class MupdfReaderDoc(
     }
 
     private val imageCache = object : android.util.LruCache<Int, FloatArray>(64) {}
+    private val layoutAspect = pageHdp / pageWdp.coerceAtLeast(1f)
+    private val aspectCache = java.util.concurrent.ConcurrentHashMap<Int, Float>()
+
+    override fun pageAspect(index: Int): Float? = if (reflow) layoutAspect else aspectCache[index] ?: synchronized(lock) {
+        if (closed) null else runCatching { doc.pageAspect(index) }.getOrNull()
+    }?.also { aspectCache[index] = it }
+
+    /** Word 원본 보기 등 바깥에서 만든 목차(합성 PDF 에 목차가 없을 때). */
+    @Volatile var tocOverride: List<TocEntry>? = null
 
     /**
      * 색 변환에서 원래 색으로 둘 그림 영역. 쪽을 거의 다 덮는 그림 한 장(스캔 쪽)은 반전 대상이므로 빼지 않는다
@@ -313,7 +325,7 @@ class MupdfReaderDoc(
         return TextPage(t.text, t.boxes, t.aspect).also { textCache.put(index, it) }
     }
 
-    override fun toc(): List<TocEntry> = synchronized(lock) {
+    override fun toc(): List<TocEntry> = tocOverride ?: synchronized(lock) {
         runCatching { doc.outline().map { TocEntry(it.title, it.depth, it.page) } }.getOrDefault(emptyList())
     }
 
@@ -362,6 +374,8 @@ class DjvuReaderDoc(file: File) : ReaderDoc {
     }
 
     override fun toc(): List<TocEntry> = runCatching { doc.outline().map { TocEntry(it.title, it.depth, it.page) } }.getOrDefault(emptyList())
+
+    override fun pageAspect(index: Int): Float? = runCatching { doc.pageSize(index) }.getOrNull()?.let { if (it.width > 0) it.height.toFloat() / it.width else null }
 
     override fun close() = doc.close()
 }
@@ -445,8 +459,23 @@ class HwpReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
 
     override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap {
         val raw = synchronized(lock) { doc.renderPage(index, w) }
-        return fitInto(raw, w, h, colors, applyTheme = true)
+        val keep = if (colors.keepImages && themeFilter(colors) != null) keepRects(index) else null
+        return fitInto(raw, w, h, colors, applyTheme = true, keep = keep)
     }
+
+    private val imageCache = object : android.util.LruCache<Int, FloatArray>(64) {}
+    private val aspectCache = java.util.concurrent.ConcurrentHashMap<Int, Float>()
+
+    /** 야간 '그림은 반전 안 함'(F-21): rhwp 쪽 SVG 의 그림 영역. 쪽을 거의 다 덮는 그림(배경·스캔)은 반전 대상으로 둔다. */
+    private fun keepRects(index: Int): FloatArray? {
+        val r = imageCache.get(index) ?: (synchronized(lock) { runCatching { doc.imageRects(index) }.getOrNull() } ?: return null).also { imageCache.put(index, it) }
+        if (r.isEmpty()) return null
+        var i = 0
+        while (i + 3 < r.size) { if ((r[i + 2] - r[i]) * (r[i + 3] - r[i + 1]) >= 0.85f) return null; i += 4 }
+        return r
+    }
+
+    override fun pageAspect(index: Int): Float? = aspectCache[index] ?: synchronized(lock) { runCatching { doc.pageAspect(index) }.getOrNull() }?.also { aspectCache[index] = it }
 
     /**
      * F-28 자동 전환 판정: 첫 쪽(작게 렌더)이 비었는데 글자는 있거나, 렌더 자체가 실패하면 true.
