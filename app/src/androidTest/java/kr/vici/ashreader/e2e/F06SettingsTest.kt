@@ -122,19 +122,16 @@ class F06SettingsTest : E2eTest() {
         launchApp()
         goTab("설정")
         row("오픈소스 라이선스")
-        val header = obj(By.text(Pattern.compile(".+ \\(\\d+\\)")), 15_000)
+        // 이 시험은 Compose 규칙이 걸려 있어 화면이 시험 시계로 돈다 → 누르기·확인도 Compose API 로
+        compose.waitUntil(15_000) { compose.onAllNodesWithText("MuPDF", substring = true).fetchSemanticsNodes().isNotEmpty() }
         shot("licenses")
-        val y = header.visibleBounds.centerY()
-        // MuPDF 줄(라이선스 원문이 있는 항목)
-        val first = scrollFind(By.textStartsWith("MuPDF"))
-        assertTrue("라이선스 항목이 없음 (제목 y=$y)", first != null)
-        first!!.click()
-        SystemClock.sleep(1_500)
-        assertTrue("라이선스 원문 화면이 아님", !device.hasObject(By.text("오픈소스 라이선스")))
+        compose.onAllNodesWithText("MuPDF", substring = true)[0].performClick()
+        compose.waitForIdle()
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("오픈소스 라이선스").fetchSemanticsNodes().isEmpty() }
         shot("license-text")
-        device.pressBack(); SystemClock.sleep(600)
-        assertTrue(has(By.text("오픈소스 라이선스"), 5_000))
-        device.pressBack(); SystemClock.sleep(600)
+        device.pressBack(); compose.waitForIdle()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("오픈소스 라이선스").fetchSemanticsNodes().isNotEmpty() }
+        device.pressBack(); compose.waitForIdle()
         assertTrue(onSettings())
         assertAlive()
     }

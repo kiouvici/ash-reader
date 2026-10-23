@@ -99,11 +99,25 @@ abstract class E2eTest {
 
     // ───────────── 앱 띄우기·화면 이동 ─────────────
 
+    /** 에뮬레이터 시스템 앱의 'isn't responding' 창(런처 등)을 [Wait] 로 닫는다. */
+    protected fun dismissSystemDialogs() {
+        if (device.hasObject(By.textContains("isn't responding")) || device.hasObject(By.textContains("응답하지 않"))) {
+            shot("system-anr")
+            device.findObject(By.text(Pattern.compile("(?i)wait|기다리기")))?.click()
+            SystemClock.sleep(800)
+        }
+    }
+
     protected fun launchApp(clear: Boolean = true) {
+        dismissSystemDialogs()
         val i = Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (clear) i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ctx.startActivity(i)
-        check(device.wait(Until.hasObject(By.pkg(PKG).depth(0)), 45_000)) { "앱이 뜨지 않음" }
+        val end = SystemClock.uptimeMillis() + 45_000
+        while (!device.wait(Until.hasObject(By.pkg(PKG).depth(0)), 2_000)) {
+            dismissSystemDialogs()
+            check(SystemClock.uptimeMillis() < end) { shot("no-app"); "앱이 뜨지 않음" }
+        }
         pump()
         device.waitForIdle(3_000)
     }
@@ -233,6 +247,15 @@ abstract class E2eTest {
         if (device.hasObject(By.desc("쪽 이동"))) { device.pressBack(); SystemClock.sleep(500) }
     }
 
+    /** 시트·창을 닫아 쪽 화면이 다시 보일 때까지 '뒤로'(최대 3번). 쪽이 이미 보이면 아무것도 안 한다. */
+    protected fun backToPage() {
+        repeat(3) {
+            pump()
+            if (device.hasObject(By.desc(PAGE)) || device.hasObject(By.text(INFO))) return
+            device.pressBack(); SystemClock.sleep(800)
+        }
+    }
+
     /** 처음 여는 책의 탭 안내가 있으면 닫는다. */
     protected fun dismissTapGuide() {
         device.findObject(By.text("알겠어요"))?.let { it.click(); SystemClock.sleep(500) }
@@ -325,9 +348,11 @@ abstract class E2eTest {
 
     /** 앱이 살아 있고(죽거나 ANR 창이 아니고) 앞에 떠 있는지. 시스템 화면(고르기 등)은 [allowOther] 로 허용. */
     protected fun assertAlive(allowOther: Boolean = false) {
-        if (device.hasObject(By.textContains("isn't responding")) || device.hasObject(By.textContains("응답하지 않"))) {
+        // 시스템 앱(런처 등)의 ANR 창은 [기다리기]로 닫고 넘어간다. 우리 앱의 ANR 만 실패
+        if (device.hasObject(By.textContains("ASH Reader isn't responding")) || device.hasObject(By.textContains("ASH Reader이(가) 응답하지"))) {
             shot("ANR"); fail("ANR 창이 떴음")
         }
+        dismissSystemDialogs()
         if (device.hasObject(By.textContains("keeps stopping")) || device.hasObject(By.textContains("has stopped")) || device.hasObject(By.textContains("계속 중지"))) {
             shot("crash-dialog"); fail("앱이 멈춤(오류 창)")
         }

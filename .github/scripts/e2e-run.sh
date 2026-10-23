@@ -41,6 +41,8 @@ adb shell settings put system user_rotation $ROT
 sleep 2
 note "회전 $ROT → $(adb shell dumpsys window displays 2>/dev/null | grep -oE 'cur=[0-9]+x[0-9]+' | head -1)"
 adb shell settings put global always_finish_activities 0
+# 에뮬레이터 시스템 앱(런처 등)의 'isn't responding' 창이 앱을 가리지 않게(우리 앱 ANR 은 logcat 'ANR in' 으로 본다)
+adb shell settings put global hide_error_dialogs 1
 adb shell svc power stayon true
 adb shell input keyevent 82 || true
 
@@ -76,6 +78,9 @@ run() {
   log="$OUT/instrument/$name.txt"
   start=$(date +%s)
   echo "=== $target"
+  # 회전이 풀려 있으면 다시 고정(태블릿 세로에서 런처 ANR 뒤 가로로 돌아간 일이 있었다)
+  adb shell settings put system accelerometer_rotation 0; adb shell settings put system user_rotation $ROT
+  [ "$SDK" -ge 31 ] && adb shell wm user-rotation lock $ROT >/dev/null 2>&1
   timeout "$limit" adb shell am instrument -w -r -e class "$E.$target" "$TPKG/$RUNNER" > "$log" 2>&1
   local rc=$?
   dur=$(( $(date +%s) - start ))

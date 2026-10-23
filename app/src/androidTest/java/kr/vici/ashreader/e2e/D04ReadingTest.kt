@@ -142,7 +142,7 @@ class D04ReadingTest : E2eTest() {
         scrollFind(By.text("영문 하이픈 넣기"))?.click()
         shot("aa-para")
         // 시트 닫기: 쪽이 다시 보일 때까지 '뒤로'(시트가 다 펼쳐지면 탭 이름이 화면 밖이라 글자로는 못 본다)
-        repeat(3) { if (device.hasObject(By.text("줄 간격")) || device.hasObject(By.text("글꼴")) || device.hasObject(By.text("영문 하이픈 넣기"))) { device.pressBack(); SystemClock.sleep(800) } }
+        backToPage()
         // 다시 배치된 문서가 열리는지
         waitPage()
         closeMenu()
