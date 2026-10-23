@@ -243,6 +243,12 @@ abstract class E2eTest {
         fail("읽기 메뉴가 열리지 않음")
     }
 
+    /** UiObject2 를 바로 찾아 쓰는 짧은 동작: 화면이 다시 그려져 낡았으면 몇 번 다시 한다. */
+    protected fun <T> stale(block: () -> T): T? {
+        repeat(3) { try { return block() } catch (_: StaleObjectException) { SystemClock.sleep(400); pump() } }
+        return null
+    }
+
     /** 읽기 메뉴의 단추(목차·보기·넘김·듣기·밝기·메모·쪽 목록)를 누른다. 메뉴가 그새 닫혔으면 다시 연다. */
     protected fun menuItem(label: String) {
         repeat(3) {

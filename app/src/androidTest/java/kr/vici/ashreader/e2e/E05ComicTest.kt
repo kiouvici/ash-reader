@@ -111,7 +111,7 @@ class E05ComicTest : E2eTest() {
         openComicSheet()
         // 시트의 '보기' 탭(아래 메뉴의 '보기'와 이름이 같다 → '화질' 탭과 같은 줄에 있는 것)
         val y = obj(By.text("화질")).visibleBounds.centerY()
-        device.findObjects(By.text("보기")).minByOrNull { kotlin.math.abs(it.visibleBounds.centerY() - y) }!!.click()
+        stale { device.findObjects(By.text("보기")).minByOrNull { kotlin.math.abs(it.visibleBounds.centerY() - y) }!!.click() }
         SystemClock.sleep(500)
         for (t in listOf("폭", "화면")) { device.findObject(By.text(t))?.click(); SystemClock.sleep(400) }
         switchNear("흑백")?.click(); SystemClock.sleep(400)

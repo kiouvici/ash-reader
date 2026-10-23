@@ -119,10 +119,10 @@ class D04ReadingTest : E2eTest() {
         assertTrue(has(By.text("글꼴"), 8_000))
         shot("aa-text")
         // 글자 크기 키우기(오른쪽 '가') 두 번, 줄이기 한 번
-        repeat(2) { device.findObjects(By.text("가")).maxByOrNull { it.visibleBounds.centerX() }?.click(); SystemClock.sleep(400) }
-        device.findObjects(By.text("가")).minByOrNull { it.visibleBounds.centerX() }?.click()
+        repeat(2) { stale { device.findObjects(By.text("가")).maxByOrNull { it.visibleBounds.centerX() }?.click() }; SystemClock.sleep(400) }
+        stale { device.findObjects(By.text("가")).minByOrNull { it.visibleBounds.centerX() }?.click() }
         // 글꼴 바꾸기
-        device.findObject(By.textStartsWith("ASH 바탕"))?.click(); SystemClock.sleep(400)
+        stale { device.findObject(By.textStartsWith("ASH 바탕"))?.click() }; SystemClock.sleep(400)
         shot("aa-font")
         clickText("테마")
         for (t in listOf("세피아", "야간", "내 테마", "주간")) { clickText(t); SystemClock.sleep(300) }
@@ -131,7 +131,7 @@ class D04ReadingTest : E2eTest() {
         for (step in listOf("줄 간격", "문단 간격", "좌우 여백", "위아래 여백")) {
             val label = scrollFind(By.text(step)) ?: continue
             val y = label.visibleBounds.centerY()
-            device.findObjects(By.text("+")).minByOrNull { kotlin.math.abs(it.visibleBounds.centerY() - y) }?.click()
+            stale { device.findObjects(By.text("+")).minByOrNull { kotlin.math.abs(it.visibleBounds.centerY() - y) }?.click() }
             SystemClock.sleep(300)
         }
         scrollFind(By.text("왼쪽 맞춤"))?.click()
