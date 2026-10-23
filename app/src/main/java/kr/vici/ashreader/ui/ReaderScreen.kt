@@ -97,6 +97,10 @@ import kotlinx.coroutines.withContext
 import kr.vici.ashreader.data.AutoScroll
 import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.ComicBookPrefs
+import kr.vici.ashreader.data.DocViewPrefs
+import kr.vici.ashreader.data.DocViewStore
+import kr.vici.ashreader.doc.MarginCroppable
+import kr.vici.ashreader.doc.OpenFailed
 import kr.vici.ashreader.data.Bookmark
 import kr.vici.ashreader.data.locatorFrac
 import kr.vici.ashreader.data.locatorPage
@@ -121,7 +125,6 @@ import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.doc.DocOpener
 import kr.vici.ashreader.doc.DrmProtected
 import kr.vici.ashreader.engine.convert.TextEncoding
-import kr.vici.ashreader.doc.HwpReaderDoc
 import kr.vici.ashreader.doc.MupdfReaderDoc
 import kr.vici.ashreader.doc.PasswordNeeded
 import kr.vici.ashreader.doc.ReaderDoc
@@ -368,6 +371,8 @@ fun ReaderScreen(
     val isWord = fmt.group == FormatGroup.WORD
     val dualView = isHwp || isWord
     var hwpEbook by rememberSaveable(target.id) { mutableStateOf(target.viewMode == Book.VIEW_EBOOK) }
+    /** F-28 원본 → 이북식 자동 전환을 이미 했나(한 번만). */
+    var hwpAuto by rememberSaveable(target.id) { mutableStateOf(false) }
     /** 그림만 든 PDF 를 만화 보기로 연 상태. */
     var pdfComic by rememberSaveable(target.id) { mutableStateOf(fmt == DocFormat.PDF && target.viewMode == Book.VIEW_COMIC) }
     /** 그림만 든 PDF 로 판정됨('만화로 보기' 제안). null = 아직 모름. */
@@ -385,6 +390,10 @@ fun ReaderScreen(
     /** 암호 걸린 Word·PDF 의 암호. 메모리에만 두고 저장하지 않는다. */
     var password by remember(target.id) { mutableStateOf(passwords[target.id]) }
     var pwTry by remember(target.id) { mutableIntStateOf(0) }
+    /** 고정 쪽 문서 맞춤(F-23)·여백 자르기(F-24) — 책마다. 한 번만 보기는 저장하지 않는다. */
+    val viewStore = remember { DocViewStore(context) }
+    var fixedView by rememberSaveable(target.id, stateSaver = DocViewSaver) { mutableStateOf(if (target.once) DocViewPrefs() else viewStore.load(target.id)) }
+    fun setFixedView(v: DocViewPrefs) { fixedView = v; if (!target.once) viewStore.save(target.id, v) }
 
     fun stub(msg: String) { scope.launch { snack.showSnackbar(msg) } }
 
@@ -505,20 +514,41 @@ fun ReaderScreen(
         val spread = wDp > hDp && minOf(wDp, hDp) >= 600f
         // F-22 스크롤 보기는 한 줄(칸)로: 이북류는 너무 넓지 않게 760dp 까지
         val pageWdp = if (scrollView) (if (reflow) minOf(wDp, 760f) else wDp) else if (spread) wDp / 2f else wDp
-        val txtKey = if (fmt == DocFormat.TXT) listOf(s.txtBlank, s.txtJoin, s.txtTrim, s.txtDefaultEncoding) else emptyList<Any>()
-        val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook, txtEnc) + txtKey else listOf(spread, hwpEbook, pdfComic)
+        val txtKey = if (fmt == DocFormat.TXT) listOf(s.txtBlank, s.txtJoin, s.txtTrim, s.txtDefaultEncoding, s.txtTocMask, s.txtTocCustom) else emptyList<Any>()
+        val styleKey = listOf(s.userFont, s.paraSpace, s.marginH, s.marginV, s.align, s.breakChar, s.hyphen, s.indent, s.dialogIndent)
+        val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook, txtEnc) + styleKey + txtKey
+            else listOf(spread, hwpEbook, pdfComic, fixedView.crop)
 
         val load by produceState<Load>(Load.Loading, target.path, layoutKey, pwTry) {
             value = Load.Loading
             val pw = password
-            val r = withContext(Dispatchers.IO) {
-                runCatching {
-                    DocOpener.open(
-                        context, File(target.path), fmt, pageWdp, hDp, s, hwpEbook = dualView && hwpEbook, password = pw, docId = target.id, comic = pdfComic,
-                        textEncoding = TextEncoding.Kind.of(txtEnc.ifEmpty { s.txtDefaultEncoding }),
-                    )
+            val crop = fixedView.crop && !reflow && !pdfComic
+            fun openNow(): ReaderDoc = DocOpener.open(
+                context, File(target.path), fmt, pageWdp, hDp, s, hwpEbook = dualView && hwpEbook, password = pw, docId = target.id, comic = pdfComic,
+                textEncoding = TextEncoding.Kind.of(txtEnc.ifEmpty { s.txtDefaultEncoding }),
+            ).also { d -> if (crop) (d as? MarginCroppable)?.cropMargins = true }
+            val r: Result<ReaderDoc> = if (isHwp && !hwpEbook && !hwpAuto) {
+                // F-28: 한글 원본 보기가 파싱에 실패하거나, 10초 안에 첫 쪽을 못 내거나, 첫 쪽이 비어 보이면(처음 열 때)
+                // 이북식으로 바꾸고 알린다. 자동 전환은 이 책을 여는 동안 한 번만(사용자가 원본으로 되돌리면 그대로 둔다).
+                val h = openHwpOriginal({ openNow() }, checkBlank = !firstLoadDone)
+                val parseFailed = h is HwpOpen.Done && h.result.exceptionOrNull().let { e ->
+                    e is OpenFailed && e.message.orEmpty().startsWith("한글 문서를 열 수 없어요")
                 }
-            }
+                if (h is HwpOpen.Done && !parseFailed) h.result
+                else {
+                    hwpAuto = true
+                    hwpEbook = true
+                    onViewMode(Book.VIEW_EBOOK)
+                    stub(
+                        when (h) {
+                            HwpOpen.TimedOut -> "원본 보기가 10초 넘게 걸려 이북식으로 열었어요."
+                            HwpOpen.Blank -> "원본 보기가 비어 보여 이북식으로 열었어요."
+                            else -> "원본 보기로 열지 못해 이북식으로 열었어요."
+                        },
+                    )
+                    return@produceState
+                }
+            } else withContext(Dispatchers.IO) { runCatching { openNow() } }
             value = r.fold({ Load.Ok(it) }, { e ->
                 when (e) {
                     is PasswordNeeded -> Load.Locked(e.wrong)
@@ -586,18 +616,7 @@ fun ReaderScreen(
                     if (doc is MupdfReaderDoc && fmt == DocFormat.PDF && imageOnly == null) {
                         imageOnly = withContext(Dispatchers.IO) { doc.isImageOnly() }
                     }
-                    // F-28: 원본 첫 쪽이 비어 보이거나 렌더에 실패하면 이북식으로 자동 전환(처음 열 때 한 번만)
-                    if (first && doc is HwpReaderDoc) {
-                        val failed = withContext(Dispatchers.IO) {
-                            synchronized(GuardedSource.guard) { !GuardedSource.closed.contains(doc) && doc.firstPageFailed() }
-                        }
-                        if (failed) {
-                            pendingFrac = if (n > 0) (page + 0.5f) / n else 0f
-                            hwpEbook = true
-                            onViewMode(Book.VIEW_EBOOK)
-                            stub("원본 보기가 비어 보여 이북식으로 열었어요.") // 문서가 바뀌며 이 효과가 취소되므로 바깥 범위에서 띄운다
-                        }
-                    }
+                    // F-28 원본 첫 쪽 검사·10초 초과는 문서를 여는 곳(openHwpOriginal)에서 한다
                 }
                 // 만화 설정(S-33, 책마다): 방향·펼침·웹툰·그림 보기·AI 화질. 쪽 수(펼침 배치)가 정해지므로 count 보다 먼저.
                 val comic = rememberComicSession(doc, target.id, target.once, spread, wDp > hDp, s.panelMode)
@@ -751,7 +770,25 @@ fun ReaderScreen(
                         }
                     }
                     val da = defAspect
-                    if (scrollMode && da == null) {
+                    // F-23 고정 쪽 문서 폭·높이 맞춤(쪽 넘김 보기): 맞춤 배율로 그린 쪽을 밀어 본다(만화 F-54 와 같은 화면)
+                    val fitFixed = !reflow && comicDoc == null && !scrollMode && fixedView.fit != ComicBookPrefs.FIT_SCREEN
+                    if (fitFixed) {
+                        ZoomPager(
+                            count = count, startIndex = page, fit = fixedView.fit, rtl = rtl, colors = colors,
+                            load = { i, w ->
+                                val a = (guarded(doc, null) { doc.pageAspect(i) } ?: 1.414f).coerceIn(0.2f, 5f)
+                                // 화소 상한 약 9MP
+                                val rw = minOf(w, kotlin.math.sqrt(9_000_000.0 / a).toInt()).coerceAtLeast(1)
+                                val rh = (rw * a).toInt().coerceAtLeast(1)
+                                ZoomImage(source.render(i, rw, rh), rw)
+                            },
+                            tapAction = tapOf, menuVisible = menu, onToggleMenu = { menu = !menu },
+                            onPage = { if (it != page) { page = it; pagesTurned++ } },
+                            turnRequest = turnReq, turnForward = turnFwd,
+                            jumpRequest = jumpReq, onJumpHandled = { jumpReq = null },
+                            reloadKey = source,
+                        )
+                    } else if (scrollMode && da == null) {
                         CircularProgressIndicator(color = colors.accentC, modifier = Modifier.align(Alignment.Center))
                     } else if (scrollMode && da != null) {
                         // F-22 스크롤 보기(+ F-44 자동 스크롤)
@@ -1115,7 +1152,15 @@ fun ReaderScreen(
         txtEnc = k?.name.orEmpty()
         if (!target.once) onTextEncoding(txtEnc)
     } else null
-    if (showAa && openDoc !is ComicReaderDoc) ViewSettingsSheet(s, reflow, onSettings, onDismiss = { showAa = false }, txt = txtUi)
+    val fixedUi = openDoc.let { od ->
+        if (reflow || od == null) null
+        else FixedViewUi(
+            fixedView.fit, fixedView.crop, cropAvailable = od is MarginCroppable,
+            onFit = { v -> setFixedView(fixedView.copy(fit = v)) },
+            onCrop = { v -> setFixedView(fixedView.copy(crop = v)) },
+        )
+    }
+    if (showAa && openDoc !is ComicReaderDoc) ViewSettingsSheet(s, reflow, onSettings, onDismiss = { showAa = false }, txt = txtUi, fixed = fixedUi)
     if (showTurn) TurnSheet(
         s, onSettings, autoOn = autoOn,
         onAuto = { v -> autoOn = v; autoPaused = false; if (v) { showTurn = false; menu = false } },
