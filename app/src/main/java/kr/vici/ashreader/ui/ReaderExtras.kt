@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -60,6 +61,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -128,6 +130,11 @@ fun ReaderInfoLine(
     page: Int, count: Int, chapterLeft: Int?, msPerPage: Long?, s: Settings, c: ReadingColors, modifier: Modifier,
     /** 태블릿 두 쪽 펼침에서 쪽마다 정보줄(F-45, S-20): (왼쪽 쪽, 오른쪽 쪽). 빈 자리는 null. null = 한 줄. */
     halves: Pair<Int?, Int?>? = null,
+    /**
+     * eBook 보기 쪽 가장자리 몫(I-711). 있으면 정보줄을 그 몫이 비워 둔 띠에 정확히 놓는다(7G) — 막대 값을 따로 읽어
+     * 띄우면 기기(작업 표시줄·두 쪽 펼침 등)에 따라 비워 둔 자리와 어긋나 마지막 줄과 겹칠 수 있었다.
+     */
+    frame: PageFrame? = null,
 ) {
     val context = LocalContext.current
     val tick by produceState(0L) { while (true) { delay(30_000); value = SystemClock.elapsedRealtime() } }
@@ -142,15 +149,23 @@ fun ReaderInfoLine(
     if (on(InfoItem.PROGRESS) && count > 0) right += "${(page + 1) * 100 / count}% · ${page + 1}/${count}쪽"
     if (on(InfoItem.TIME_LEFT) && msPerPage != null && count > 0) right += "약 " + durationLabel((count - page - 1).coerceAtLeast(0) * msPerPage)
     // I-711: eBook 보기가 비워 둔 자리(PageFrame)와 같은 곳에 놓이게 막대가 숨어도 잡히는 값으로 띄운다
-    val pad = Modifier.windowInsetsPadding(
+    val scale = LocalDensity.current.fontScale
+    val pad = if (frame != null) {
+        // 7G: 쪽 배치가 비운 띠(frame) 안에 고정 — 띠 = 막대 몫 바깥쪽 + 정보줄 높이(infoLineDp) + 틈(INFO_GAP_DP)
+        val band = PageFrame.infoLineDp(scale)
+        val bar = ((if (s.infoTop) frame.top else frame.bottom) - band - PageFrame.INFO_GAP_DP).coerceAtLeast(0f)
+        Modifier.padding(start = frame.left.dp, end = frame.right.dp)
+            .padding(top = if (s.infoTop) bar.dp else 0.dp, bottom = if (s.infoTop) 0.dp else bar.dp)
+            .height(band.dp)
+    } else Modifier.windowInsetsPadding(
         if (s.infoTop) WindowInsets.statusBarsIgnoringVisibility.union(WindowInsets.displayCutout).only(WindowInsetsSides.Top)
         else WindowInsets.navigationBarsIgnoringVisibility.union(WindowInsets.displayCutout).only(WindowInsetsSides.Bottom),
-    )
+    ).padding(vertical = 6.dp)
     if (halves != null) {
         // 쪽마다: 각 쪽 가운데에 그 쪽 번호, 왼쪽 쪽 바깥에 시계·배터리, 오른쪽 쪽 바깥에 진행 정보
         val (lp, rp) = halves
         val desc = (left + listOfNotNull(lp?.let { "왼쪽 ${it + 1}쪽" }, rp?.let { "오른쪽 ${it + 1}쪽" }) + right).joinToString(", ")
-        Row(modifier.fillMaxWidth().then(pad).padding(vertical = 6.dp).semantics { contentDescription = desc }) {
+        Row(modifier.fillMaxWidth().then(pad).semantics { contentDescription = desc }, verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f).padding(horizontal = 20.dp)) {
                 Text(left.joinToString(" · "), fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, maxLines = 1, modifier = Modifier.align(Alignment.CenterStart))
                 if (lp != null) Text("${lp + 1}", fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, modifier = Modifier.align(Alignment.Center))
@@ -163,7 +178,7 @@ fun ReaderInfoLine(
         return
     }
     if (left.isEmpty() && right.isEmpty()) return
-    Row(modifier.fillMaxWidth().then(pad).padding(horizontal = 20.dp, vertical = 6.dp).semantics { contentDescription = (left + right).joinToString(", ") }) {
+    Row(modifier.fillMaxWidth().then(pad).padding(horizontal = 20.dp).semantics { contentDescription = (left + right).joinToString(", ") }, verticalAlignment = Alignment.CenterVertically) {
         Text(left.joinToString(" · "), fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, maxLines = 1, modifier = Modifier.weight(1f))
         Text(right.joinToString("  "), fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }

@@ -85,6 +85,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -634,6 +635,12 @@ fun ReaderScreen(
                 }
                 // 만화 설정(S-33, 책마다): 방향·펼침·웹툰·그림 보기·AI 화질. 쪽 수(펼침 배치)가 정해지므로 count 보다 먼저.
                 val comic = rememberComicSession(doc, target.id, target.once, spread, wDp > hDp, s.panelMode)
+                // F-50·7G 두 쪽 펼침의 첫 쪽 단독(표지): 만화는 책마다 설정('첫 쪽 단독'), 그 밖에는 첫 쪽이 실제로
+                // 쪽 전체 그림(표지·스캔 쪽)일 때만. 글로 시작하는 책은 첫 펼침부터 두 쪽(빈 왼쪽 쪽이 생기지 않게).
+                val coverImage by produceState<Boolean?>(null, doc) {
+                    value = withContext(Dispatchers.IO) { guarded(doc, false) { doc.coverIsImage() } }
+                }
+                val coverAlone = comic?.prefs?.coverAlone ?: (coverImage == true)
                 val pxW = constraints.maxWidth.toFloat()
                 val pxH = constraints.maxHeight.toFloat()
                 // 화면 폭이 바뀌면(회전·창 크기) 쪽 칸이 달라지므로 글자 선택을 닫는다(7B).
@@ -708,9 +715,9 @@ fun ReaderScreen(
                     val cp = if (listen.onNext && c.spans) c.page + 1 else c.page
                     if (cp !in 0 until doc.pageCount) return@LaunchedEffect
                     if (scrollMode) { revealReq = cp; return@LaunchedEffect }
-                    val visible = if (!spreadNow) cp == page else if (page == 0) cp == 0 else cp == page || cp == page + 1
+                    val visible = if (!spreadNow) cp == page else if (page == 0 && coverAlone) cp == 0 else cp == page || cp == page + 1
                     if (visible) return@LaunchedEffect
-                    val nextFirst = if (!spreadNow) page + 1 else if (page == 0) 1 else page + 2
+                    val nextFirst = if (!spreadNow) page + 1 else if (page == 0 && coverAlone) 1 else page + 2
                     if (cp == nextFirst && curlView != null && comicDoc == null && zoomAt == null) { turnFwd = true; turnReq++ } else jumpReq = cp
                 }
                 val tapOf = { x: Float, y: Float -> TapZones.action(x, y, s.tapLayout, s.tapCustom, s.leftHanded, doc.rtl) }
@@ -780,15 +787,23 @@ fun ReaderScreen(
                         }
                     }
                     val rtl = doc.rtl
+                    val snapPx = with(LocalDensity.current) { 24.dp.toPx() }
                     /** 고른 칸·누른 곳(px)에서 낱말을 골라 글자 선택을 연다(S-28). */
                     fun selectAt(slot: PageSlot, xPx: Float, yPx: Float) {
                         scope.launch {
                             val tp = withContext(Dispatchers.IO) { if (slot.page in 0 until count) guarded(doc, null) { doc.pageText(slot.page) } else null }
                             if (tp == null || tp.text.isBlank()) { stub(noTextMsg(fmt)); return@launch }
                             val b = slot.content(tp)
-                            val i = TextGeo.charAt(tp, (xPx - b.l) / (b.r - b.l), (yPx - b.t) / (b.b - b.t))
+                            // 7G: 줄 사이·빈칸을 길게 눌러도 빈칸 하나를 고르지 않는다 — 24dp(세로는 한 줄 높이) 안의 가까운 낱말로 붙고,
+                            // 없으면 아무것도 고르지 않는다
+                            val tol = snapPx
+                            val i = TextGeo.wordCharNear(
+                                tp, (xPx - b.l) / (b.r - b.l), (yPx - b.t) / (b.b - b.t),
+                                rx = tol / (b.r - b.l).coerceAtLeast(1f), ry = tol / (b.b - b.t).coerceAtLeast(1f),
+                            )
                             if (i < 0) return@launch
                             val w = TextGeo.wordAt(tp.text, i)
+                            if (TextGeo.blank(tp.text, w.first, w.last + 1)) return@launch
                             sel = Selection(slot, tp, w.first, w.last + 1)
                         }
                     }
@@ -861,14 +876,14 @@ fun ReaderScreen(
                         direction = if (doc.rtl) TurnDirection.RTL else TurnDirection.LTR,
                         effect = when { s.noTurnEffect -> TurnEffect.NONE; s.curl -> TurnEffect.CURL; else -> TurnEffect.SLIDE },
                         spread = comic?.spreadMode() ?: SpreadMode.AUTO,
-                        coverAlone = comic?.prefs?.coverAlone ?: true,
+                        coverAlone = coverAlone,
                         backColor = colors.bg,
                         shadowStrength = colors.shadow,
                     )
                     // 고정 쪽·만화: 두 번 탭 = 누른 곳 2배(F-55), 두 손가락 = 확대(F-23) → 확대 덧화면(ZoomPager)
                     val zoomable = !reflow
                     fun openZoom(xf: Float, yf: Float, k: Float) {
-                        val slot = slotAt(xf * pxW, pxW, pxH, page, spreadNow, rtl)
+                        val slot = slotAt(xf * pxW, pxW, pxH, page, spreadNow, rtl, coverAlone)
                         if (slot.page !in 0 until count) return
                         menu = false; sel = null
                         zoomAt = ZoomReq(slot.page, (xf * pxW - slot.left) / slot.width * pxW, yf * pxH, k)
@@ -881,7 +896,7 @@ fun ReaderScreen(
                             autoOn && !autoPaused -> autoPaused = true
                             else -> {
                                 // F-46: 문서 안 링크(각주)를 누르면 팝업, 읽던 쪽은 그대로
-                                val slot = slotAt(x * pxW, pxW, pxH, page, spreadNow, rtl)
+                                val slot = slotAt(x * pxW, pxW, pxH, page, spreadNow, rtl, coverAlone)
                                 val nx = (x * pxW - slot.left) / slot.width
                                 val ny = (y * pxH - slot.top) / slot.height
                                 val pad = 0.015f
@@ -912,7 +927,7 @@ fun ReaderScreen(
                         update = { v ->
                             v.onLongPress = { xf, yf ->
                                 menu = false
-                                val slot = slotAt(xf * pxW, pxW, pxH, page, spreadNow, rtl)
+                                val slot = slotAt(xf * pxW, pxW, pxH, page, spreadNow, rtl, coverAlone)
                                 if (comicDoc != null) {
                                     // F-59 만화 쪽 메뉴(표지로 지정·공유·저장)
                                     if (slot.page in 0 until count) comicMenuOf(comicDoc.sourceOf(slot.page))
@@ -1039,12 +1054,16 @@ fun ReaderScreen(
                     val perPage = s.infoPerPage && spreadNow && !scrollView && !webtoon && !fitMode && zoomAt == null
                     val halves = if (!perPage) null else {
                         fun num(i: Int): Int? = if (i !in 0 until count) null else comicDoc?.sourceOf(i) ?: i
-                        val coverFirst = page == 0 && (comic?.prefs?.coverAlone ?: true)
+                        val coverFirst = page == 0 && coverAlone
                         val a: Int? = if (coverFirst) null else num(page)
                         val b: Int? = if (coverFirst) num(0) else num(page + 1)
                         if (doc.rtl) b to a else a to b
                     }
-                    ReaderInfoLine(page, count, chapterLeft, msPerPage, s, colors, Modifier.align(if (s.infoTop) Alignment.TopCenter else Alignment.BottomCenter), halves = halves)
+                    ReaderInfoLine(
+                        page, count, chapterLeft, msPerPage, s, colors, Modifier.align(if (s.infoTop) Alignment.TopCenter else Alignment.BottomCenter), halves = halves,
+                        // 7G: 쪽 넘김 eBook 보기(가로·세로·두 쪽 펼침)는 쪽 배치가 비운 띠에 정확히 놓는다
+                        frame = frame?.takeIf { !scrollView && !webtoon && !fitMode && zoomAt == null },
+                    )
                 }
                 // 자동 넘김 멈춤 띠
                 if (autoOn && autoPaused && !menu) Row(
@@ -1166,14 +1185,16 @@ fun ReaderScreen(
                         sel = cur, c = colors,
                         onChange = { sel = it },
                         onDismiss = { sel = null },
-                        onCopy = { copyText(context, cur.text); sel = null; stub("복사했어요.") },
-                        onDict = { lookUp(context, cur.text) { stub(it) }; sel = null },
+                        onCopy = { if (cur.text.isNotBlank()) { copyText(context, cur.text); stub("복사했어요.") }; sel = null },
+                        onDict = { if (cur.text.isNotBlank()) lookUp(context, cur.text) { stub(it) }; sel = null },
                         onHighlight = { color ->
-                            if (target.once) stub("서재에 추가하면 형광펜을 남길 수 있어요.")
+                            // 7G: 빈칸만 고른 형광펜은 만들지 않는다
+                            if (cur.text.isBlank()) Unit
+                            else if (target.once) stub("서재에 추가하면 형광펜을 남길 수 있어요.")
                             else onAddHighlight(cur.slot.page, cur.start, cur.end, cur.text, color, "", selFrac(cur, count))
                             sel = null
                         },
-                        onMemo = { if (target.once) stub("서재에 추가하면 메모를 남길 수 있어요.") else selMemo = cur; sel = null },
+                        onMemo = { if (cur.text.isBlank()) Unit else if (target.once) stub("서재에 추가하면 메모를 남길 수 있어요.") else selMemo = cur; sel = null },
                         onSearch = { searchSeed = cur.text.take(60); sel = null; menu = false; searchOpen = true },
                     )
                 }
@@ -1475,11 +1496,11 @@ private fun OnceBar(fmt: DocFormat, page: Int, count: Int, c: ReadingColors, ebo
     }
 }
 
-/** 화면 x(px)가 가리키는 쪽 칸. 두 쪽 펼침이면 왼쪽/오른쪽 반(표지 단독 배치 기준). */
-private fun slotAt(x: Float, w: Float, h: Float, first: Int, spread: Boolean, rtl: Boolean): PageSlot {
+/** 화면 x(px)가 가리키는 쪽 칸. 두 쪽 펼침이면 왼쪽/오른쪽 반([coverAlone] = 첫 펼침이 표지 단독). */
+private fun slotAt(x: Float, w: Float, h: Float, first: Int, spread: Boolean, rtl: Boolean, coverAlone: Boolean): PageSlot {
     if (!spread) return PageSlot(first, 0f, 0f, w, h)
     val leftHalf = x < w / 2f
-    val leftIdx = if (first == 0) -1 else first // 표지 단독: 첫 펼침 = 빈 왼쪽 + 0쪽
+    val leftIdx = if (first == 0 && coverAlone) -1 else first // 표지 단독: 첫 펼침 = 빈 왼쪽 + 0쪽
     val idx = if (leftHalf != rtl) leftIdx else leftIdx + 1
     return PageSlot(idx, if (leftHalf) 0f else w / 2f, 0f, w / 2f, h)
 }

@@ -455,10 +455,19 @@ private fun AshRoot(nav: NavModel) {
             // 필수 5: 한 번만 보기 문서를 닫으면(회전은 제외) 변환 캐시·사본 정리. 암호도 메모리에서 지운다.
             val activity = context as? Activity
             val clearCopy by rememberUpdatedState(settings.clearOnceOnExit)
+            val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
             DisposableEffect(bookId, sc.once) {
                 val o = sc.once
                 onDispose {
-                    if (activity?.isChangingConfigurations != true) {
+                    // 7G: Activity 가 없어지며 화면이 치워지는 경우(회전, '활동 유지 안 함'·메모리 부족으로 인한 재생성)는
+                    // 읽기 화면이 SavedStateHandle 로 다시 살아나므로 사본을 지우면 안 된다 → 정말 끝낼 때(isFinishing)만 정리.
+                    // 앱 안에서 읽기 화면을 닫은 경우(Activity 는 그대로)는 바로 정리. 같은 사본을 다시 받은 경우는 OnceRefs 가 막는다.
+                    if (OnceClose.realClose(
+                            destroying = lifecycle.currentState == Lifecycle.State.DESTROYED,
+                            finishing = activity?.isFinishing == true,
+                            changingConfig = activity?.isChangingConfigurations == true,
+                        )
+                    ) {
                         nav.passwords.remove(bookId)
                         // 서재에 있는 문서를 받은 사본으로 연 경우(once=false)는 사본을 늘 지운다
                         val drop = clearCopy || !sc.target.once
@@ -670,4 +679,15 @@ private fun streakOf(days: List<Long>): Int {
 @Composable
 private fun androidx.compose.foundation.layout.RowScope.NavItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
     NavigationBarItem(selected = selected, onClick = onClick, icon = { Icon(icon, contentDescription = null) }, label = { Text(label) })
+}
+
+/** 한 번만 보기 문서 정리 시점(7G). */
+internal object OnceClose {
+    /**
+     * 읽기 화면이 치워질 때 사본·캐시를 정리해도 되는가.
+     * [destroying] = Activity 가 없어지는 중(생명 주기 DESTROYED). 이때는 정말 끝낼 때(isFinishing && !isChangingConfigurations)만.
+     * 아니면(앱 안에서 다른 화면으로) 설정 변경 중이 아닐 때.
+     */
+    fun realClose(destroying: Boolean, finishing: Boolean, changingConfig: Boolean): Boolean =
+        if (destroying) finishing && !changingConfig else !changingConfig
 }

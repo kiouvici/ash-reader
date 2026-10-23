@@ -14,7 +14,8 @@ import org.junit.runner.RunWith
 /**
  * 배치 7A MuPDF 패치 0002 검사(에뮬레이터).
  * - I-715 넓은 표: 표가 본문 폭을 넘지 않는다(모든 글자 상자가 쪽 안).
- * - I-713 양쪽 정렬: 띄어쓰기 단위 줄 바꿈은 그대로, 낱말 사이가 0.5em 을 크게 넘지 않는다.
+ * - I-713·7G 양쪽 정렬: 띄어쓰기 단위 줄 바꿈은 그대로, 낱말 사이 0.7em 까지 → 글자 사이 0.05em 까지 →
+ *   남으면 띄어쓰기 3개 이상 줄은 띄어쓰기에, 2개 이하 줄은 왼쪽 정렬(글자 사이를 벌리지 않음).
  * - I-711 @page 여백: 장 가운데 쪽도 위·아래 여백 안에 글자가 놓인다.
  */
 @RunWith(AndroidJUnit4::class)
@@ -81,41 +82,35 @@ class ReflowLayoutTest {
     @Test
     fun justifiedLinesHaveNoHugeWordGaps() {
         val para = "학생들의 물에 대한 적응력 향상과 위기 상황에서 자기생명 보호능력 강화를 위해 생존수영 실기교육을 실시하고자 합니다. " +
-            "세부 일정을 아래와 같이 추진할 예정이오니 참고하시기 바랍니다. 가족들 다 흡족하게 먹었잖아요. 그렇죠 네 우리가 뭐 저기 뭐 엄청 풍족하게 먹은 건 아니지만."
+            "세부 일정을 아래와 같이 추진할 예정이오니 참고하시기 바랍니다. 가족들 다 흡족하게 먹었잖아요. 그렇죠 네 우리가 뭐 저기 뭐 엄청 풍족하게 먹은 건 아니지만. " +
+            "오래된 책장에서 꺼낸 책은 손때가 묻어 모서리가 둥글었고, 넘길 때마다 종이 냄새가 났다. 그날 밤 우리는 늦게까지 이야기를 나누었고, 아무도 먼저 일어나자는 말을 하지 않았다."
         val f = write("gap.xhtml", "<p>$para</p><p>$para</p>")
         val em = 18f
-        MupdfDoc.open(f.absolutePath, MupdfDoc.LayoutSpec(300f, 2000f, em), css()).use { doc ->
-            val t = doc.pageText(0)
-            val pw = 300f
-            var worst = 0f
-            var lines = 0
-            var tight = 0
-            var start = 0
-            while (start < t.text.length) {
-                var end = t.text.indexOf('\n', start); if (end < 0) end = t.text.length
-                val ln = t.text.substring(start, end)
-                // 줄 안 띄어쓰기 자리 너비(앞 글자 오른쪽 ~ 뒤 글자 왼쪽)
-                if (end < t.text.length - 1 && ln.trim().contains(' ')) {
-                    lines++
-                    var lineWorst = 0f
-                    for (k in start + 1 until end - 1) {
-                        if (t.text[k] != ' ') continue
-                        var a = k - 1; while (a > start && t.text[a] == ' ') a--
-                        var b = k + 1; while (b < end && t.text[b] == ' ') b++
-                        if (b >= end) continue
-                        val gap = (t.boxes[4 * b] - t.boxes[4 * a + 2]) * pw / em
-                        lineWorst = maxOf(lineWorst, gap)
-                    }
-                    worst = maxOf(worst, lineWorst)
-                    if (lineWorst <= 0.55f) tight++
+        for (pw in listOf(300f, 360f, 420f, 520f)) {
+            MupdfDoc.open(f.absolutePath, MupdfDoc.LayoutSpec(pw, 4000f, em), css()).use { doc ->
+                val t = doc.pageText(0)
+                val lines = JustifyStats.lines(t.text, t.boxes, pw, em)
+                val body = lines.filter { !it.paraEnd }
+                val justified = body.filter { it.justified }
+                val ragged = body.filter { !it.justified }
+                Log.i(TAG, "justify w=$pw lines=${body.size} justified=${justified.size} ragged=${ragged.size} " +
+                    "maxLetter=${lines.maxOf { it.maxLetter }}em maxGap=${lines.maxOf { it.maxGap }}em")
+                assertTrue(body.size > 5)
+                for (l in lines) {
+                    // 7G: 글자 사이는 거의 보이지 않게(0.05em 까지)만 — '냄 새 가 났 다' 처럼 벌어지지 않는다
+                    assertTrue("글자 사이가 벌어짐(w=$pw ${l.maxLetter}em): ${l.text}", l.maxLetter <= 0.06f)
                 }
-                start = end + 1
+                for (l in ragged) {
+                    // 남는 폭을 띄어쓰기·글자 사이로 다 못 채우는 줄(띄어쓰기 2개 이하)은 왼쪽 정렬, 띄어쓰기는 자연 폭 그대로
+                    assertTrue("고르지 않은 줄인데 띄어쓰기가 3개 이상(w=$pw): ${l.text}", l.spaces <= 2)
+                    assertTrue("고르지 않은 줄의 띄어쓰기가 늘어남(w=$pw ${l.maxGap}em): ${l.text}", l.maxGap <= 0.45f)
+                }
+                for (l in justified) {
+                    if (l.spaces <= 2) assertTrue("띄어쓰기 2개 이하 줄 낱말 사이 0.7em 넘음(w=$pw ${l.maxGap}em): ${l.text}", l.maxGap <= 0.75f)
+                }
+                // 대부분 줄은 양쪽 정렬(오른쪽 끝이 맞음)
+                assertTrue("양쪽 정렬 줄이 너무 적음(w=$pw): ${justified.size}/${body.size}", justified.size * 2 >= body.size || pw < 360f)
             }
-            Log.i(TAG, "justify lines=$lines tight=$tight worstGap=${worst}em")
-            assertTrue(lines > 3)
-            // 대부분 줄은 띄어쓰기 0.5em 상한 안. 낱말이 적은 줄도 글자 사이(0.2em까지)가 나눠 가져 패치 전(1.7em)보다 좁다
-            assertTrue("낱말 사이가 너무 벌어짐: ${worst}em", worst < 1.2f)
-            assertTrue("0.55em 이하 줄이 너무 적음: $tight/$lines", tight * 10 >= lines * 7)
         }
     }
 
@@ -138,5 +133,47 @@ class ReflowLayoutTest {
             }
             assertEquals(h / 320f, doc.pageAspect(0), 0.01f)
         }
+    }
+}
+
+/** 쪽 글자 상자에서 줄마다 낱말 사이·글자 사이 너비(em)를 잰다. 상자는 쪽 폭 비율(0..1). */
+internal object JustifyStats {
+    class Line(val text: String, val spaces: Int, val maxGap: Float, val maxLetter: Float, val justified: Boolean, val paraEnd: Boolean)
+
+    private fun hangul(c: Char) = c in '\uAC00'..'\uD7A3'
+
+    fun lines(text: String, boxes: FloatArray, pw: Float, em: Float): List<Line> {
+        val out = ArrayList<Line>()
+        // 오른쪽 끝(본문 폭) = 가장 긴 줄의 오른쪽
+        var colRight = 0f
+        for (i in text.indices) if (!text[i].isWhitespace()) colRight = maxOf(colRight, boxes[4 * i + 2])
+        var start = 0
+        while (start < text.length) {
+            var end = text.indexOf('\n', start); if (end < 0) end = text.length
+            var a = start; while (a < end && text[a] == ' ') a++
+            var z = end - 1; while (z >= a && text[z] == ' ') z--
+            if (z >= a) {
+                var spaces = 0; var maxGap = 0f; var maxLetter = 0f
+                var k = a + 1
+                while (k <= z) {
+                    if (text[k] == ' ') {
+                        var b = k; while (b <= z && text[b] == ' ') b++
+                        spaces++
+                        maxGap = maxOf(maxGap, (boxes[4 * b] - boxes[4 * (k - 1) + 2]) * pw / em)
+                        k = b + 1
+                        continue
+                    }
+                    if (hangul(text[k - 1]) && hangul(text[k])) maxLetter = maxOf(maxLetter, (boxes[4 * k] - boxes[4 * (k - 1) + 2]) * pw / em)
+                    k++
+                }
+                val right = boxes[4 * z + 2]
+                val line = text.substring(a, z + 1)
+                // 시험 문단은 모두 '않았다.' 로 끝난다(문단 마지막 줄은 왼쪽 정렬이 맞음)
+                val paraEnd = line.endsWith("않았다.")
+                out += Line(line, spaces, maxGap, maxLetter, (colRight - right) * pw <= 0.1f * em, paraEnd)
+            }
+            start = end + 1
+        }
+        return out
     }
 }

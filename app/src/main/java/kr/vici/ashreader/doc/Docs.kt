@@ -57,6 +57,29 @@ interface ReaderDoc : Closeable {
 
     /** 쪽 세로/가로 비율(F-22 스크롤 보기 자리). 모르면 null. 백그라운드에서 부른다. */
     fun pageAspect(index: Int): Float? = null
+
+    /** 첫 쪽이 표지 그림(쪽 전체 그림)인가 — 두 쪽 펼침에서 첫 쪽을 혼자 둘지(7G). 백그라운드에서 부른다. */
+    fun coverIsImage(): Boolean = false
+}
+
+/** 표지 쪽 판정(7G): 가장 큰 그림이 쪽 넓이의 40% 이상이고 글자가 거의 없음(제목·저자 정도). */
+object CoverRule {
+    const val MIN_AREA = 0.4f
+    const val MAX_CHARS = 80
+
+    /** [rects] = 쪽 안 그림 영역(정규화, 4개씩), [chars] = 빈칸을 뺀 글자 수, [pages] = 쪽 수. */
+    fun isCover(rects: FloatArray?, chars: Int, pages: Int): Boolean {
+        if (pages < 2 || rects == null) return false
+        var best = 0f
+        var i = 0
+        while (i + 3 < rects.size) {
+            val w = (minOf(rects[i + 2], 1f) - maxOf(rects[i], 0f)).coerceAtLeast(0f)
+            val h = (minOf(rects[i + 3], 1f) - maxOf(rects[i + 1], 0f)).coerceAtLeast(0f)
+            best = maxOf(best, w * h)
+            i += 4
+        }
+        return best >= MIN_AREA && chars <= MAX_CHARS
+    }
 }
 
 /** 목차 한 줄. [page] 0부터(-1 = 위치 모름). */
@@ -421,6 +444,15 @@ class MupdfReaderDoc(
     /** 그림만 든 PDF(스캔 만화)인지 — '만화로 보기' 제안용. 닫힌 뒤에는 false. */
     fun isImageOnly(): Boolean = format == DocFormat.PDF && synchronized(lock) { !closed && doc.isImageOnly() }
 
+    /** 7G: 첫 쪽이 표지 그림인가(EPUB 표지·스캔 PDF 첫 쪽). 글로 시작하는 문서는 false. */
+    override fun coverIsImage(): Boolean {
+        if (pageCount < 2) return false
+        val r = synchronized(lock) { if (closed) null else runCatching { doc.imageRects(0) }.getOrNull() }
+        if (r == null || r.isEmpty()) return false
+        val chars = pageText(0)?.text?.count { !it.isWhitespace() } ?: pageLines(0).sumOf { l -> l.count { !it.isWhitespace() } }
+        return CoverRule.isCover(r, chars, pageCount)
+    }
+
     override fun close() {
         synchronized(lock) { if (!closed) { closed = true; doc.close() } }
         onClose?.invoke()
@@ -437,6 +469,9 @@ class DjvuReaderDoc(file: File) : ReaderDoc, MarginCroppable {
         throw OpenFailed(e.message?.takeIf { it.contains("기기") } ?: "DjVu 파일을 열 수 없어요. 손상되었을 수 있어요.")
     }
     override val pageCount: Int = runCatching { doc.pageCount() }.getOrDefault(0)
+
+    /** 7G: DjVu 는 스캔한 책이라 첫 쪽을 표지로 본다(두 쪽 펼침 첫 쪽 단독). */
+    override fun coverIsImage(): Boolean = pageCount >= 2
 
     override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap {
         val sz = doc.pageSize(index)

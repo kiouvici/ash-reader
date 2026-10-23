@@ -259,7 +259,9 @@ fun rememberCover(b: Book): ImageBitmap? {
 fun Cover(b: Book, modifier: Modifier = Modifier) {
     val f = DocFormat.of(b.format)
     val img = if (Covers.supported(f)) rememberCover(b) else null
-    Box(modifier.aspectRatio(3f / 4.2f).clip(RoundedCornerShape(6.dp)).background(f.coverColor())) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.aspectRatio(3f / 4.2f).clip(RoundedCornerShape(6.dp)).background(f.coverColor())) {
+        // 7G: 작은 표지(문서 메뉴 48dp 등)에서는 형식 표시를 작게 — 'DO / C' 처럼 두 줄로 꺾이지 않게
+        val small = maxWidth < 80.dp
         if (img != null) {
             Image(img, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         } else {
@@ -269,15 +271,19 @@ fun Cover(b: Book, modifier: Modifier = Modifier) {
                 modifier = Modifier.padding(8.dp),
             )
         }
-        Badge(f, Modifier.align(Alignment.BottomStart).padding(6.dp))
+        Badge(f, Modifier.align(Alignment.BottomStart).padding(if (small) 3.dp else 6.dp), small = small)
         if (b.favorite) Text("★", fontSize = 16.sp, color = Ash.Gold, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).semantics { contentDescription = "즐겨찾기" })
     }
 }
 
 @Composable
-fun Badge(f: DocFormat, modifier: Modifier = Modifier) {
-    Box(modifier.clip(RoundedCornerShape(4.dp)).background(f.badgeColor()).padding(horizontal = 6.dp, vertical = 2.dp)) {
-        Text(f.badge, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+fun Badge(f: DocFormat, modifier: Modifier = Modifier, small: Boolean = false) {
+    // 7G: 늘 한 줄(꺾지 않음). 자리가 모자라면 잘리되 줄이 늘지 않는다
+    Box(modifier.clip(RoundedCornerShape(if (small) 3.dp else 4.dp)).background(f.badgeColor()).padding(horizontal = if (small) 3.dp else 6.dp, vertical = if (small) 1.dp else 2.dp)) {
+        Text(
+            f.badge, color = Color.White, fontSize = if (small) 9.sp else 12.sp, lineHeight = if (small) 11.sp else 16.sp,
+            fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip,
+        )
     }
 }
 

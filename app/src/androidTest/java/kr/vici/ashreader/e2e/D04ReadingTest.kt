@@ -279,6 +279,12 @@ class D04ReadingTest : E2eTest() {
             app.db.books().allHighlights().count { it.bookId == id } to app.db.books().allNotes().count { it.bookId == id }
         }
         assertTrue("형광펜이 저장되지 않음", hlCount >= 1)
+        // 7G: 빈칸만 칠한 형광펜은 없어야 한다
+        val blankHl = runBlocking {
+            val id = app.db.books().allHighlights().first().bookId
+            app.db.books().allHighlights().count { it.bookId == id && it.text.isBlank() }
+        }
+        assertEquals("빈칸만 칠한 형광펜이 있음", 0, blankHl)
         assertTrue("메모가 저장되지 않음", noteCount >= 1)
         assertAlive()
     }
@@ -297,5 +303,67 @@ class D04ReadingTest : E2eTest() {
         if (paused) clickText("끄기")
         assertEquals(true, paused)
         assertAlive()
+    }
+
+    /**
+     * 7G: 정보줄이 본문 마지막 줄과 겹치지 않는다(휴대폰·태블릿, 세로·가로, 두 쪽 펼침의 두 쪽 모두).
+     * 정보줄 글자 위 8dp 띠(정보줄 안쪽 여백 + 본문과의 틈)에 본문 글자 잉크가 없어야 한다.
+     * 태블릿 가로(두 쪽 펼침): 표지 그림이 없는 글 EPUB 은 첫 펼침부터 두 쪽(빈 왼쪽 쪽이 없음).
+     */
+    @Test
+    fun infoLine_clearOfText_firstSpread() {
+        openBook()
+        // 첫 쪽으로(앞 시험이 읽던 자리를 남겼을 수 있음)
+        repeat(30) {
+            val p = currentPage() ?: return@repeat
+            if (p <= 1) return@repeat
+            tap(0.1f, 0.5f)
+        }
+        val d = ctx.resources.displayMetrics.density
+        val w = device.displayWidth; val h = device.displayHeight
+        val spread = w > h && minOf(w, h) / d >= 600f
+        shot("first-page")
+        if (spread) {
+            // 쪽 그림이 늦게 올라올 수 있어 몇 번 찍어 본다
+            var ink = 0
+            for (k in 0 until 8) {
+                ink = inkIn(screen(), (w * 0.06f).toInt(), (h * 0.12f).toInt(), (w * 0.44f).toInt(), (h * 0.8f).toInt())
+                if (ink > 200) break
+            }
+            assertTrue("두 쪽 펼침 첫 펼침의 왼쪽 쪽이 비어 있음(글로 시작하는 책은 표지 단독이 아니어야 함, 잉크 $ink)", ink > 200)
+        }
+        for (i in 0 until 4) {
+            val info = device.findObjects(By.text(INFO)).maxByOrNull { it.visibleBounds.top }
+            assertNotNull("정보줄이 보이지 않음", info)
+            val top = info!!.visibleBounds.top
+            val band = (8 * d).toInt()
+            val bmp = screen()
+            val ink = inkIn(bmp, 0, (top - band).coerceAtLeast(0), w, top - 1)
+            if (ink > 6) shot("info-overlap-$i")
+            assertTrue("정보줄 위 띠에 본문 글자가 걸림(쪽 ${currentPage()}, 잉크 $ink px, 정보줄 위 ${top}px)", ink <= 6)
+            tap(0.9f, 0.5f)
+            SystemClock.sleep(600)
+        }
+        shot("info-clear")
+        assertAlive()
+    }
+
+    private fun screen(): android.graphics.Bitmap {
+        SystemClock.sleep(500)
+        val b = inst.uiAutomation.takeScreenshot() ?: error("화면을 찍지 못함")
+        return b.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+    }
+
+    /** 사각형 안에서 바탕색(가장 흔한 색)과 밝기가 크게 다른 점 수. */
+    private fun inkIn(b: android.graphics.Bitmap, l: Int, t: Int, r: Int, bot: Int): Int {
+        val x0 = l.coerceIn(0, b.width - 1); val x1 = r.coerceIn(x0 + 1, b.width)
+        val y0 = t.coerceIn(0, b.height - 1); val y1 = bot.coerceIn(y0 + 1, b.height)
+        fun lum(c: Int) = (android.graphics.Color.red(c) * 3 + android.graphics.Color.green(c) * 6 + android.graphics.Color.blue(c)) / 10
+        val hist = IntArray(256)
+        for (y in y0 until y1) for (x in x0 until x1 step 2) hist[lum(b.getPixel(x, y))]++
+        val bg = hist.indices.maxByOrNull { hist[it] } ?: 255
+        var n = 0
+        for (y in y0 until y1) for (x in x0 until x1) if (kotlin.math.abs(lum(b.getPixel(x, y)) - bg) > 70) n++
+        return n
     }
 }
