@@ -64,14 +64,13 @@ import kr.vici.ashreader.data.IntentInbox
 import kr.vici.ashreader.data.Highlight
 import kr.vici.ashreader.data.Note
 import kr.vici.ashreader.data.ReadingSession
-import kr.vici.ashreader.data.ScanFolder
-import kr.vici.ashreader.data.StorageAccess
 import kr.vici.ashreader.data.Settings
 import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.ui.AppSettingsScreen
 import kr.vici.ashreader.ui.AshTheme
 import kr.vici.ashreader.ui.ExportSheet
-import kr.vici.ashreader.ui.FoldersScreen
+import kr.vici.ashreader.ui.LibraryFoldersScreen
+import kr.vici.ashreader.ui.BackupImportScreen
 import kr.vici.ashreader.ui.StorageIntroScreen
 import kr.vici.ashreader.ui.StoreEditScreen
 import kr.vici.ashreader.ui.Icons
@@ -95,8 +94,10 @@ internal sealed interface Screen {
     data class Reader(val target: ReaderTarget, val once: LibraryRepo.Opened?) : Screen
     /** S-02 파일 접근 권한 안내 */
     data object StorageIntro : Screen
-    /** S-03·설정 모으는 폴더. [intro] = 첫 안내에서 옴 */
+    /** S-17 서재 폴더(설정 > 서재). [intro] = 첫 실행 안내(S-02)에서 옴 */
     data class Folders(val intro: Boolean) : Screen
+    /** S-53 백업 가져오기(폴더에서 백업 파일 고르기) */
+    data object BackupImport : Screen
     /** S-15 서점 바로가기 편집 */
     data object StoreEdit : Screen
 }
@@ -166,6 +167,7 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
                 Screen.Licenses -> putString("k", "licenses")
                 Screen.StorageIntro -> putString("k", "storage")
                 Screen.StoreEdit -> putString("k", "stores")
+                Screen.BackupImport -> putString("k", "backupImport")
                 is Screen.Folders -> { putString("k", "folders"); putBoolean("intro", sc.intro) }
                 is Screen.Series -> { putString("k", "series"); putString("key", sc.key) }
                 is Screen.Reader -> {
@@ -188,6 +190,7 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
             "licenses" -> Screen.Licenses
             "storage" -> Screen.StorageIntro
             "stores" -> Screen.StoreEdit
+            "backupImport" -> Screen.BackupImport
             "folders" -> Screen.Folders(b.getBoolean("intro"))
             "series" -> b.getString("key")?.let { Screen.Series(it) }
             "reader" -> {
@@ -329,6 +332,10 @@ private fun AshRoot(nav: NavModel) {
         }
     }
     val scanning by app.collector.busy.collectAsState()
+    // S-17: 찾을 수 없는 서재 폴더 안 책은 지우지 않고 '열 수 없음'으로 보인다
+    val badFolders by app.collector.unavailable.collectAsState()
+    val allFolders by remember { dao.scanFolders() }.collectAsState(initial = emptyList())
+    val unavailableBooks = remember(books, allFolders, badFolders) { app.collector.unavailableBooks(books, allFolders, badFolders) }
     val stores by remember { dao.storeApps() }.collectAsState(initial = emptyList())
     var ready by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -339,13 +346,14 @@ private fun AshRoot(nav: NavModel) {
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (ready && nav.screen !is Screen.StorageIntro) scan() }
 
-    /** 파일 접근 허용됨(S-02) → Download 를 모으는 폴더로 넣고 모은다. */
+    /**
+     * 파일 접근 허용됨(S-02) → 서재 폴더 고르기(S-17). 예전처럼 Download 만 몰래 넣지 않고 사용자가 고른다
+     * (Download 는 그 화면의 '바로 추가' 한 번으로).
+     */
     fun storageGranted() {
         scope.launch {
-            dao.upsertScanFolder(ScanFolder(StorageAccess.downloadDir().path, true, "Download"))
             app.prefs.update { it.copy(storageAsked = true) }
-            nav.screen = Screen.Library
-            scan(force = true)
+            nav.screen = Screen.Folders(intro = true)
         }
     }
 
@@ -545,7 +553,7 @@ private fun AshRoot(nav: NavModel) {
             Box(Modifier.fillMaxSize().padding(pad)) {
                 when (sc) {
                     Screen.Library -> LibraryScreen(
-                        books = books, onOpen = ::open, onAdd = { picker.launch(arrayOf("*/*")) },
+                        books = books, unavailable = unavailableBooks, onOpen = ::open, onAdd = { picker.launch(arrayOf("*/*")) },
                         onSeries = { nav.screen = Screen.Series(it) },
                         onRemove = { b -> scope.launch { app.library.remove(b) } },
                         stores = stores, scanning = scanning,
@@ -570,15 +578,16 @@ private fun AshRoot(nav: NavModel) {
                         onFolders = { nav.screen = Screen.Folders(intro = false) },
                         onStoreEdit = { nav.screen = Screen.StoreEdit },
                         onExportAll = { exportAll = true },
+                        onBackupImport = { nav.screen = Screen.BackupImport },
                     )
                     is Screen.Folders -> {
                         val back = { nav.screen = if (sc.intro) Screen.Library else nav.tab }
                         BackHandler { back() }
-                        FoldersScreen(
-                            intro = sc.intro, onBack = back,
-                            onAccess = { nav.screen = Screen.StorageIntro },
-                            onScan = { scan(force = true) },
-                        )
+                        LibraryFoldersScreen(intro = sc.intro, onBack = back, onScan = { scan(force = true) })
+                    }
+                    Screen.BackupImport -> {
+                        BackHandler { nav.screen = Screen.Settings }
+                        BackupImportScreen(onBack = { nav.screen = Screen.Settings }, onDone = { msg -> nav.screen = Screen.Settings; scope.launch { snack.showSnackbar(msg) } })
                     }
                     Screen.StoreEdit -> {
                         BackHandler { nav.screen = nav.tab }

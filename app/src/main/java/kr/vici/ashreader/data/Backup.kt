@@ -45,6 +45,9 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("format", FORMAT)
             .put("version", VERSION)
             .put("exportedAt", System.currentTimeMillis())
+            // S-53 백업 가져오기 목록이 앞 몇 KB 만 읽어 내용을 보이도록 요약을 머리에 둔다(JSONObject 는 넣은 순서대로 쓴다)
+            .put("summary", JSONObject().put("books", books.size).put("bookmarks", bms.size)
+                .put("memos", notes.size + hls.count { it.note.isNotBlank() }).put("notes", notes.size).put("highlights", hls.size))
             .put("books", JSONArray().apply { books.forEach { put(it.toJson()) } })
             .put("bookmarks", JSONArray().apply { bms.forEach { put(it.toJson()) } })
             .put("notes", JSONArray().apply { notes.forEach { put(it.toJson()) } })
@@ -58,7 +61,11 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
         ExportResult(books.size, bms.size, notes.size, hls.size, ses.size)
     }
 
-    suspend fun import(uri: Uri): ImportResult = withContext(Dispatchers.IO) {
+    /**
+     * 가져오기. [replace] = '모두 바꾸기'(S-53): 지금 책갈피·메모·형광펜·독서 기록을 지우고 읽은 위치·상태를 처음으로 한 뒤
+     * 백업 내용으로 채운다(서재의 책 목록과 파일은 그대로). 기본은 '합치기'(겹치는 항목은 하나만, 위치는 더 최근 것).
+     */
+    suspend fun import(uri: Uri, replace: Boolean = false): ImportResult = withContext(Dispatchers.IO) {
         val text = context.contentResolver.openInputStream(uri)?.use { i ->
             // 끝까지 읽기 전에 상한에서 멈춘다(큰 파일을 통째로 메모리에 올리지 않음)
             val out = java.io.ByteArrayOutputStream()
@@ -71,6 +78,10 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
 
         var updated = 0; var missing = 0; var nb = 0; var nn = 0; var nh = 0; var ns = 0
         db.withTransaction {
+            if (replace) {
+                dao.clearBookmarks(); dao.clearNotes(); dao.clearHighlights(); dao.clearSessions()
+                dao.resetReading()
+            }
             // 책: 이 기기에 같은 책(같은 식별 해시)이 있으면 읽은 위치·상태를 더 최근 것으로 맞춘다.
             // 책 파일이 이 기기에 없으면 서재에 넣지 않는다(같은 파일을 다시 넣으면 책갈피·형광펜이 그대로 붙는다).
             for (o in root.optJSONArray("books").objects()) {
@@ -81,9 +92,9 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
                     // 필수 6: 백업 안의 경로는 믿지 않는다. 이 앱 서재 폴더(booksDir) 안의 실제 파일만 받는다.
                     val safe = LibraryRepo.insideBooks(booksDir, inc.path)
                     if (safe != null && safe.isFile) { dao.upsert(inc.copy(path = safe.path)); updated++ } else missing++
-                } else if (inc.lastOpenedAt > cur.lastOpenedAt) {
+                } else if (replace || inc.lastOpenedAt > cur.lastOpenedAt) {
                     dao.upsert(cur.copy(lastPage = inc.lastPage, pageCount = inc.pageCount, status = inc.status, lastOpenedAt = inc.lastOpenedAt, viewMode = inc.viewMode,
-                        favorite = inc.favorite || cur.favorite, textEncoding = inc.textEncoding.ifEmpty { cur.textEncoding }).let { c ->
+                        favorite = inc.favorite || (cur.favorite && !replace), textEncoding = inc.textEncoding.ifEmpty { cur.textEncoding }).let { c ->
                             // 직접 묶기·풀기(F-62)는 백업 쪽이 정한 것을 따른다
                             if (inc.seriesManual != Book.SERIES_AUTO) c.copy(seriesKey = inc.seriesKey, seriesManual = inc.seriesManual) else c
                         })
@@ -144,8 +155,14 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
         const val MIME = "application/json"
         private const val MAX_BYTES = 64 shl 20
 
-        fun fileName(now: Long = System.currentTimeMillis()): String =
-            "ASH-백업-" + java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.KOREA).format(java.util.Date(now)) + ".json"
+        /** 백업 파일 MIME. 확장자 .ashbak 를 그대로 두도록 일반 이진으로 만든다(application/json 이면 .json 이 붙는 제공자가 있음). */
+        const val FILE_MIME = "application/octet-stream"
+
+        /** M-11 백업 이름 `ASH백업_YYYY-MM-DD.ashbak`, 같은 날 [existing]에 있으면 `_2`, `_3` … */
+        fun fileName(existing: Collection<String> = emptyList(), now: Long = System.currentTimeMillis()): String {
+            val c = java.util.Calendar.getInstance().apply { timeInMillis = now }
+            return BackupNames.nextName(c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH), existing)
+        }
 
         private fun JSONObject.fracOf(): Float = optDouble("frac", -1.0).toFloat().let { if (it.isNaN()) -1f else it }
 
@@ -181,7 +198,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
 
         private fun Settings.toJson() = JSONObject()
             .put("font", font.name).put("fontSize", fontSize).put("lineHeight", lineHeight.toDouble()).put("theme", theme.name)
-            .put("curl", curl).put("volumeKeys", volumeKeys).put("panelMode", panelMode.name).put("aiUpscale", aiUpscale)
+            .put("curl", curl).put("volumeKeys", volumeKeys).put("panelMode", panelMode.name).put("aiUpscale", aiUpscale).put("epubAiUpscale", epubAiUpscale)
             .put("clearOnceOnExit", clearOnceOnExit).put("tapGuideShown", tapGuideShown).put("upscaleCacheMb", upscaleCacheMb)
             .put("txtBlank", txtBlank).put("txtJoin", txtJoin).put("txtTrim", txtTrim).put("txtDefaultEncoding", txtDefaultEncoding)
             .put("warmth", warmth).put("warmAuto", warmAuto).put("warmFrom", warmFrom).put("warmTo", warmTo)
@@ -205,6 +222,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             volumeKeys = o.optBoolean("volumeKeys", base.volumeKeys),
             panelMode = PanelMode.entries.firstOrNull { it.name == o.optString("panelMode") } ?: base.panelMode,
             aiUpscale = o.optBoolean("aiUpscale", base.aiUpscale),
+            epubAiUpscale = o.optBoolean("epubAiUpscale", base.epubAiUpscale),
             clearOnceOnExit = o.optBoolean("clearOnceOnExit", base.clearOnceOnExit),
             tapGuideShown = o.optBoolean("tapGuideShown", base.tapGuideShown),
             upscaleCacheMb = o.optInt("upscaleCacheMb", base.upscaleCacheMb).let { v -> if (v in Prefs.UPSCALE_CACHE_CHOICES) v else base.upscaleCacheMb },
