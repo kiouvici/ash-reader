@@ -63,7 +63,13 @@ import kr.vici.ashreader.ash
 import kr.vici.ashreader.data.Backup
 import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.DocFormat
+import kr.vici.ashreader.data.InfoItem
 import kr.vici.ashreader.data.PanelMode
+import kr.vici.ashreader.data.Rotation
+import kr.vici.ashreader.data.ScreenTimeout
+import kr.vici.ashreader.data.TapLayout
+import kr.vici.ashreader.engine.convert.TextEncoding
+import kr.vici.ashreader.tts.Listen
 import kr.vici.ashreader.data.Prefs
 import kr.vici.ashreader.data.ReadingSession
 import kr.vici.ashreader.data.Settings
@@ -157,6 +163,9 @@ fun AppSettingsScreen(
     var busy by remember { mutableStateOf(false) }
     val backup = remember { context.ash.let { Backup(context.applicationContext, it.db, it.prefs) } }
     var upTick by remember { mutableIntStateOf(0) }
+    var warmTime by remember { mutableStateOf(false) }
+    var tapEditor by remember { mutableStateOf(false) }
+    var infoItems by remember { mutableStateOf(false) }
     val upUsed by produceState<Long?>(null, upTick, s.upscaleCacheMb) {
         // 상한을 바꾸면 앱(AshRoot)이 넘치는 만큼 지운다. 잠깐 기다렸다가 쓰는 양을 다시 잰다.
         if (upTick > 0 || s.upscaleCacheMb != 1024) kotlinx.coroutines.delay(300)
@@ -196,15 +205,62 @@ fun AppSettingsScreen(
             val access = remember { kr.vici.ashreader.data.StorageAccess.hasFileAccess(context) }
             ValueRow("파일 접근 권한", "기기 안 책·문서를 찾는 권한(S-02 다시 보기)", if (access) "허용됨" else "허용 안 됨", onStorage)
             ValueRow("모으는 폴더", "기본 Download · 폴더 더하기·빼기", "", onFolders)
+            SwitchRow("서점 바로가기 줄 보이기", "서재 위 '내 서점 앱' 줄", s.showStores) { v -> onChange { it.copy(showStores = v) } }
             ValueRow("서점 바로가기 편집", "서재 위 '내 서점 앱' 줄 · 더하기·빼기·순서", "", onStoreEdit)
         }
-        Group("읽기") {
+        Group("글자와 화면") {
             ValueRow("본문 글꼴", "나눔명조 · ASH 바탕 · ASH 부리", s.font.label.substringBefore(" (")) {
                 onChange { it.copy(font = kr.vici.ashreader.data.BodyFont.entries[(it.font.ordinal + 1) % 3]) }
             }
-            SwitchRow("종이 넘김 효과", "끄면 밀어서 넘기기", s.curl) { v -> onChange { it.copy(curl = v) } }
-            SwitchRow("볼륨 버튼으로 넘기기", "", s.volumeKeys) { v -> onChange { it.copy(volumeKeys = v) } }
+            ValueRow("TXT 빈 줄", "TXT 정리(화면에만, 파일은 그대로)", listOf("그대로", "하나로", "모두 없앰")[s.txtBlank]) { onChange { it.copy(txtBlank = (it.txtBlank + 1) % 3) } }
+            SwitchRow("TXT 끊긴 줄 합치기", "문장이 끝나지 않은 줄을 다음 줄과 이어요", s.txtJoin) { v -> onChange { it.copy(txtJoin = v) } }
+            SwitchRow("TXT 줄 앞 공백 정리", "빈칸·전각 빈칸·탭", s.txtTrim) { v -> onChange { it.copy(txtTrim = v) } }
+            val encs = listOf("") + TextEncoding.Kind.entries.map { it.name }
+            ValueRow("TXT 기본 인코딩", "책마다 따로 정한 것이 없을 때", TextEncoding.Kind.of(s.txtDefaultEncoding)?.label ?: "자동") {
+                onChange { it.copy(txtDefaultEncoding = encs[(encs.indexOf(it.txtDefaultEncoding).coerceAtLeast(0) + 1) % encs.size]) }
+            }
+        }
+        Group("테마와 밝기") {
+            SwitchRow("가장자리로 밝기 조절", "화면 왼쪽 가장자리 가운데를 위아래로 밀어요", s.edgeBrightness) { v -> onChange { it.copy(edgeBrightness = v) } }
+            ValueRow("따뜻한 색 자동 시각", if (s.warmAuto) "이 시간에만 따뜻한 색을 켜요" else "꺼짐 · 강도는 읽기 화면 '밝기'에서", if (s.warmAuto) "${LightMath.hm(s.warmFrom)}~${LightMath.hm(s.warmTo)}" else "끔") { warmTime = true }
+            if (s.warmAuto) SwitchRow("따뜻한 색 자동 켜기", "", true) { v -> onChange { it.copy(warmAuto = v) } }
+        }
+        Group("넘김과 조작") {
+            ValueRow("넘김 효과", "", when { s.noTurnEffect -> "없음"; s.curl -> "종이책"; else -> "슬라이드" }) {
+                onChange { when { it.noTurnEffect -> it.copy(noTurnEffect = false, curl = true); it.curl -> it.copy(curl = false); else -> it.copy(noTurnEffect = true) } }
+            }
+            ValueRow("화면 누르는 곳", "좌우 · L자 · 어디든 다음 · 내 방식", s.tapLayout.label) {
+                onChange { it.copy(tapLayout = TapLayout.entries[(it.tapLayout.ordinal + 1) % TapLayout.entries.size], tapGuideShown = false) }
+            }
+            ValueRow("내 방식 편집", "3×3 칸마다 이전·다음·메뉴·없음", "") { tapEditor = true }
+            SwitchRow("왼손잡이(좌우 바꾸기)", "", s.leftHanded) { v -> onChange { it.copy(leftHanded = v, tapGuideShown = false) } }
+            SwitchRow("볼륨 버튼으로 넘기기", "듣는 동안에는 소리 크기", s.volumeKeys) { v -> onChange { it.copy(volumeKeys = v) } }
+            val gaps = listOf(5, 10, 15, 20, 30, 60)
+            ValueRow("자동 넘김 간격", "읽기 화면 '넘김'에서 켜요", "${s.autoTurnSec}초") {
+                onChange { it.copy(autoTurnSec = gaps[(gaps.indexOf(it.autoTurnSec).let { i -> if (i < 0) 0 else i + 1 }) % gaps.size]) }
+            }
             ValueRow("탭 영역 안내 다시 보기", "다음에 책을 열 때 보여 줘요", "") { onChange { it.copy(tapGuideShown = false) }; info = "다음에 책을 열면 안내가 다시 나와요." }
+        }
+        Group("읽는 동안") {
+            ValueRow("화면 꺼짐 시간", "", s.screenTimeout.label) { onChange { it.copy(screenTimeout = ScreenTimeout.entries[(it.screenTimeout.ordinal + 1) % ScreenTimeout.entries.size]) } }
+            ValueRow("화면 회전", "읽기 메뉴의 회전 잠금 버튼과 같아요", s.rotation.label) { onChange { it.copy(rotation = Rotation.entries[(it.rotation.ordinal + 1) % Rotation.entries.size]) } }
+            ValueRow("정보줄 항목", "시계·배터리·이번 장 남은 쪽·진행률·남은 시간", "${InfoItem.entries.count { s.infoItems and it.bit != 0 }}개") { infoItems = true }
+            SwitchRow("정보줄을 위에", "끄면 아래", s.infoTop) { v -> onChange { it.copy(infoTop = v) } }
+        }
+        Group("문서(PDF·한글)") {
+            SwitchRow("야간에 그림은 반전 안 함", "글자 있는 PDF 등 고정 쪽 문서", s.nightKeepImages) { v -> onChange { it.copy(nightKeepImages = v) } }
+        }
+        Group("듣기") {
+            ValueRow("읽어 주기 엔진 설정 열기", "한국어 음성 받기·엔진 고르기", "") {
+                if (Listen.settingsIntents().none { i -> runCatching { context.startActivity(i) }.isSuccess }) info = "읽어 주기 설정 화면을 열 수 없어요."
+            }
+            val rates = listOf(0.8f, 1.0f, 1.2f, 1.5f, 2.0f)
+            ValueRow("기본 속도", "", "${"%.1f".format(java.util.Locale.ROOT, s.ttsRate)}×") {
+                onChange { it.copy(ttsRate = rates[(rates.indexOfFirst { r -> r >= it.ttsRate - 0.01f }.let { i -> if (i < 0) 0 else i + 1 }) % rates.size]) }
+            }
+            ValueRow("잠자기 타이머 기본", "", SLEEP_CHOICES.firstOrNull { it.first == s.ttsSleep }?.second ?: "끄기") {
+                onChange { cur -> cur.copy(ttsSleep = SLEEP_CHOICES[(SLEEP_CHOICES.indexOfFirst { it.first == cur.ttsSleep } + 1).mod(SLEEP_CHOICES.size)].first) }
+            }
         }
         Group("만화") {
             ValueRow("칸 단위 보기", "칸 누르면 확대 / 자동 순서", s.panelMode.label) {
@@ -244,6 +300,20 @@ fun AppSettingsScreen(
     info?.let {
         AlertDialog(onDismissRequest = { info = null }, text = { Text(it) }, confirmButton = { TextButton(onClick = { info = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text("확인") } })
     }
+    if (warmTime) WarmTimeDialog(s.warmFrom, s.warmTo, onSave = { f, t -> warmTime = false; onChange { it.copy(warmFrom = f, warmTo = t, warmAuto = true) } }, onDismiss = { warmTime = false })
+    if (tapEditor) TapEditorDialog(s.tapCustom, onSave = { str -> tapEditor = false; onChange { it.copy(tapLayout = TapLayout.CUSTOM, tapCustom = str, tapGuideShown = false) } }, onDismiss = { tapEditor = false })
+    if (infoItems) AlertDialog(
+        onDismissRequest = { infoItems = false },
+        title = { Text("정보줄 항목") },
+        text = {
+            Column {
+                InfoItem.entries.forEach { item ->
+                    SwitchLine(item.label, "", s.infoItems and item.bit != 0) { v -> onChange { it.copy(infoItems = if (v) it.infoItems or item.bit else it.infoItems and item.bit.inv()) } }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { infoItems = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("닫기") } },
+    )
     if (backupOpen) AlertDialog(
         onDismissRequest = { backupOpen = false },
         title = { Text("백업·내보내기") },
@@ -340,26 +410,42 @@ fun NextVolumeSheet(done: Book, next: Book, onLibrary: () -> Unit, onOpenNext: (
     }
 }
 
-/** S-31 탭 영역 안내(첫 실행). */
+/**
+ * S-31 탭 영역 안내: 지금 적용되는 실제 배치(F-64: 좌우·L자·어디든·내 방식, 왼손잡이·오→왼 반영)를 3×3 칸으로 보여 준다.
+ * [grid] = 칸별 뜻(행 우선 9개). 칸 단위 보기([panelMode])는 따로 그린다. 아무 곳이나 누르면 닫힘.
+ */
 @Composable
-fun TapGuide(rtl: Boolean, panelMode: Boolean, onOk: () -> Unit) {
+fun TapGuide(rtl: Boolean, panelMode: Boolean, grid: List<TapAction> = emptyList(), onChange: (() -> Unit)? = null, onOk: () -> Unit) {
     val prevLeft = !rtl
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable(onClick = onOk)) {
-        Row(Modifier.fillMaxSize()) {
+        if (panelMode || grid.size != 9) Row(Modifier.fillMaxSize()) {
             Zone(if (prevLeft) "이전 쪽" else "다음 쪽", Modifier.weight(if (panelMode) 0.15f else 0.3f), Color(0x552E4A6B))
             Zone("메뉴", Modifier.weight(if (panelMode) 0.7f else 0.4f), Color(0x338C5A2B))
             Zone(if (prevLeft) "다음 쪽" else "이전 쪽", Modifier.weight(if (panelMode) 0.15f else 0.3f), Color(0x552E4A6B))
+        } else Column(Modifier.fillMaxSize()) {
+            for (row in 0 until 3) Row(Modifier.weight(1f).fillMaxWidth()) {
+                for (col in 0 until 3) {
+                    val a = grid[row * 3 + col]
+                    Zone(
+                        when (a) { TapAction.PREV -> "이전 쪽"; TapAction.NEXT -> "다음 쪽"; TapAction.MENU -> "메뉴"; TapAction.NONE -> "" },
+                        Modifier.weight(1f), zoneColor(a),
+                    )
+                }
+            }
         }
         Column(
             Modifier.align(Alignment.BottomCenter).padding(20.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface).padding(20.dp),
         ) {
-            Text("이렇게 넘겨요", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("화면을 누르는 곳에 따라 쪽을 넘겨요", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text(
                 if (panelMode) "칸을 누르면 크게 보여요. 메뉴는 화면 맨 위를 누르세요. 양쪽 끝을 누르면 이전·다음 칸으로 가요."
-                else "화면 양쪽을 누르거나 밀어서 넘기고, 가운데를 누르면 메뉴가 열려요. 오른쪽에서 왼쪽으로 읽는 만화는 좌우가 바뀌어요. 볼륨 아래 버튼도 다음 쪽이에요(설정에서 끌 수 있어요).",
+                else "밀어서 넘길 수도 있어요. 볼륨 아래 버튼도 다음 쪽이에요(설정에서 끌 수 있어요). 왼쪽 가장자리를 위아래로 밀면 밝기가 바뀌어요.",
                 fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
             )
-            Button(onClick = onOk, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), colors = ButtonDefaults.buttonColors()) { Text("알겠어요") }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = onOk, modifier = Modifier.weight(1f).heightIn(min = 48.dp), colors = ButtonDefaults.buttonColors()) { Text("알겠어요") }
+                if (onChange != null && !panelMode) OutlinedButton(onClick = onChange, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("바꾸기 ▸") }
+            }
         }
     }
 }

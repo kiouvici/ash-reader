@@ -14,5 +14,7 @@ internal object NativeDjvu {
     /** [제목, 깊이, 쪽, 제목, 깊이, 쪽, …] */
     @JvmStatic external fun outline(h: Long): Array<String>
     @JvmStatic external fun pageLines(h: Long, page: Int): Array<String>
+    /** 낱말마다 "l,t,r,b,줄끝\t낱말" (0..1, 위가 0). */
+    @JvmStatic external fun pageWords(h: Long, page: Int): Array<String>
     @JvmStatic external fun close(h: Long)
 }

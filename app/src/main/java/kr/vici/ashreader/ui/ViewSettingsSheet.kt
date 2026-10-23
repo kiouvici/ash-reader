@@ -53,7 +53,7 @@ fun ViewSettingsSheet(s: Settings, reflowable: Boolean, onChange: ((Settings) ->
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             // 미리보기
-            val c = s.theme.colors()
+            val c = s.readingColors()
             Text(
                 "그는 창밖을 오래 바라보았다. 비는 그칠 기색이 없었고, 골목 끝 가로등은 젖은 길 위에 노란 빛을 길게 늘어뜨리고 있었다.",
                 fontFamily = previewFamily(s.font), fontSize = s.fontSize.sp, lineHeight = (s.fontSize * s.lineHeight).sp,
@@ -98,7 +98,7 @@ fun ViewSettingsSheet(s: Settings, reflowable: Boolean, onChange: ((Settings) ->
                 }
                 AaTab.THEME -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ReadTheme.entries.forEach { t ->
-                        val c2 = t.colors(); val sel = t == s.theme
+                        val c2 = if (t == ReadTheme.CUSTOM) customColors(s.customBg, s.customFg) else t.colors(); val sel = t == s.theme
                         Box(
                             Modifier.weight(1f).heightIn(min = 64.dp).clip(RoundedCornerShape(12.dp)).background(c2.bgC)
                                 .border(if (sel) 2.dp else 1.dp, if (sel) cs.primary else cs.outline, RoundedCornerShape(12.dp))
@@ -107,9 +107,21 @@ fun ViewSettingsSheet(s: Settings, reflowable: Boolean, onChange: ((Settings) ->
                         ) { Text(t.label, color = c2.fgC, fontSize = 14.sp) }
                     }
                 }
-                AaTab.PARA -> Stepper("줄 간격", "%.1f".format(s.lineHeight), small = "−", big = "+",
-                    onMinus = { onChange { it.copy(lineHeight = ((it.lineHeight - 0.1f) * 10).let { v -> Math.round(v) / 10f }.coerceAtLeast(1.2f)) } },
-                    onPlus = { onChange { it.copy(lineHeight = ((it.lineHeight + 0.1f) * 10).let { v -> Math.round(v) / 10f }.coerceAtMost(2.4f)) } })
+                AaTab.PARA -> Column {
+                    Stepper("줄 간격", "%.1f".format(s.lineHeight), small = "−", big = "+",
+                        onMinus = { onChange { it.copy(lineHeight = ((it.lineHeight - 0.1f) * 10).let { v -> Math.round(v) / 10f }.coerceAtLeast(1.2f)) } },
+                        onPlus = { onChange { it.copy(lineHeight = ((it.lineHeight + 0.1f) * 10).let { v -> Math.round(v) / 10f }.coerceAtMost(2.4f)) } })
+                    // F-41 TXT 정리(TXT 파일일 때만, 원본은 그대로)
+                    if (txt != null) {
+                        Text("TXT 정리 — 화면에만 적용, 파일은 그대로", fontSize = 13.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 16.dp))
+                        Text("빈 줄", fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+                        Row(Modifier.padding(vertical = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("그대로", "하나로", "모두 없앰").forEachIndexed { i, l -> Pill(l, s.txtBlank == i) { onChange { it.copy(txtBlank = i) } } }
+                        }
+                        SwitchLine("끊긴 줄 합치기", "문장이 끝나지 않은 줄을 다음 줄과 이어요", s.txtJoin) { v -> onChange { it.copy(txtJoin = v) } }
+                        SwitchLine("줄 앞 공백 정리", "빈칸·전각 빈칸·탭을 지워요", s.txtTrim) { v -> onChange { it.copy(txtTrim = v) } }
+                    }
+                }
             }
         }
     }

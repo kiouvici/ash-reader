@@ -85,12 +85,15 @@ fun ComicPanelReader(
         val hPx = with(density) { maxHeight.toPx() }
         val readySet = upscale?.ready?.collectAsState()?.value ?: emptySet()
         val upHere = page in readySet
-        val loaded by produceState<Pair<Bitmap, PagePanels>?>(null, page, upHere) {
+        // solid CBR: 풀리면 다시 읽는다(N-02)
+        doc.extract?.collectAsState()?.value
+        val pageReady = doc.ready(page)
+        val loaded by produceState<Pair<Bitmap, PagePanels>?>(null, page, upHere, doc.look, pageReady) {
             value = withContext(Dispatchers.IO) {
                 runCatching {
                     val w = wPx.toInt().coerceAtLeast(1)
                     // 2배 결과는 칸 확대에 쓰도록 화면 폭 2배까지 남긴다
-                    val b = (if (upHere) upscale?.load(page, w * 2) else null) ?: doc.pageBitmap(page, w)
+                    val b = doc.withLook((if (upHere) upscale?.load(page, w * 2) else null) ?: doc.pageBitmap(page, w))
                     b to doc.panels(page, dir)
                 }.getOrNull()
             }

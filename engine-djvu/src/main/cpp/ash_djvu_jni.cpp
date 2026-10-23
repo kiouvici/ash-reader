@@ -3,6 +3,7 @@
 // 모든 호출은 Kotlin(DjvuDoc)이 한 문서당 하나의 잠금 안에서 부른다.
 #include <jni.h>
 #include <cstring>
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -99,6 +100,27 @@ void collectLines(miniexp_t e, std::vector<std::string>& lines, std::string& cur
     if (std::strcmp(k, "line") == 0 || std::strcmp(k, "para") == 0) {
         if (!cur.empty()) { lines.push_back(cur); cur.clear(); }
     }
+}
+struct Word { int x0, y0, x1, y1; std::string text; bool nl; };
+
+int num(miniexp_t e) { return miniexp_numberp(e) ? miniexp_to_int(e) : 0; }
+
+/** 글자층을 낱말 단위로 펼친다. 줄(line)·문단(para) 등 큰 구역이 끝나면 마지막 낱말에 줄 끝 표시. */
+void collectWords(miniexp_t e, std::vector<Word>& out) {
+    if (!miniexp_consp(e)) return;
+    miniexp_t kind = miniexp_car(e);
+    const char* k = miniexp_symbolp(kind) ? miniexp_to_name(kind) : "";
+    miniexp_t rest = miniexp_cdr(e);
+    int c[4] = {0, 0, 0, 0};
+    for (int i = 0; i < 4 && miniexp_consp(rest); i++) { c[i] = num(miniexp_car(rest)); rest = miniexp_cdr(rest); }
+    for (; miniexp_consp(rest); rest = miniexp_cdr(rest)) {
+        miniexp_t ch = miniexp_car(rest);
+        if (miniexp_stringp(ch)) {
+            const char* t = miniexp_to_str(ch);
+            if (t && *t) out.push_back(Word{ c[0], c[1], c[2], c[3], std::string(t), false });
+        } else collectWords(ch, out);
+    }
+    if (!out.empty() && std::strcmp(k, "word") != 0 && std::strcmp(k, "char") != 0) out.back().nl = true;
 }
 }  // namespace
 
@@ -214,6 +236,36 @@ Java_kr_vici_ashreader_engine_djvu_NativeDjvu_pageLines(JNIEnv* env, jclass, jlo
     jobjectArray out = env->NewObjectArray((jsize)lines.size(), sc, nullptr);
     for (size_t i = 0; i < lines.size(); i++) {
         jstring t = newString(env, lines[i].c_str());
+        env->SetObjectArrayElement(out, (jsize)i, t); env->DeleteLocalRef(t);
+    }
+    return out;
+}
+
+/**
+ * 숨은 글자층 낱말과 위치(글자 선택·검색·형광펜). 낱말마다 "l,t,r,b,줄끝\t낱말" (쪽 크기 기준 0..1, 위가 0).
+ * 글자층이 없거나 쪽이 돌아가 있으면 빈 배열.
+ */
+JNIEXPORT jobjectArray JNICALL
+Java_kr_vici_ashreader_engine_djvu_NativeDjvu_pageWords(JNIEnv* env, jclass, jlong h, jint page) {
+    Doc* d = D(h);
+    jclass sc = env->FindClass("java/lang/String");
+    ddjvu_pageinfo_t info;
+    ddjvu_status_t st;
+    while ((st = ddjvu_document_get_pageinfo(d->doc, page, &info)) < DDJVU_JOB_OK) pump(d->ctx, true);
+    if (st >= DDJVU_JOB_FAILED || info.rotation != 0 || info.width <= 0 || info.height <= 0) return env->NewObjectArray(0, sc, nullptr);
+    miniexp_t r;
+    while ((r = ddjvu_document_get_pagetext(d->doc, page, "word")) == miniexp_dummy) pump(d->ctx, true);
+    std::vector<Word> words;
+    collectWords(r, words);
+    if (r) ddjvu_miniexp_release(d->doc, r);
+    const double W = info.width, H = info.height;
+    jobjectArray out = env->NewObjectArray((jsize)words.size(), sc, nullptr);
+    char buf[96];
+    for (size_t i = 0; i < words.size(); i++) {
+        const Word& w = words[i];
+        snprintf(buf, sizeof(buf), "%.5f,%.5f,%.5f,%.5f,%d\t", w.x0 / W, 1.0 - w.y1 / H, w.x1 / W, 1.0 - w.y0 / H, w.nl ? 1 : 0);
+        std::string line = std::string(buf) + w.text;
+        jstring t = newString(env, line.c_str());
         env->SetObjectArrayElement(out, (jsize)i, t); env->DeleteLocalRef(t);
     }
     return out;

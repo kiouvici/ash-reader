@@ -3,7 +3,6 @@ package kr.vici.ashreader.doc
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
@@ -13,17 +12,11 @@ import android.graphics.RectF
 import java.io.Closeable
 import java.io.File
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipFile
 import kr.vici.ashreader.R
 import kr.vici.ashreader.data.BodyFont
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.Settings
-import kr.vici.ashreader.engine.comic.ComicArchive
-import kr.vici.ashreader.engine.comic.PageDecoder
-import kr.vici.ashreader.engine.comic.PagePanels
-import kr.vici.ashreader.engine.comic.PanelDetector
-import kr.vici.ashreader.engine.comic.ReadingDirection
 import kr.vici.ashreader.engine.convert.ChmEpub
 import kr.vici.ashreader.engine.convert.ConvertResult
 import kr.vici.ashreader.engine.convert.MobiEpub
@@ -133,7 +126,7 @@ object BundledFonts {
 object DocOpener {
     /**
      * [file]을 연다. 이북류는 [pageWdp]×[pageHdp] 쪽 크기(dp=pt)로 다시 배치한다.
-     * [hwpEbook] = 한글 문서를 이북식(다시 배치)으로 연다(F-28). 무거운 작업이므로 백그라운드에서 부른다.
+     * [hwpEbook] = 한글·Word 문서를 이북식(다시 배치)으로 연다(F-28·F-30). 무거운 작업이므로 백그라운드에서 부른다.
      */
     /**
      * [docId] = 문서 식별 해시(DocHash). 변환 캐시(office/·hwp-ebook/·upscale/) 폴더 이름으로 쓴다(닫을 때·시작할 때 정리 — 필수 5).
@@ -148,9 +141,9 @@ object DocOpener {
         BundledFonts.install(context)
         return when (format.engine) {
             DocFormat.Engine.MUPDF -> if (comic && format == DocFormat.PDF) {
-                ComicReaderDoc(PdfComicPages(file, password), format, docId)
+                ComicReaderDoc(PdfComicPages(file, password), format, docId, ComicReaderDoc.metaFile(context, docId))
             } else if (format == DocFormat.TXT) {
-                val t = TxtUtf8.convert(context, file, docId, textEncoding)
+                val t = TxtUtf8.convert(context, file, docId, textEncoding, s)
                 MupdfReaderDoc(t.file, format, pageWdp, pageHdp, s, context).also { it.textKind = t.kind; it.textAuto = textEncoding == null }
             } else MupdfReaderDoc(file, format, pageWdp, pageHdp, s, context, password = password)
             DocFormat.Engine.CONVERT -> {
@@ -167,8 +160,9 @@ object DocOpener {
                     MupdfReaderDoc(x, format, pageWdp, pageHdp, s, context, reflow = true)
                 } else HwpReaderDoc(file, format)
             }
-            DocFormat.Engine.COMIC -> ComicReaderDoc(ArchivePages(file), format, docId)
-            DocFormat.Engine.OFFICE -> {
+            DocFormat.Engine.COMIC -> ComicReaderDoc(ArchivePages(file, ArchivePages.workDir(context, docId)), format, docId, ComicReaderDoc.metaFile(context, docId))
+            // Word: hwpEbook = 이북식. 원본(기본)은 Word 쪽 모양 PDF(F-30, WordOriginal)
+            DocFormat.Engine.OFFICE -> if (!hwpEbook) WordOriginal.open(context, file, format, pageWdp, pageHdp, s, password, docId) else {
                 val x = OfficeXhtml.convert(context, file, format, password, docId)
                 val tmp = x.temp
                 val cleanup: (() -> Unit)? = if (tmp != null) { { tmp.deleteRecursively() } } else null
@@ -213,16 +207,31 @@ internal fun themeFilter(c: ReadingColors): ColorMatrixColorFilter? {
     return ColorMatrixColorFilter(ColorMatrix(m))
 }
 
-/** [src]를 [w]×[h] 안에 비율 유지로 가운데 맞춤. 남는 곳은 테마 바탕색. */
-internal fun fitInto(src: Bitmap, w: Int, h: Int, c: ReadingColors, applyTheme: Boolean): Bitmap {
+/**
+ * [src]를 [w]×[h] 안에 비율 유지로 가운데 맞춤. 남는 곳은 테마 바탕색.
+ * [keep] = 색 변환 뒤 원래 색으로 다시 그릴 그림 영역(쪽 기준 0..1, 4개씩) — '그림은 반전하지 않기'(F-21)·이북류 그림(M-05).
+ */
+internal fun fitInto(src: Bitmap, w: Int, h: Int, c: ReadingColors, applyTheme: Boolean, keep: FloatArray? = null): Bitmap {
     val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     out.eraseColor(c.bg)
     val k = minOf(w.toFloat() / src.width, h.toFloat() / src.height)
     val dw = src.width * k; val dh = src.height * k
     val dst = RectF((w - dw) / 2f, (h - dh) / 2f, (w + dw) / 2f, (h + dh) / 2f)
     val p = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
-    if (applyTheme) p.colorFilter = themeFilter(c)
-    Canvas(out).drawBitmap(src, Rect(0, 0, src.width, src.height), dst, p)
+    val filter = if (applyTheme) themeFilter(c) else null
+    p.colorFilter = filter
+    val canvas = Canvas(out)
+    canvas.drawBitmap(src, Rect(0, 0, src.width, src.height), dst, p)
+    if (filter != null && keep != null && keep.size >= 4) {
+        val plain = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        var i = 0
+        while (i + 3 < keep.size) {
+            val sr = Rect((keep[i] * src.width).toInt(), (keep[i + 1] * src.height).toInt(), (keep[i + 2] * src.width).toInt(), (keep[i + 3] * src.height).toInt())
+            val dr = RectF(dst.left + keep[i] * dw, dst.top + keep[i + 1] * dh, dst.left + keep[i + 2] * dw, dst.top + keep[i + 3] * dh)
+            if (sr.width() > 0 && sr.height() > 0) canvas.drawBitmap(src, sr, dr, plain)
+            i += 4
+        }
+    }
     if (src !== out) src.recycle()
     return out
 }
@@ -235,7 +244,7 @@ class MupdfReaderDoc(
     s: Settings,
     context: Context,
     /** 다시 배치(이북식). 기본은 형식에 따름. 한글 이북식 보기는 true 로 넘긴다. */
-    reflow: Boolean = format.reflowable,
+    private val reflow: Boolean = format.reflowable,
     /** 닫은 뒤 할 일(암호 문서 임시 폴더 지우기). */
     private val onClose: (() -> Unit)? = null,
     /** 암호 PDF 암호(필수 7). 저장하지 않는다. */
@@ -258,8 +267,41 @@ class MupdfReaderDoc(
 
     override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap {
         val raw = synchronized(lock) { doc.renderPage(index, w) }
-        return fitInto(raw, w, h, colors, applyTheme = true)
+        val keep = if ((reflow || colors.keepImages) && themeFilter(colors) != null) keepRects(index) else null
+        return fitInto(raw, w, h, colors, applyTheme = true, keep = keep)
     }
+
+    private val imageCache = object : android.util.LruCache<Int, FloatArray>(64) {}
+
+    /**
+     * 색 변환에서 원래 색으로 둘 그림 영역. 쪽을 거의 다 덮는 그림 한 장(스캔 쪽)은 반전 대상이므로 빼지 않는다
+     * (화면 설계서 S-26: 스캔 PDF 는 '그림은 반전 안 함'이 해당 없음).
+     */
+    private fun keepRects(index: Int): FloatArray? {
+        val r = imageCache.get(index) ?: (synchronized(lock) { if (closed) null else runCatching { doc.imageRects(index) }.getOrNull() } ?: return null)
+            .also { imageCache.put(index, it) }
+        if (r.isEmpty()) return null
+        if (!reflow) {
+            var i = 0
+            while (i + 3 < r.size) { if ((r[i + 2] - r[i]) * (r[i + 3] - r[i + 1]) >= 0.85f) return null; i += 4 }
+        }
+        return r
+    }
+
+    /** 쪽 [index]의 문서 안 링크(F-46 각주). 웹 주소 등 바깥 링크는 뺀다. */
+    fun internalLinks(index: Int): List<MupdfDoc.LinkBox> = synchronized(lock) {
+        if (closed) emptyList() else runCatching { doc.links(index) }.getOrDefault(emptyList()).filter { !it.external }
+    }
+
+    /** 각주 팝업 내용: 링크가 가리키는 쪽과 그 자리의 글. 못 찾으면 null. */
+    fun footnote(uri: String): Footnote? = synchronized(lock) {
+        if (closed) return@synchronized null
+        val (p, y) = runCatching { doc.linkTarget(uri) }.getOrNull() ?: return@synchronized null
+        val text = runCatching { doc.textFrom(p, y) }.getOrDefault("")
+        Footnote(p, text)
+    }
+
+    class Footnote(val page: Int, val text: String)
 
     override fun pageLines(index: Int): List<String> = synchronized(lock) { runCatching { doc.pageLines(index) }.getOrDefault(emptyList()) }
 
@@ -307,9 +349,40 @@ class DjvuReaderDoc(file: File) : ReaderDoc {
 
     override fun pageLines(index: Int): List<String> = runCatching { doc.pageLines(index) }.getOrDefault(emptyList())
 
+    private val textCache = object : android.util.LruCache<Int, TextPage>(24) {}
+
+    /** 숨은 글자층(OCR) 낱말 위치로 글자 선택·검색·형광펜(4A 남은 일). 글자층이 없으면 null. */
+    override fun pageText(index: Int): TextPage? {
+        textCache.get(index)?.let { return it }
+        val words = runCatching { doc.pageWords(index) }.getOrDefault(emptyList())
+        if (words.isEmpty()) return null
+        val sz = runCatching { doc.pageSize(index) }.getOrNull() ?: return null
+        return djvuTextPage(words.map { DjvuWord(it.l, it.t, it.r, it.b, it.text, it.lineEnd) }, sz.height.toFloat() / sz.width)
+            .also { textCache.put(index, it) }
+    }
+
     override fun toc(): List<TocEntry> = runCatching { doc.outline().map { TocEntry(it.title, it.depth, it.page) } }.getOrDefault(emptyList())
 
     override fun close() = doc.close()
+}
+
+/** DjVu 낱말(엔진 Word 를 옮긴 것 — 시험에서 엔진 없이 쓰려고). */
+class DjvuWord(val l: Float, val t: Float, val r: Float, val b: Float, val text: String, val lineEnd: Boolean)
+
+/** 낱말 상자 → 글자 상자(낱말 폭을 글자 수로 고르게 나눔). 낱말 사이 빈칸·줄 끝 '\n'은 상자 0. */
+fun djvuTextPage(words: List<DjvuWord>, aspect: Float): TextPage {
+    val sb = StringBuilder()
+    val boxes = ArrayList<Float>()
+    fun put(l: Float, t: Float, r: Float, b: Float) { boxes += l; boxes += t; boxes += r; boxes += b }
+    for ((i, w) in words.withIndex()) {
+        val n = w.text.length
+        val step = (w.r - w.l) / n.coerceAtLeast(1)
+        for (k in 0 until n) put(w.l + step * k, w.t, w.l + step * (k + 1), w.b)
+        sb.append(w.text)
+        if (w.lineEnd || i == words.size - 1) { sb.append('\n'); put(0f, 0f, 0f, 0f) }
+        else { sb.append(' '); put(0f, 0f, 0f, 0f) }
+    }
+    return TextPage(sb.toString(), boxes.toFloatArray(), aspect)
 }
 
 /**
@@ -339,7 +412,7 @@ object Converted {
 object TxtUtf8 {
     class Out(val file: File, val kind: TextEncoding.Kind)
 
-    fun convert(context: Context, file: File, key: String, forced: TextEncoding.Kind?): Out {
+    fun convert(context: Context, file: File, key: String, forced: TextEncoding.Kind?, s: Settings = Settings()): Out {
         if (file.length() > (256L shl 20)) throw OpenFailed("텍스트 파일이 너무 커요(256MB 넘음).")
         val kind = forced ?: run {
             val head = ByteArray(minOf(file.length(), TextEncoding.SAMPLE.toLong()).toInt())
@@ -347,9 +420,12 @@ object TxtUtf8 {
             TextEncoding.detect(head)
         }
         val dir = File(context.cacheDir, "txt/$key").apply { mkdirs() }
-        val out = File(dir, kind.name + ".txt")
+        // F-41 TXT 정리: 설정이 다르면 다른 파일(원본은 그대로)
+        val tag = TxtClean.tag(s.txtBlank, s.txtJoin, s.txtTrim)
+        dir.listFiles()?.forEach { f -> if (f.name.startsWith(kind.name + "-") && f.name != "${kind.name}-$tag.txt") f.delete() }
+        val out = File(dir, "${kind.name}-$tag.txt")
         if (!out.isFile || out.length() == 0L || out.lastModified() < file.lastModified()) {
-            val text = TextEncoding.decode(file.readBytes(), kind)
+            val text = TxtClean.clean(TextEncoding.decode(file.readBytes(), kind), s.txtBlank, s.txtJoin, s.txtTrim)
             val tmp = File(dir, kind.name + ".tmp")
             tmp.writeText(text, Charsets.UTF_8)
             if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
@@ -387,130 +463,6 @@ class HwpReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
 }
 
 /**
- * 만화 쪽 공급(압축 CBZ·CBR, 또는 그림만 든 PDF). 스레드 안전하게 구현한다.
- * [size] = 원본 화소 크기(AI 화질 판단), [bitmap] = 폭 근처로 줄인 그림, [full] = 원본 크기 그림(AI 입력).
- */
-interface ComicPages : Closeable {
-    val pageCount: Int
-    val rtl: Boolean
-    fun size(index: Int): Pair<Int, Int>
-    fun bitmap(index: Int, w: Int): Bitmap
-    fun full(index: Int): Bitmap?
-    fun toc(): List<TocEntry>
-}
-
-/** CBZ·CBR 압축 만화. */
-class ArchivePages(file: File) : ComicPages {
-    private val lock = Any()
-    private val arc: ComicArchive = try { ComicArchive.open(file) } catch (e: Exception) {
-        throw OpenFailed(e.message ?: "만화 파일을 열 수 없어요.")
-    }
-    override val pageCount: Int = arc.pages.size
-    override val rtl: Boolean get() = arc.direction == ReadingDirection.RTL
-
-    private fun bytes(index: Int): ByteArray = synchronized(lock) { arc.readPage(index) }
-
-    override fun size(index: Int): Pair<Int, Int> = PageDecoder.bounds(bytes(index))
-
-    override fun bitmap(index: Int, w: Int): Bitmap = PageDecoder.decodeFit(bytes(index), w.coerceAtLeast(1))
-
-    override fun full(index: Int): Bitmap? {
-        val b = bytes(index)
-        return BitmapFactory.decodeByteArray(b, 0, b.size, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
-    }
-
-    /** 목차 = 압축 안 파일(쪽) 순서. 폴더가 여럿이면 폴더 → 파일 2단. */
-    override fun toc(): List<TocEntry> {
-        val pages = arc.pages
-        val folders = pages.map { it.name.substringBeforeLast('/', "") }
-        val multi = folders.distinct().size > 1
-        val out = ArrayList<TocEntry>(pages.size + 8)
-        var last: String? = null
-        pages.forEachIndexed { i, p ->
-            val f = folders[i]
-            if (multi && f != last) { out += TocEntry(f.substringAfterLast('/').ifEmpty { "(맨 위)" }, 0, i); last = f }
-            out += TocEntry(p.name.substringAfterLast('/'), if (multi) 1 else 0, i)
-        }
-        return out
-    }
-
-    override fun close() = synchronized(lock) { arc.close() }
-}
-
-/** 그림만 든 PDF 를 만화로(MuPDF 로 쪽을 비트맵으로 그린다). 원본 크기 = 쪽을 덮는 그림의 화소 크기. */
-class PdfComicPages(file: File, password: String?) : ComicPages {
-    private val lock = Any()
-    private val doc: MupdfDoc = try { MupdfDoc.open(file.absolutePath, null, null, password) } catch (e: PasswordException) {
-        throw PasswordNeeded(e.wrong)
-    } catch (e: Exception) {
-        throw OpenFailed("문서를 열 수 없어요. 파일이 손상되었거나 지원하지 않는 형식일 수 있어요.")
-    }
-    override val pageCount: Int = synchronized(lock) { doc.pageCount() }
-    override val rtl: Boolean = false
-    private val sizes = ConcurrentHashMap<Int, Pair<Int, Int>>()
-
-    override fun size(index: Int): Pair<Int, Int> = sizes.getOrPut(index) {
-        val info = synchronized(lock) { runCatching { doc.imageInfo(index) }.getOrNull() }
-        if (info != null && info.imageW > 0 && info.imageH > 0) info.imageW to info.imageH else 0 to 0
-    }
-
-    override fun bitmap(index: Int, w: Int): Bitmap = synchronized(lock) { doc.renderPage(index, w.coerceAtLeast(1)) }
-
-    override fun full(index: Int): Bitmap? {
-        val (w, h) = size(index)
-        if (w <= 0 || h <= 0) return null
-        return synchronized(lock) { doc.renderPage(index, w) }
-    }
-
-    override fun toc(): List<TocEntry> = synchronized(lock) {
-        runCatching { doc.outline().map { TocEntry(it.title, it.depth, it.page) } }.getOrDefault(emptyList())
-    }
-
-    override fun close() = synchronized(lock) { doc.close() }
-}
-
-/** 만화 보기 문서(CBZ·CBR·그림 PDF). [cacheKey] = 문서 식별 해시(AI 화질 캐시 폴더 이름). */
-class ComicReaderDoc(private val src: ComicPages, override val format: DocFormat, val cacheKey: String) : ReaderDoc {
-    private val detector = PanelDetector()
-    private val panelCache = HashMap<Int, PagePanels>()
-    override val pageCount: Int = src.pageCount
-    override val rtl: Boolean get() = src.rtl
-
-    /** AI 화질 개선(F-73). 켜져 있으면 읽기 화면이 넣는다. */
-    @Volatile var upscale: ComicUpscale? = null
-    /** 넘김 화면에 2배 결과로 그린 쪽(바꿔 끼울 쪽 판단용). */
-    private val shownUpscaled: MutableSet<Int> = ConcurrentHashMap.newKeySet()
-    fun shownUpscaled(index: Int) = index in shownUpscaled
-
-    /** 원본 화소 크기. */
-    fun pageSize(index: Int): Pair<Int, Int> = src.size(index)
-
-    /** AI 입력용 원본 크기 그림. */
-    fun fullBitmap(index: Int): Bitmap? = src.full(index)
-
-    /** 그림 원본 비트맵(폭 [w] 근처로 줄임). 만화 그림은 테마 색을 입히지 않는다. */
-    fun pageBitmap(index: Int, w: Int): Bitmap = src.bitmap(index, w.coerceAtLeast(1))
-
-    override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap {
-        val up = upscale?.load(index, w)
-        if (up != null) shownUpscaled += index else shownUpscaled -= index
-        return fitInto(up ?: pageBitmap(index, w), w, h, colors, applyTheme = false)
-    }
-
-    /** 칸 인식(F-72). 결과 좌표는 [pageBitmap] 과 같은 비율의 원본 기준(width/height 함께 줌). */
-    fun panels(index: Int, dir: ReadingDirection): PagePanels = synchronized(panelCache) {
-        panelCache.getOrPut(index) {
-            val b = pageBitmap(index, 1200)
-            try { detector.detect(PageDecoder.toGray(b), dir) } finally { b.recycle() }
-        }
-    }
-
-    override fun toc(): List<TocEntry> = src.toc()
-
-    override fun close() = src.close()
-}
-
-/**
  * 한글 문서 암호·배포용 판별(필수 7). 해당하면 알맞은 안내로 [OpenFailed].
  * 암호 문서는 열기 전에 막고, 배포용 문서는 엔진이 열지 못했을 때만([afterFailure]) 그 이유로 안내한다.
  */
@@ -539,7 +491,7 @@ object HwpDiag {
  * 한 번만 보기 문서는 닫을 때 지우고, 앱 시작 때 서재에 없는 문서의 캐시를 쓸어 낸다.
  */
 object DocCaches {
-    private val DIRS = listOf("office", "hwp-ebook", "upscale", "convert", "txt")
+    private val DIRS = listOf("office", "hwp-ebook", "upscale", "convert", "txt", "zipx", "comic-x", "comic-meta")
 
     /** 파일 이름이 'id.확장자'(서재·한 번만 보기 사본 규칙)면 id, 아니면 경로 기반 SHA-256 앞부분. */
     fun keyOf(file: File): String {

@@ -52,6 +52,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("sessions", JSONArray().apply { ses.forEach { put(it.toJson()) } })
             .put("storeApps", JSONArray().apply { dao.allStoreApps().forEach { put(JSONObject().put("pkg", it.pkg).put("label", it.label).put("ord", it.ord)) } })
             .put("settings", s.toJson())
+            .put("comicPrefs", ComicPrefsStore(context).exportAll())
         val out = context.contentResolver.openOutputStream(uri, "wt") ?: throw BadBackup("파일을 만들 수 없어요.")
         out.use { it.write(root.toString(1).toByteArray(Charsets.UTF_8)) }
         ExportResult(books.size, bms.size, notes.size, hls.size, ses.size)
@@ -120,6 +121,11 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
                 dao.upsertStoreApps(apps)
             }
         }
+        // 만화 책마다 설정(S-33): 이 기기 서재에 있는 책과 '모든 만화 기본값'만
+        root.optJSONObject("comicPrefs")?.let { cp ->
+            val ids = dao.allBooks().map { it.id }.toHashSet()
+            ComicPrefsStore(context).importAll(cp) { it in ids }
+        }
         // 설정은 백업 값으로 바꾼다(한 사람이 쓰는 앱이라 합칠 대상이 없음).
         val so = root.optJSONObject("settings")
         if (so != null) {
@@ -172,8 +178,16 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("font", font.name).put("fontSize", fontSize).put("lineHeight", lineHeight.toDouble()).put("theme", theme.name)
             .put("curl", curl).put("volumeKeys", volumeKeys).put("panelMode", panelMode.name).put("aiUpscale", aiUpscale)
             .put("clearOnceOnExit", clearOnceOnExit).put("tapGuideShown", tapGuideShown).put("upscaleCacheMb", upscaleCacheMb)
+            .put("txtBlank", txtBlank).put("txtJoin", txtJoin).put("txtTrim", txtTrim).put("txtDefaultEncoding", txtDefaultEncoding)
+            .put("warmth", warmth).put("warmAuto", warmAuto).put("warmFrom", warmFrom).put("warmTo", warmTo)
+            .put("customBg", customBg).put("customFg", customFg).put("autoTurnSec", autoTurnSec).put("noTurnEffect", noTurnEffect)
+            .put("infoItems", infoItems).put("infoTop", infoTop).put("tapLayout", tapLayout.name).put("tapCustom", tapCustom)
+            .put("leftHanded", leftHanded).put("edgeBrightness", edgeBrightness).put("screenTimeout", screenTimeout.name)
+            .put("rotation", rotation.name).put("nightKeepImages", nightKeepImages)
+            .put("brightness", brightness.toDouble()).put("dim", dim)
+            .put("ttsRate", ttsRate.toDouble()).put("ttsPitch", ttsPitch.toDouble()).put("ttsSleep", ttsSleep).put("showStores", showStores)
 
-        private fun settingsOf(o: JSONObject, base: Settings) = Settings(
+        private fun settingsOf(o: JSONObject, base: Settings) = base.copy(
             font = BodyFont.entries.firstOrNull { it.name == o.optString("font") } ?: base.font,
             fontSize = o.optInt("fontSize", base.fontSize).coerceIn(Prefs.MIN_SIZE, Prefs.MAX_SIZE),
             lineHeight = o.optDouble("lineHeight", base.lineHeight.toDouble()).toFloat().coerceIn(1.2f, 2.4f),
@@ -185,6 +199,33 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             clearOnceOnExit = o.optBoolean("clearOnceOnExit", base.clearOnceOnExit),
             tapGuideShown = o.optBoolean("tapGuideShown", base.tapGuideShown),
             upscaleCacheMb = o.optInt("upscaleCacheMb", base.upscaleCacheMb).let { v -> if (v in Prefs.UPSCALE_CACHE_CHOICES) v else base.upscaleCacheMb },
+            txtBlank = o.optInt("txtBlank", base.txtBlank).coerceIn(0, 2),
+            txtJoin = o.optBoolean("txtJoin", base.txtJoin),
+            txtTrim = o.optBoolean("txtTrim", base.txtTrim),
+            txtDefaultEncoding = o.optString("txtDefaultEncoding", base.txtDefaultEncoding),
+            warmth = o.optInt("warmth", base.warmth).coerceIn(0, 80),
+            warmAuto = o.optBoolean("warmAuto", base.warmAuto),
+            warmFrom = o.optInt("warmFrom", base.warmFrom).coerceIn(0, 24 * 60 - 1),
+            warmTo = o.optInt("warmTo", base.warmTo).coerceIn(0, 24 * 60 - 1),
+            customBg = o.optInt("customBg", base.customBg),
+            customFg = o.optInt("customFg", base.customFg),
+            autoTurnSec = o.optInt("autoTurnSec", base.autoTurnSec).coerceIn(2, 120),
+            noTurnEffect = o.optBoolean("noTurnEffect", base.noTurnEffect),
+            infoItems = o.optInt("infoItems", base.infoItems),
+            infoTop = o.optBoolean("infoTop", base.infoTop),
+            tapLayout = TapLayout.entries.firstOrNull { it.name == o.optString("tapLayout") } ?: base.tapLayout,
+            tapCustom = o.optString("tapCustom", base.tapCustom).takeIf { it.length == 9 } ?: base.tapCustom,
+            leftHanded = o.optBoolean("leftHanded", base.leftHanded),
+            edgeBrightness = o.optBoolean("edgeBrightness", base.edgeBrightness),
+            screenTimeout = ScreenTimeout.entries.firstOrNull { it.name == o.optString("screenTimeout") } ?: base.screenTimeout,
+            rotation = Rotation.entries.firstOrNull { it.name == o.optString("rotation") } ?: base.rotation,
+            nightKeepImages = o.optBoolean("nightKeepImages", base.nightKeepImages),
+            brightness = o.optDouble("brightness", base.brightness.toDouble()).toFloat().let { if (it.isNaN() || it < 0f) -1f else it.coerceIn(0.01f, 1f) },
+            dim = o.optInt("dim", base.dim).coerceIn(0, 60),
+            ttsRate = o.optDouble("ttsRate", base.ttsRate.toDouble()).toFloat().coerceIn(0.5f, 3f),
+            ttsPitch = o.optDouble("ttsPitch", base.ttsPitch.toDouble()).toFloat().coerceIn(0.5f, 2f),
+            ttsSleep = o.optInt("ttsSleep", base.ttsSleep),
+            showStores = o.optBoolean("showStores", base.showStores),
         )
     }
 }
