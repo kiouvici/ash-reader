@@ -52,7 +52,10 @@ data class Settings(
     val curl: Boolean = true,
     val volumeKeys: Boolean = true,
     val panelMode: PanelMode = PanelMode.TAP_ZOOM,
+    /** 새 만화에 AI 화질 향상 기본으로 켜기(F-73). 책마다 켜고 끈 것이 있으면 그것을 따른다. */
     val aiUpscale: Boolean = false,
+    /** EPUB 그림 AI 화질 향상(F-73 확장, D-021): 작은 그림·삽화만, 글자에는 적용 안 함. 기본 끔. */
+    val epubAiUpscale: Boolean = false,
     val clearOnceOnExit: Boolean = true,
     val tapGuideShown: Boolean = false,
     /** AI 화질 개선 캐시 상한(MB). 300 / 1024(기본) / 2048 (F-73). */
@@ -150,6 +153,7 @@ class Prefs(private val context: Context) {
         val vol = booleanPreferencesKey("volume_keys")
         val panel = intPreferencesKey("panel_mode")
         val ai = booleanPreferencesKey("ai_upscale")
+        val epubAi = booleanPreferencesKey("epub_ai_upscale")
         val once = booleanPreferencesKey("clear_once")
         val tap = booleanPreferencesKey("tap_guide_shown")
         val upCache = intPreferencesKey("upscale_cache_mb")
@@ -214,6 +218,7 @@ class Prefs(private val context: Context) {
         volumeKeys = p[K.vol] ?: true,
         panelMode = PanelMode.entries.getOrElse(p[K.panel] ?: 0) { PanelMode.TAP_ZOOM },
         aiUpscale = p[K.ai] ?: false,
+        epubAiUpscale = p[K.epubAi] ?: false,
         clearOnceOnExit = p[K.once] ?: true,
         tapGuideShown = p[K.tap] ?: false,
         upscaleCacheMb = (p[K.upCache] ?: 1024).let { v -> UPSCALE_CACHE_CHOICES.firstOrNull { it == v } ?: 1024 },
@@ -280,6 +285,7 @@ class Prefs(private val context: Context) {
             p[K.vol] = s.volumeKeys
             p[K.panel] = s.panelMode.ordinal
             p[K.ai] = s.aiUpscale
+            p[K.epubAi] = s.epubAiUpscale
             p[K.once] = s.clearOnceOnExit
             p[K.tap] = s.tapGuideShown
             p[K.upCache] = s.upscaleCacheMb

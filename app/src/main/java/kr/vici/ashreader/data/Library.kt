@@ -203,6 +203,12 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
     val booksDir: File get() = File(context.filesDir, "books").apply { mkdirs() }
     val onceDir: File get() = File(context.cacheDir, "once").apply { mkdirs() }
 
+    /**
+     * I-714: 지금 쓰는(만드는 중·열려 있는) 한 번만 보기 파일 이름 → 쓰는 수. 앱 시작·종료 쓸기와 앞 문서 닫기가
+     * 막 받은 같은 문서의 사본·변환 캐시를 지워 문서가 안 열리던 문제(카카오톡에서 다시 '열기')를 막는다.
+     */
+    private val live = OnceRefs()
+
     fun displayName(uri: Uri): String = runCatching {
         context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getString(0) else null
@@ -210,8 +216,8 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
     }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/') ?: "문서"
 
     /** 외부 파일을 [dir] 안으로 복사한다(엔진은 경로로 연다). */
-    private fun copy(uri: Uri, dir: File, name: String): File {
-        val tmp = File(dir, "tmp-" + System.nanoTime())
+    private fun copy(uri: Uri, dir: File, name: String, tmpName: String = "tmp-" + System.nanoTime()): File {
+        val tmp = File(dir, tmpName)
         context.contentResolver.openInputStream(uri)?.use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
             ?: error("파일을 읽을 수 없어요")
         return tmp
@@ -222,12 +228,19 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
     /** '한 번만 보기'(S-40): 캐시에만 두고 서재에는 넣지 않는다. */
     suspend fun openOnce(uri: Uri): Opened = withContext(Dispatchers.IO) {
         val name = displayName(uri)
-        val tmp = copy(uri, onceDir, name)
-        val fmt = FormatDetector.detect(tmp, name)
-        val id = DocHash.of(tmp)
-        val f = File(onceDir, id + "." + fmt.badge.lowercase())
-        if (!tmp.renameTo(f)) { tmp.copyTo(f, overwrite = true); tmp.delete() }
-        Opened(f, name.substringBeforeLast('.'), fmt, id)
+        val tmpName = "tmp-" + System.nanoTime()
+        live.hold(tmpName)
+        try {
+            val tmp = copy(uri, onceDir, name, tmpName)
+            val fmt = FormatDetector.detect(tmp, name)
+            val id = DocHash.of(tmp)
+            val f = File(onceDir, id + "." + fmt.badge.lowercase())
+            live.hold(f.name)
+            if (!tmp.renameTo(f)) { tmp.copyTo(f, overwrite = true); tmp.delete() }
+            Opened(f, name.substringBeforeLast('.'), fmt, id)
+        } finally {
+            live.release(tmpName)
+        }
     }
 
     /** 서재로 가져오기. 서재 쪽(books/)으로 복사한 뒤 캐시의 한 번만 보기 사본은 지운다(캐시에 쌓이지 않게). */
@@ -265,7 +278,7 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
     }
 
     fun clearOnce() {
-        onceDir.listFiles()?.forEach { it.deleteRecursively() }
+        onceDir.listFiles()?.forEach { if (!live.isLive(it.name)) it.deleteRecursively() }
         // 암호 문서를 풀어 둔 임시 폴더(읽기 화면을 닫을 때 지우지만, 비정상 종료 대비)
         File(context.cacheDir, "office-enc").deleteRecursively()
     }
@@ -275,6 +288,8 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
      * '한 번만 보기 기록 지우기'([clearCopy])가 켜져 있으면 캐시 사본도 지운다. 꺼져 있으면 사본(기록)은 남긴다.
      */
     suspend fun closeOnce(o: Opened, clearCopy: Boolean) = withContext(Dispatchers.IO) {
+        // 같은 문서를 그새 다시 받아 열었으면(쓰는 수가 남음) 사본·캐시를 지우지 않는다(I-714)
+        if (!live.release(o.file.name)) return@withContext
         if (dao.get(o.id) == null) DocCaches.deleteFor(context, o.id)
         if (clearCopy) {
             val f = runCatching { o.file.canonicalFile }.getOrNull()
@@ -284,6 +299,7 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
 
     /** 한 번만 보기 사본을 지운다(서재에 같은 문서가 있어 그쪽 파일로 열 때). 캐시 폴더 안 파일만. */
     suspend fun discardOnce(o: Opened) = withContext(Dispatchers.IO) {
+        if (!live.release(o.file.name)) return@withContext
         val f = runCatching { o.file.canonicalFile }.getOrNull()
         if (f != null && f.parentFile == onceDir.canonicalFile) f.delete()
     }
@@ -293,11 +309,11 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
      * [clearCopies](설정 '한 번만 보기 기록 지우기')가 켜져 있으면 한 번만 보기 사본도 지운다.
      */
     suspend fun sweep(clearCopies: Boolean) = withContext(Dispatchers.IO) {
-        val keep = dao.allBooks().map { it.id }.toSet()
+        val keep = dao.allBooks().map { it.id }.toSet() + live.ids()
         DocCaches.sweep(context, keep)
         trimSafCache(dao.allBooks().filter { it.hidden == 0 }.map { it.id }.toSet())
         if (clearCopies) clearOnce() else File(context.cacheDir, "office-enc").deleteRecursively()
-        onceDir.listFiles()?.filter { it.name.startsWith("tmp-") }?.forEach { it.delete() }
+        onceDir.listFiles()?.filter { it.name.startsWith("tmp-") && !live.isLive(it.name) }?.forEach { it.delete() }
     }
 
     /**
@@ -328,7 +344,7 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
             context.contentResolver.openInputStream(Uri.parse(b.sourceUri))?.use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
                 ?: throw java.io.FileNotFoundException("파일을 읽을 수 없어요. 폴더 접근 권한을 다시 확인해 주세요.")
         } catch (e: SecurityException) {
-            tmp.delete(); throw java.io.FileNotFoundException("폴더 접근 권한이 없어졌어요. 설정 > 서재 > 모으는 폴더에서 다시 골라 주세요.")
+            tmp.delete(); throw java.io.FileNotFoundException("폴더 접근 권한이 없어졌어요. 설정 > 서재 > 서재 폴더에서 다시 골라 주세요.")
         } catch (e: java.io.IOException) {
             tmp.delete(); throw e
         }
@@ -453,4 +469,22 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
             }.getOrNull()
         }
     }
+}
+
+/** 한 번만 보기 파일 쓰는 수(I-714). 이름 = once/ 안 파일 이름. */
+class OnceRefs {
+    private val n = HashMap<String, Int>()
+
+    fun hold(name: String) = synchronized(n) { n[name] = (n[name] ?: 0) + 1 }
+
+    /** 하나 놓는다. 이제 아무도 안 쓰면(또는 원래 잡은 적이 없으면) true = 지워도 된다. */
+    fun release(name: String): Boolean = synchronized(n) {
+        val left = (n[name] ?: 0) - 1
+        if (left <= 0) { n.remove(name); true } else { n[name] = left; false }
+    }
+
+    fun isLive(name: String): Boolean = synchronized(n) { name in n }
+
+    /** 쓰는 중인 문서 id(파일 이름에서 확장자를 뺀 것). */
+    fun ids(): Set<String> = synchronized(n) { n.keys.filter { !it.startsWith("tmp-") }.map { it.substringBeforeLast('.') }.toSet() }
 }

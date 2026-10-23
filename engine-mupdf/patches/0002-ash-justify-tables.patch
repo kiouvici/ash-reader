@@ -1,0 +1,293 @@
+diff --git a/source/html/html-imp.h b/source/html/html-imp.h
+--- a/source/html/html-imp.h
++++ b/source/html/html-imp.h
+@@ -573,6 +573,9 @@
+ 	unsigned short markup_lang;
+ 
+ 	float x, y, w, h;
++	/* ASH (I-713): extra space between letters of this word when a justified
++	 * line would otherwise get word gaps wider than ~0.5em. */
++	float ash_ls;
+ 	fz_html_box *box; /* for style and em */
+ 	fz_html_flow *next;
+ 	union {
+diff --git a/source/html/html-layout.c b/source/html/html-layout.c
+--- a/source/html/html-layout.c
++++ b/source/html/html-layout.c
+@@ -388,6 +388,61 @@
+ 	return h;
+ }
+ 
++/* ASH (I-713): Korean justification without huge word gaps.
++ *
++ * With word-break: keep-all a justified line can only stretch at spaces, so a
++ * line with few words gets gaps of 1-2em ("세부    일정을    아래와"). Korean
++ * typesetting (and Ridibooks/Kyobo readers) instead spreads the slack between
++ * letters. We keep the line breaks exactly as they are (keep-all and kinsoku
++ * untouched) and only change how a justified line distributes its slack:
++ * spaces grow up to ASH_MAX_GAP em, the rest goes between letters of CJK runs
++ * (up to ASH_MAX_LS em per letter gap), and anything left goes back to spaces. */
++#define ASH_MAX_GAP 0.5f
++#define ASH_MAX_LS 0.2f
++
++static int ash_ls_char(int c)
++{
++	return (c >= 0xAC00 && c <= 0xD7A3) || (c >= 0x1100 && c <= 0x11FF) ||
++		(c >= 0x3130 && c <= 0x318F) || (c >= 0x3040 && c <= 0x30FF) ||
++		(c >= 0x3400 && c <= 0x4DBF) || (c >= 0x4E00 && c <= 0x9FFF) ||
++		(c >= 0xF900 && c <= 0xFAFF);
++}
++
++static int ash_ls_mark(int c)
++{
++	return (c >= 0x0300 && c <= 0x036F) || (c >= 0x1160 && c <= 0x11FF) ||
++		(c >= 0x302A && c <= 0x302F) || (c >= 0xFE00 && c <= 0xFE0F) || c == 0x200D;
++}
++
++/* Is there a stretchable letter gap between prev and c (both inside one word)? */
++static int ash_ls_gap(int prev, int c)
++{
++	if (prev <= 0 || c <= 0 || ash_ls_mark(c))
++		return 0;
++	return ash_ls_char(prev) || ash_ls_char(c);
++}
++
++static int ash_ls_gaps(const char *s)
++{
++	int n = 0, prev = 0, c;
++	while (*s)
++	{
++		s += fz_chartorune(&c, s);
++		if (ash_ls_gap(prev, c))
++			n++;
++		if (!ash_ls_mark(c))
++			prev = c;
++	}
++	return n;
++}
++
++static float ash_node_w(fz_html_flow *node)
++{
++	if (node->type == FLOW_WORD && node->ash_ls != 0)
++		return node->w + node->ash_ls * ash_ls_gaps(node->content.text);
++	return node->w;
++}
++
+ static void layout_line(fz_context *ctx, float indent, float page_w, float line_w, int align, fz_html_flow *start, fz_html_flow *end, fz_html_box *box, float baseline, float line_h)
+ {
+ 	float x = box->s.layout.x + indent;
+@@ -400,17 +455,43 @@
+ 	fz_html_flow **reorder;
+ 	unsigned int min_level, max_level;
+ 
++	float ash_ls = 0;
++	int ash_g = 0;
++	float ash_sw = 0;
++
+ 	/* Count the number of nodes on the line */
+ 	for(i = 0, n = 0, node = start; node != end; node = node->next)
+ 	{
+ 		n++;
++		node->ash_ls = 0;
+ 		if (node->type == FLOW_SPACE && node->expand && !node->breaks_line)
++		{
+ 			i++;
++			ash_sw += node->w;
++		}
++		else if (node->type == FLOW_WORD && !(node->bidi_level & 1))
++			ash_g += ash_ls_gaps(node->content.text);
+ 	}
+ 
+ 	if (align == TA_JUSTIFY)
+ 	{
+ 		justify = slop / (i ? i : 1);
++		/* ASH (I-713): cap word gaps, spread the rest between letters. */
++		if (slop > 0 && ash_g > 0)
++		{
++			float em = box->s.layout.em;
++			float cap = i ? fz_max(0, ASH_MAX_GAP * em - ash_sw / i) : 0;
++			if (!i || justify > cap)
++			{
++				float rest = slop - cap * i;
++				ash_ls = fz_min(rest / ash_g, ASH_MAX_LS * em);
++				rest -= ash_ls * ash_g;
++				justify = i ? cap + rest / i : 0;
++				for (node = start; node != end; node = node->next)
++					if (node->type == FLOW_WORD && !(node->bidi_level & 1))
++						node->ash_ls = ash_ls;
++			}
++		}
+ 	}
+ 	else if (align == TA_RIGHT)
+ 		x += slop;
+@@ -474,7 +555,7 @@
+ 		float w;
+ 
+ 		node = reorder[i];
+-		w = node->w;
++		w = ash_node_w(node);
+ 
+ 		if (node->type == FLOW_SPACE && node->breaks_line)
+ 			w = 0;
+@@ -726,6 +807,7 @@
+ 	string_walker walker;
+ 	float w = 0;
+ 	unsigned int at = (unsigned int)-1;
++	unsigned int at_soft = (unsigned int)-1; /* ASH (I-715) */
+ 	float em = node->box->s.layout.em;
+ 
+ 	assert(node->type == FLOW_WORD);
+@@ -780,7 +862,14 @@
+ 					/* ASH (F-38): never start the next line with closing
+ 					 * punctuation, and never end a line with an opening one. */
+ 					if (!ash_kinsoku_forbids(text, walker.start + walker.glyph_info[i].cluster - text))
++					{
+ 						at = walker.start + walker.glyph_info[i].cluster - text;
++						/* ASH (I-715): prefer breaking a URL / e-mail / file name
++						 * after '/', '@', '.', '_', '-', '?', '&' or '=' when that
++						 * still fills at least half of the line. */
++						if (at > 0 && w >= max_w / 2 && strchr("/@._-?&=", text[at - 1]))
++							at_soft = at;
++					}
+ 				}
+ 
+ 				w += walker.glyph_pos[i].x_advance * em / walker.scale;
+@@ -793,6 +882,8 @@
+ 				}
+ 			}
+ 		}
++		if (at_soft != (unsigned int)-1 && at_soft != 0 && at_soft != strlen(text))
++			at = at_soft;
+ 		if (at != (unsigned int)-1 && at != 0 && at != strlen(text))
+ 		{
+ 			/* node becomes first cluster, node->next becomes the rest */
+@@ -965,6 +1056,7 @@
+ 	for (; node; node = node->next)
+ 	{
+ 		node->breaks_line = 0; /* reset line breaks from previous layout */
++		node->ash_ls = 0; /* ASH (I-713) */
+ 
+ 		if (node->type == FLOW_IMAGE)
+ 		{
+@@ -2657,15 +2749,48 @@
+ 
+ 		avail_w = fz_from_css_number(box->style->width, box->s.layout.em, ld->bounds[R] - ld->bounds[L], ld->bounds[R] - ld->bounds[L]);
+ 		table_has_width = fz_css_number_defined_not_auto(box->style->width);
++		/* ASH (I-715): a declared table width never exceeds the text column. */
++		if (avail_w > ld->bounds[R] - ld->bounds[L])
++			avail_w = ld->bounds[R] - ld->bounds[L];
+ 
+ 		if (min_tabw >= avail_w)
+ 		{
+-			/* The minimum table width is equal to or wider than the available space.
+-			 * Assign the minimum widths and let the lines overflow...
+-			 */
+-			box->s.layout.w = min_tabw;
+-			for (col = 0; col < ncol; ++col)
+-				colw[col].actual = colw[col].min;
++			/* ASH (I-715): never let a table run off the right edge of the text
++			 * column (a reader page cannot be scrolled sideways). Narrow the
++			 * widest columns first: every column gets min(its minimum width, L)
++			 * with L chosen so the table fills the column exactly (narrow
++			 * columns such as labels keep their width; long URLs, addresses
++			 * and phone numbers wrap). Words that no longer fit are broken by
++			 * overflow-wrap: break-word inside the cells. */
++			float fixed_w = spacing * (ncol + 1);
++			float room = avail_w - fixed_w;
++			if (room > 0)
++			{
++				float lo = 0, hi = 0;
++				int it;
++				for (col = 0; col < ncol; ++col)
++					if (colw[col].min > hi)
++						hi = colw[col].min;
++				for (it = 0; it < 40; ++it)
++				{
++					float mid = (lo + hi) / 2, sum = 0;
++					for (col = 0; col < ncol; ++col)
++						sum += fz_min(colw[col].min, mid);
++					if (sum > room)
++						hi = mid;
++					else
++						lo = mid;
++				}
++				box->s.layout.w = avail_w;
++				for (col = 0; col < ncol; ++col)
++					colw[col].actual = fz_min(colw[col].min, lo);
++			}
++			else
++			{
++				box->s.layout.w = min_tabw;
++				for (col = 0; col < ncol; ++col)
++					colw[col].actual = colw[col].min;
++			}
+ 		}
+ 		else if (max_tabw <= avail_w && !table_has_width)
+ 		{
+@@ -3419,6 +3544,8 @@
+ 				string_walker walker;
+ 				fz_css_color bg;
+ 				const char *s;
++				float ash_off = 0; /* ASH (I-713) */
++				int ash_prev = 0;
+ 				float x, y;
+ 				float em;
+ 
+@@ -3434,7 +3561,7 @@
+ 				bg = find_inline_background_color(ctx, node->box);
+ 				if (bg.a > 0)
+ 					draw_rect(ctx, dev, ctm, page_top, bg,
+-						node->x, node->y - 0.8f * node->h, node->x + node->w, node->y + 0.2f * node->h);
++						node->x, node->y - 0.8f * node->h, node->x + ash_node_w(node), node->y + 0.2f * node->h);
+ 
+ 				line_width = fz_from_css_number(style->text_stroke_width, em, em, 0);
+ 				filling = style->text_fill_color.a != 0;
+@@ -3505,12 +3632,12 @@
+ 					if (style->text_decoration & TD_UNDERLINE)
+ 					{
+ 						fz_moveto(ctx, line, node->x, node->y + 1.5f - page_top);
+-						fz_lineto(ctx, line, node->x + node->w, node->y + 1.5f - page_top);
++						fz_lineto(ctx, line, node->x + ash_node_w(node), node->y + 1.5f - page_top);
+ 					}
+ 					if (style->text_decoration & TD_LINE_THROUGH)
+ 					{
+ 						fz_moveto(ctx, line, node->x, node->y - em * 0.3f - page_top);
+-						fz_lineto(ctx, line, node->x + node->w, node->y - em * 0.3f - page_top);
++						fz_lineto(ctx, line, node->x + ash_node_w(node), node->y - em * 0.3f - page_top);
+ 					}
+ 				}
+ 
+@@ -3531,6 +3658,8 @@
+ 				trm.f = y - page_top;
+ 
+ 				s = get_node_text(ctx, node);
++				ash_off = 0;
++				ash_prev = 0;
+ 				init_string_walker(ctx, &walker, hb_buf, node->bidi_level & 1, style->font, node->script, node->markup_lang, style->small_caps, s, 0);
+ 				while (walk_string(&walker))
+ 				{
+@@ -3559,6 +3688,15 @@
+ 					{
+ 						n = fz_chartorune(&c, walker.start + k);
+ 
++						/* ASH (I-713): letter spacing of a justified line */
++						if (node->ash_ls != 0 && node->type == FLOW_WORD)
++						{
++							if (ash_ls_gap(ash_prev, c))
++								ash_off += node->ash_ls;
++							if (!ash_ls_mark(c))
++								ash_prev = c;
++						}
++
+ 						/* render with hyphen-minus glyph, but encode unicode text as soft-hyphen */
+ 						if (node->type == FLOW_SHYPHEN)
+ 							c = 0xAD;
+@@ -3567,7 +3705,7 @@
+ 						{
+ 							if (walker.glyph_info[i].cluster == k)
+ 							{
+-								trm.e = x + walker.glyph_pos[i].x_offset * node_scale;
++								trm.e = x + walker.glyph_pos[i].x_offset * node_scale + ash_off;
+ 								trm.f = y - walker.glyph_pos[i].y_offset * node_scale - page_top;
+ 								fz_show_glyph(ctx, text, walker.font, trm,
+ 										walker.glyph_info[i].codepoint, c,

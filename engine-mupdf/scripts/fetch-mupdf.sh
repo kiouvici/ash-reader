@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # MuPDF 소스(태그, 필요한 서브모듈만)를 받아 ASH 패치를 적용한다.
-# 사용법: fetch-mupdf.sh <버전 태그> <대상 폴더> <패치 폴더>
+# 사용법: fetch-mupdf.sh <버전 태그> <대상 폴더> <패치 폴더> [표지 이름(버전-패치 해시)]
 set -euo pipefail
-VER="$1"; DEST="$2"; PATCHES="$3"
-MARKER="$DEST/.ash-patched-$VER"
+VER="$1"; DEST="$2"; PATCHES="$3"; TAG="${4:-$1}"
+MARKER="$DEST/.ash-patched-$TAG"
 [ -f "$MARKER" ] && exit 0
 rm -rf "$DEST"
 mkdir -p "$(dirname "$DEST")"

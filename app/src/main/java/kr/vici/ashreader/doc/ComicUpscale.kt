@@ -54,6 +54,14 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
     /** 화면(메인) 스레드에서만 만진다. */
     private val jobs = HashMap<Int, Job>()
     private val skipped: MutableSet<Int> = ConcurrentHashMap.newKeySet()
+    /** 이미 화면 해상도 이상이라 처리하지 않은 쪽(전후 비교 "이미 선명해서 처리하지 않았어요"). */
+    private val sharp: MutableSet<Int> = ConcurrentHashMap.newKeySet()
+
+    /** 쪽 [i] 를 이미 선명해서 건너뛰었나. */
+    fun isAlreadySharp(i: Int) = i in sharp
+
+    /** 쪽 [i] 를 처리하지 못했나(손상·메모리 등 — 선명해서 건너뛴 것은 아님). */
+    fun isFailed(i: Int) = i in skipped && i !in sharp
     /** 처리 스레드에서만 만진다. */
     private var engine: Upscaler? = null
     private var cpuOnly = false
@@ -165,7 +173,9 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
             if (closed || powerSave() || hot) return
             if (!doc.ready(i)) return // solid CBR 풀기 전 — 다음 요청 때 다시
             val (w, h) = doc.pageSize(i)
-            if (w <= 0 || h <= 0 || !Upscaler.shouldUpscale(w, h, sw, sh) || w.toLong() * h > MAX_INPUT_PIXELS) { skipped += i; return }
+            if (w > 0 && h > 0 && !Upscaler.shouldUpscale(w, h, sw, sh)) { sharp += i; skipped += i; return }
+            if (w <= 0 || h <= 0 || w.toLong() * h > MAX_INPUT_PIXELS) { skipped += i; return }
+            UpscaleGate.awaitIdle()
             val src = doc.fullBitmap(i)
             if (src == null) { skipped += i; return }
             currentCoroutineContext().ensureActive()
@@ -254,6 +264,20 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
 
         /** 문서 하나의 캐시(한 번만 보기 문서를 닫을 때). */
         fun deleteFor(c: Context, key: String) { if (key.isNotEmpty()) File(root(c), key).deleteRecursively() }
+    }
+}
+
+/**
+ * 넘김 중 일시정지 신호(기술 설계서 6.2): 종이 넘김 애니메이션 동안에는 AI 화질 향상 새 작업을 꺼내지 않는다.
+ * 읽기 화면이 PageCurlView.isAnimating 을 넣는다.
+ */
+object UpscaleGate {
+    @Volatile var curlAnimating: Boolean = false
+
+    /** 넘김이 끝날 때까지 기다린다(최대 5초 — 신호가 멈춰 있어도 영영 서지 않게). */
+    suspend fun awaitIdle() {
+        var n = 0
+        while (curlAnimating && n < 100) { kotlinx.coroutines.delay(50); n++ }
     }
 }
 

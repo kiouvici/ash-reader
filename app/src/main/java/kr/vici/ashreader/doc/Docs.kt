@@ -16,6 +16,7 @@ import java.util.zip.ZipFile
 import kr.vici.ashreader.R
 import kr.vici.ashreader.data.BodyFont
 import kr.vici.ashreader.data.DocFormat
+import kr.vici.ashreader.data.FormatGroup
 import kr.vici.ashreader.data.Settings
 import kr.vici.ashreader.engine.convert.ChmEpub
 import kr.vici.ashreader.engine.convert.ConvertResult
@@ -140,6 +141,8 @@ object DocOpener {
         hwpEbook: Boolean = false, password: String? = null, docId: String = DocCaches.keyOf(file), comic: Boolean = false,
         /** TXT 인코딩 수동 지정(F-32). null = 자동 판별. */
         textEncoding: TextEncoding.Kind? = null,
+        /** eBook 보기 쪽 가장자리 몫(I-711). null = 예전처럼 본문 여백만(스크롤 보기). */
+        frame: PageFrame? = null,
     ): ReaderDoc {
         BundledFonts.install(context)
         return when (format.engine) {
@@ -147,20 +150,20 @@ object DocOpener {
                 ComicReaderDoc(PdfComicPages(file, password), format, docId, ComicReaderDoc.metaFile(context, docId))
             } else if (format == DocFormat.TXT) {
                 val t = TxtUtf8.convert(context, file, docId, textEncoding, s)
-                MupdfReaderDoc(t.file, format, pageWdp, pageHdp, s, context).also { it.textKind = t.kind; it.textAuto = textEncoding == null; it.tocFallback = t.tocFallback }
-            } else MupdfReaderDoc(file, format, pageWdp, pageHdp, s, context, password = password)
+                MupdfReaderDoc(t.file, format, pageWdp, pageHdp, s, context, frame = frame).also { it.textKind = t.kind; it.textAuto = textEncoding == null; it.tocFallback = t.tocFallback }
+            } else MupdfReaderDoc(file, format, pageWdp, pageHdp, s, context, password = password, frame = frame)
             DocFormat.Engine.CONVERT -> {
                 val epub = Converted.epub(context, file, format, docId)
-                if (epub != null) MupdfReaderDoc(epub, format, pageWdp, pageHdp, s, context, reflow = true)
+                if (epub != null) MupdfReaderDoc(epub, format, pageWdp, pageHdp, s, context, reflow = true, frame = frame)
                 // libmobi 가 못 읽은(DRM 아닌) MOBI·AZW3 는 MuPDF 의 MOBI 처리기로 한 번 더(옛 PalmDOC 본문만)
-                else MupdfReaderDoc(file, DocFormat.MOBI, pageWdp, pageHdp, s, context, reflow = true)
+                else MupdfReaderDoc(file, DocFormat.MOBI, pageWdp, pageHdp, s, context, reflow = true, frame = frame)
             }
             DocFormat.Engine.DJVU -> DjvuReaderDoc(file)
             DocFormat.Engine.HWP -> {
                 HwpDiag.check(file)
                 if (hwpEbook) {
                     val x = HwpXhtml.convert(context, file, docId)
-                    MupdfReaderDoc(x, format, pageWdp, pageHdp, s, context, reflow = true)
+                    MupdfReaderDoc(x, format, pageWdp, pageHdp, s, context, reflow = true, frame = frame)
                 } else HwpReaderDoc(file, format)
             }
             DocFormat.Engine.COMIC -> ComicReaderDoc(ArchivePages(file, ArchivePages.workDir(context, docId)), format, docId, ComicReaderDoc.metaFile(context, docId))
@@ -170,7 +173,7 @@ object DocOpener {
                 val tmp = x.temp
                 val cleanup: (() -> Unit)? = if (tmp != null) { { tmp.deleteRecursively() } } else null
                 try {
-                    MupdfReaderDoc(x.file, format, pageWdp, pageHdp, s, context, onClose = cleanup)
+                    MupdfReaderDoc(x.file, format, pageWdp, pageHdp, s, context, onClose = cleanup, frame = frame)
                 } catch (e: Exception) {
                     tmp?.deleteRecursively(); throw e
                 }
@@ -179,7 +182,7 @@ object DocOpener {
         }
     }
 
-    fun css(context: Context, s: Settings): String {
+    fun css(context: Context, s: Settings, frame: PageFrame? = null): String {
         val user = UserFonts.file(context, s.userFont)
         val font = (user ?: BundledFonts.file(context, s.font)).absolutePath
         val bold = if (user != null) null else BundledFonts.boldFile(context, s.font)?.absolutePath
@@ -192,15 +195,17 @@ object DocOpener {
             $boldFace
             @page { margin: 0; }
             body { font-family: ashbody, serif; line-height: ${"%.2f".format(java.util.Locale.ROOT, s.lineHeight)};
-                   text-align: justify; word-break: keep-all; color: #000; background: #fff; }
+                   text-align: justify; word-break: keep-all; overflow-wrap: break-word; color: #000; background: #fff; }
             p { margin: 0; text-indent: 1em; }
             h1, h2, h3 { line-height: 1.4; text-indent: 0; }
             img { max-width: 100%; }
             p.ash-e { text-indent: 0; }
             """.trimIndent(),
         )
-        // F-19 여백(위·아래는 정보줄 몫 0.8em 을 더함)
-        sb.append("\nbody { margin: ${em(s.marginV)} ${em(s.marginH)} ${em(s.marginV + 8)} ${em(s.marginH)} !important; }")
+        // F-19 여백. 쪽 넘김(I-711): 위아래 여백 + 상태 표시줄·카메라 구멍·정보줄·내비게이션 줄 몫을 @page 로(모든 쪽).
+        // 스크롤 보기(frame = null): 쪽 사이 빈칸이 없게 본문 여백만(위·아래는 정보줄 몫 0.8em 을 더함)
+        if (frame != null) sb.append("\n").append(PageFrame.css(frame, s.marginV, s.marginH, s.fontSize.toFloat()))
+        else sb.append("\nbody { margin: ${em(s.marginV)} ${em(s.marginH)} ${em(s.marginV + 8)} ${em(s.marginH)} !important; }")
         // F-19 정렬: 왼쪽을 고르면 본문 문단을 왼쪽으로(양쪽은 문서 원래 정렬을 존중하는 기본값)
         if (s.align == 1) sb.append("\nbody, p, li, blockquote, dd { text-align: left !important; }")
         // F-19 문단 간격
@@ -277,6 +282,8 @@ class MupdfReaderDoc(
     private val onClose: (() -> Unit)? = null,
     /** 암호 PDF 암호(필수 7). 저장하지 않는다. */
     password: String? = null,
+    /** eBook 보기 쪽 가장자리 몫(I-711). */
+    frame: PageFrame? = null,
 ) : ReaderDoc, MarginCroppable {
     private val lock = Any()
     /** F-24 여백 자르기(고정 쪽만). 렌더 전에 정한다. */
@@ -286,7 +293,7 @@ class MupdfReaderDoc(
         MupdfDoc.open(
             file.absolutePath,
             if (reflow) MupdfDoc.LayoutSpec(pageWdp, pageHdp, s.fontSize.toFloat()) else null,
-            if (reflow) DocOpener.css(context, s) else null,
+            if (reflow) DocOpener.css(context, s, frame) else null,
             password,
         )
     } catch (e: PasswordException) {
@@ -308,8 +315,29 @@ class MupdfReaderDoc(
             return fitInto(MarginCrop.cut(full, box), w, h, colors, applyTheme = true, keep = keep)
         }
         val raw = synchronized(lock) { doc.renderPage(index, w) }
+        // F-73 확장(D-021): 처리된 EPUB 그림을 바꿔 그린다(엔진 잠금 밖). 테마 색 변환 전이라 그림 영역은 원래 색으로 남는다.
+        imageUpscale?.let { up -> runCatching { up.decorate(index, raw) } }
         val keep = if ((reflow || colors.keepImages) && themeFilter(colors) != null) keepRects(index) else null
         return fitInto(raw, w, h, colors, applyTheme = true, keep = keep)
+    }
+
+    /** 원본 파일(변환한 이북은 합성 EPUB). EPUB 그림 AI 화질 향상이 그림 파일 종류를 볼 때 쓴다. */
+    val sourceFile: File = file
+
+    /** EPUB 그림 AI 화질 향상 대상 문서인가(이북류를 다시 배치해 보는 중 — 한글·Word 이북식·TXT 는 아님). */
+    val ebookImages: Boolean get() = reflow && format.group == FormatGroup.EBOOK
+
+    /** EPUB 그림 AI 화질 향상(붙어 있을 때만). 읽기 화면이 붙이고 뗀다. */
+    @Volatile var imageUpscale: EpubImageUpscale? = null
+
+    /** 쪽 안 그림들(EPUB 그림 AI). 닫혔으면 빈 목록. */
+    fun imageBlocks(index: Int): List<MupdfDoc.ImageBlock> = synchronized(lock) {
+        if (closed) emptyList() else runCatching { doc.imageBlocks(index) }.getOrDefault(emptyList())
+    }
+
+    /** 쪽 [index] 의 [k] 번째 그림 원래 크기(EPUB 그림 AI 입력). */
+    fun imageBitmap(index: Int, k: Int): Bitmap? = synchronized(lock) {
+        if (closed) null else runCatching { doc.imageBitmap(index, k) }.getOrNull()
     }
 
     /** 여백 자르기 상자. 끔·이북식·자를 것 없음이면 null. */
@@ -533,7 +561,10 @@ object TxtUtf8 {
     }
 }
 
-/** 한글 원본 보기(쪽 그림). 글자 선택·검색·목차는 이북식 보기([HwpXhtml] → [MupdfReaderDoc])에서 쓴다. */
+/**
+ * 한글 원본 보기(쪽 그림). 목차·듣기는 이북식 보기([HwpXhtml] → [MupdfReaderDoc])에서 쓴다.
+ * 글자 선택·검색·형광펜은 rhwp 글자 배치([HwpText])로 원본에서도 쓴다(7B).
+ */
 class HwpReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
     private val lock = Any()
     private val doc: HwpDoc = try { HwpDoc.open(file.absolutePath) } catch (e: Exception) {
@@ -561,6 +592,16 @@ class HwpReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
     }
 
     override fun pageAspect(index: Int): Float? = aspectCache[index] ?: synchronized(lock) { runCatching { doc.pageAspect(index) }.getOrNull() }?.also { aspectCache[index] = it }
+
+    private val textCache = object : android.util.LruCache<Int, TextPage>(24) {}
+
+    /** 쪽 글자와 위치(7B 원본 보기 글자 선택). 비율은 렌더와 같은 쪽 SVG 크기를 쓴다. 글자가 없으면 null. */
+    override fun pageText(index: Int): TextPage? {
+        textCache.get(index)?.let { return it }
+        val raw = synchronized(lock) { runCatching { doc.textLayout(index) }.getOrNull() } ?: return null
+        val tp = runCatching { HwpText.page(raw, pageAspect(index)) }.getOrNull() ?: return null
+        return tp.also { textCache.put(index, it) }
+    }
 
     /**
      * F-28 자동 전환 판정: 첫 쪽(작게 렌더)이 비었는데 글자는 있거나, 렌더 자체가 실패하면 true.
@@ -663,7 +704,7 @@ object HwpXhtml {
             Dialogue.mark(HwpDoc.open(file.absolutePath).use { it.toXhtml(dir, file.nameWithoutExtension) })
         } catch (e: Exception) {
             HwpDiag.check(file, afterFailure = true)
-            throw OpenFailed("한글 문서를 이북식으로 바꾸지 못했어요. 원본 보기로 읽어 주세요.")
+            throw OpenFailed("한글 문서를 eBook 보기로 바꾸지 못했어요. 원본 보기로 읽어 주세요.")
         }
         out.writeText(xhtml)
         return out
