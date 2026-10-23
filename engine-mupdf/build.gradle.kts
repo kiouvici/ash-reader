@@ -74,12 +74,17 @@ android {
 val fetchMupdf by tasks.registering(Exec::class) {
     group = "mupdf"
     description = "MuPDF $mupdfVersion 소스(서브모듈 포함)를 받아 ASH 패치를 적용한다"
-    val marker = File(mupdfSrc, ".ash-patched-$mupdfVersion")
     val patchDir = file("patches")
+    // 패치를 더하거나 바꾸면 표지 이름이 바뀌어 소스를 새로 받아 다시 적용한다(I-713)
+    val patchTag = java.security.MessageDigest.getInstance("SHA-256").let { md ->
+        patchDir.listFiles { f -> f.name.endsWith(".patch") }.orEmpty().sortedBy { it.name }.forEach { md.update(it.readBytes()) }
+        md.digest().take(6).joinToString("") { "%02x".format(it) }
+    }
+    val marker = File(mupdfSrc, ".ash-patched-$mupdfVersion-$patchTag")
     inputs.dir(patchDir)
     outputs.file(marker)
     onlyIf { !marker.exists() }
-    commandLine("bash", file("scripts/fetch-mupdf.sh").absolutePath, mupdfVersion, mupdfSrc.absolutePath, patchDir.absolutePath)
+    commandLine("bash", file("scripts/fetch-mupdf.sh").absolutePath, mupdfVersion, mupdfSrc.absolutePath, patchDir.absolutePath, "$mupdfVersion-$patchTag")
 }
 
 // ndk-build·자바 컴파일 전에 소스가 있어야 한다

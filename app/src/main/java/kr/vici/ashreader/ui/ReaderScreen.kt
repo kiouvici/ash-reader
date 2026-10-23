@@ -232,7 +232,7 @@ private class DocListenSource(private val doc: ReaderDoc, override val bookId: S
 /** 듣기를 쓸 수 없는 문서면 그 까닭(S-27). null = 들을 수 있음. */
 private fun cannotListen(doc: ReaderDoc, fmt: DocFormat): String? = when {
     doc is MupdfReaderDoc || doc is DjvuReaderDoc -> null
-    fmt.group == FormatGroup.HWP -> "원본 보기에서는 들을 수 없어요. ‘이북식’으로 바꾸면 들을 수 있어요."
+    fmt.group == FormatGroup.HWP -> "원본 보기에서는 들을 수 없어요. ‘eBook 보기’로 바꾸면 들을 수 있어요."
     fmt.group == FormatGroup.COMIC || doc is ComicReaderDoc -> "만화는 그림이라 들을 수 없어요."
     else -> "이 문서는 들을 수 없어요."
 }
@@ -520,7 +520,10 @@ fun ReaderScreen(
         val pageWdp = if (scrollView) (if (reflow) minOf(wDp, 760f) else wDp) else if (spread) wDp / 2f else wDp
         val txtKey = if (fmt == DocFormat.TXT) listOf(s.txtBlank, s.txtJoin, s.txtTrim, s.txtDefaultEncoding, s.txtTocMask, s.txtTocCustom) else emptyList<Any>()
         val styleKey = listOf(s.userFont, s.paraSpace, s.marginH, s.marginV, s.align, s.breakChar, s.hyphen, s.indent, s.dialogIndent)
-        val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook, txtEnc) + styleKey + txtKey
+        // I-711 eBook 보기(쪽 넘김): 상태 표시줄·카메라 구멍·정보줄·내비게이션 줄 몫을 모든 쪽에서 비운다
+        val pageFrame = rememberPageFrame(s)
+        val frame = if (reflow && !scrollView) pageFrame else null
+        val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook, txtEnc, frame) + styleKey + txtKey
             else listOf(spread, hwpEbook, pdfComic, fixedView.crop)
 
         val load by produceState<Load>(Load.Loading, target.path, layoutKey, pwTry) {
@@ -529,7 +532,7 @@ fun ReaderScreen(
             val crop = fixedView.crop && !reflow && !pdfComic
             fun openNow(): ReaderDoc = DocOpener.open(
                 context, File(target.path), fmt, pageWdp, hDp, s, hwpEbook = dualView && hwpEbook, password = pw, docId = target.id, comic = pdfComic,
-                textEncoding = TextEncoding.Kind.of(txtEnc.ifEmpty { s.txtDefaultEncoding }),
+                textEncoding = TextEncoding.Kind.of(txtEnc.ifEmpty { s.txtDefaultEncoding }), frame = frame,
             ).also { d -> if (crop) (d as? MarginCroppable)?.cropMargins = true }
             val r: Result<ReaderDoc> = if (isHwp && !hwpEbook && !hwpAuto) {
                 // F-28: 한글 원본 보기가 파싱에 실패하거나, 10초 안에 첫 쪽을 못 내거나, 첫 쪽이 비어 보이면(처음 열 때)
@@ -545,9 +548,9 @@ fun ReaderScreen(
                     onViewMode(Book.VIEW_EBOOK)
                     stub(
                         when (h) {
-                            HwpOpen.TimedOut -> "원본 보기가 10초 넘게 걸려 이북식으로 열었어요."
-                            HwpOpen.Blank -> "원본 보기가 비어 보여 이북식으로 열었어요."
-                            else -> "원본 보기로 열지 못해 이북식으로 열었어요."
+                            HwpOpen.TimedOut -> "원본 보기가 10초 넘게 걸려 eBook 보기로 열었어요."
+                            HwpOpen.Blank -> "원본 보기가 비어 보여 eBook 보기로 열었어요."
+                            else -> "원본 보기로 열지 못해 eBook 보기로 열었어요."
                         },
                     )
                     return@produceState
@@ -580,7 +583,7 @@ fun ReaderScreen(
                     Button(onClick = { hwpEbook = false }, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("원본 보기로") }
                 }
                 if (isWord && !hwpEbook) {
-                    Button(onClick = { hwpEbook = true; onViewMode(Book.VIEW_EBOOK) }, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("이북식 보기로") }
+                    Button(onClick = { hwpEbook = true; onViewMode(Book.VIEW_EBOOK) }, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("eBook 보기로") }
                 }
                 Button(onClick = onBack, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("서재로") }
             }
@@ -739,7 +742,7 @@ fun ReaderScreen(
                     ComicExtractOverlay(comicDoc, listOf(comicDoc.sourceOf(page)), colors, menuVisible = menu) {}
                     if (upscale != null && !menu) UpscaleChip(upscale, comicDoc.sourceOf(page), Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 12.dp))
                 } else {
-                    val near = if (reflow || isWord) 3 else 0 // Word 원본↔이북식은 쪽 수가 달라 근처 쪽까지 찾는다
+                    val near = if (reflow || isWord) 3 else 0 // Word 원본↔eBook은 쪽 수가 달라 근처 쪽까지 찾는다
                     val speaking = if (listening) listen.cur?.takeIf { it.start >= 0 } else null
                     val source = remember(doc, colors, highlights, hit, speaking, comic?.layoutVersion) {
                         val hl = highlights; val h = hit; val sp = speaking
@@ -1075,12 +1078,12 @@ fun ReaderScreen(
                             stub(if (r == Rotation.AUTO) "화면 회전을 풀었어요." else "화면 회전을 잠갔어요.")
                         },
                         viewToggle = when {
-                            dualView && !target.once -> if (hwpEbook) "원본" else "이북식"
+                            dualView && !target.once -> if (hwpEbook) "원본" else "eBook"
                             pdfToggle -> if (pdfComic) "PDF" else "만화"
                             else -> null
                         },
                         viewToggleDesc = when {
-                            dualView -> if (hwpEbook) "원본으로 보기" else "이북식으로 보기"
+                            dualView -> if (hwpEbook) "원본으로 보기" else "eBook으로 보기"
                             else -> if (pdfComic) "PDF 쪽 보기로" else "만화로 보기"
                         },
                         onViewToggle = { if (dualView) toggleHwpView() else togglePdfComic() },
@@ -1273,7 +1276,7 @@ fun ReaderScreen(
                     Text("책갈피·메모·형광펜이 아직 없어요. 글자를 길게 눌러 형광펜을 칠해 보세요.", fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
                 }
                 if (isHwp && !hwpEbook && highlights.isNotEmpty()) item {
-                    Text("형광펜은 이북식 보기에서 칠해져 보여요. 쪽은 원본 보기에 맞춰 대략 옮겼어요.", fontSize = 13.sp, color = colors.accentC, modifier = Modifier.padding(vertical = 8.dp))
+                    Text("형광펜은 eBook 보기에서 칠해져 보여요. 쪽은 원본 보기에 맞춰 대략 옮겼어요.", fontSize = 13.sp, color = colors.accentC, modifier = Modifier.padding(vertical = 8.dp))
                 }
                 items(bookmarks, key = { "b${it.id}" }) { b ->
                     val bp = locatorPage(b.page, b.frac, docCount)
@@ -1428,15 +1431,15 @@ private fun OnceBar(fmt: DocFormat, page: Int, count: Int, c: ReadingColors, ebo
         }
         if (fmt.group == FormatGroup.HWP || fmt.group == FormatGroup.WORD) {
             Text(
-                if (ebook) "이북식 보기 — 글자 크기·줄 간격·테마를 바꾸고 글자를 고를 수 있어요"
+                if (ebook) "eBook 보기 — 글자 크기·줄 간격·테마를 바꾸고 글자를 고를 수 있어요"
                 else if (fmt.group == FormatGroup.WORD) "원본 보기 — 쪽·표·머리글까지 Word 문서 모양 그대로 표시"
                 else "원본 보기 — 표·서식·도장까지 한글 문서 그대로 표시",
                 fontSize = 12.sp, color = c.subC,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${page + 1} / ${count}쪽", fontSize = 12.sp, color = c.subC, modifier = Modifier.weight(1f))
-                Text(if (ebook) "이북식" else "원본", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = c.accentC, modifier = Modifier.padding(horizontal = 8.dp))
-                TextButton(onClick = onEbookView, modifier = Modifier.heightIn(min = 48.dp)) { Text(if (ebook) "원본으로 보기" else "이북식으로 보기", color = c.fgC) }
+                Text(if (ebook) "eBook" else "원본", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = c.accentC, modifier = Modifier.padding(horizontal = 8.dp))
+                TextButton(onClick = onEbookView, modifier = Modifier.heightIn(min = 48.dp)) { Text(if (ebook) "원본으로 보기" else "eBook으로 보기", color = c.fgC) }
             }
         }
     }
@@ -1456,7 +1459,7 @@ private fun selFrac(sel: Selection, count: Int): Float =
     locatorFrac(sel.slot.page, count, if (sel.tp.text.isEmpty()) 0.5f else sel.start.toFloat() / sel.tp.text.length)
 
 private fun noTextMsg(fmt: DocFormat): String = when (fmt.group) {
-    FormatGroup.HWP -> "원본 보기에서는 글자를 고를 수 없어요. ‘이북식’으로 바꾸면 글자 선택·검색·형광펜을 쓸 수 있어요."
+    FormatGroup.HWP -> "원본 보기에서는 글자를 고를 수 없어요. ‘eBook 보기’로 바꾸면 글자 선택·검색·형광펜을 쓸 수 있어요."
     FormatGroup.COMIC -> "만화는 그림이라 글자를 고를 수 없어요."
     else -> "이 쪽에는 고를 수 있는 글자가 없어요. (그림으로 된 PDF일 수 있어요)"
 }
