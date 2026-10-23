@@ -84,7 +84,8 @@ class DocxConverter(private val options: Options = Options()) {
                 val saved = sb.length
                 val partRels = rels(relsPathFor(resolve("word/", rel.target)))
                 blockChildren(parse(part).documentElement, partRels, collectText = false)
-                val html = sb.substring(saved); sb.setLength(saved)
+                // I-712: eBook 보기(간단히)는 머리글·바닥글 앞뒤 빈 문단을 지우고 이어진 빈 문단은 하나로(쪽 위 큰 빈칸 방지)
+                val html = sb.substring(saved).let { if (opt.simplified) trimEmptyParas(it) else it }; sb.setLength(saved)
                 if (html.isNotBlank()) {
                     hf["$kind-$type"] = html
                     if (kind == "header") headerCount++ else footerCount++
@@ -115,12 +116,18 @@ class DocxConverter(private val options: Options = Options()) {
             out.append("<style>").append(CSS).append("</style>\n</head>\n<body")
             if (titlePg) out.append(" data-title-page=\"true\"")
             out.append(">\n")
-            for (k in listOf("header-first", "header-default", "header-even")) hf[k]?.let {
+            // I-712: eBook 보기(간단히)는 머리글을 한 번만(첫 쪽 머리글이 따로 있으면 그것, 없으면 기본). 여러 벌을 이어 붙이면
+            // 첫 쪽에 빈 머리글·편지지 그림이 겹쳐 쌓여 본문 앞에 큰 빈칸이 생겼다.
+            val headerKeys = if (!opt.simplified) listOf("header-first", "header-default", "header-even")
+                else listOfNotNull(listOf(if (titlePg) "header-first" else "header-default", "header-default", "header-first").firstOrNull { hf[it] != null })
+            for (k in headerKeys) hf[k]?.let {
                 out.append("<header class=\"docx-header\" data-type=\"").append(k.substringAfter('-')).append("\">").append(it).append("</header>\n")
             }
             out.append("<section class=\"docx-body\">\n").append(bodyHtml).append("</section>\n")
             if (notes.isNotEmpty()) out.append("<section class=\"docx-footnotes\">\n").append(notes).append("</section>\n")
-            for (k in listOf("footer-first", "footer-default", "footer-even")) hf[k]?.let {
+            val footerKeys = if (!opt.simplified) listOf("footer-first", "footer-default", "footer-even")
+                else listOfNotNull(listOf("footer-default", "footer-first").firstOrNull { hf[it] != null })
+            for (k in footerKeys) hf[k]?.let {
                 out.append("<footer class=\"docx-footer\" data-type=\"").append(k.substringAfter('-')).append("\">").append(it).append("</footer>\n")
             }
             out.append("</body>\n</html>\n")
@@ -481,6 +488,27 @@ class DocxConverter(private val options: Options = Options()) {
             "img.float{display:block;margin:0.3em auto}.img-unsupported{display:inline-block;background:#ddd;padding:1em;color:#555}" +
             "aside.footnote{font-size:0.85em}a.noteref{vertical-align:super;font-size:0.75em}" +
             "span.page-break{display:block;page-break-after:always}"
+
+        private val EMPTY_PARA = Regex("<p id=\"p\\d+\"(?: style=\"[^\"]*\")?><br/></p>\n")
+
+        /** 머리글·바닥글 HTML 앞뒤의 빈 문단을 지우고, 안쪽에 이어진 빈 문단은 하나만 남긴다(I-712). */
+        fun trimEmptyParas(html: String): String {
+            var h = html
+            while (true) { val m = EMPTY_PARA.find(h) ?: break; if (m.range.first != 0) break; h = h.substring(m.range.last + 1) }
+            while (true) {
+                val m = EMPTY_PARA.findAll(h).lastOrNull() ?: break
+                if (m.range.last != h.length - 1) break
+                h = h.substring(0, m.range.first)
+            }
+            val out = StringBuilder(); var i = 0; var prevEmpty = false
+            while (i < h.length) {
+                val m = EMPTY_PARA.matchAt(h, i)
+                if (m != null) { if (!prevEmpty) out.append(m.value); prevEmpty = true; i = m.range.last + 1; continue }
+                val next = h.indexOf('\n', i).let { if (it < 0) h.length else it + 1 }
+                out.append(h, i, next); prevEmpty = false; i = next
+            }
+            return out.toString()
+        }
 
         fun esc(s: String): String {
             val b = StringBuilder(s.length)

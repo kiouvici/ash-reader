@@ -14,6 +14,7 @@ import android.view.Choreographer
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.VelocityTracker
 import android.view.ViewConfiguration
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
@@ -84,6 +85,10 @@ class PageCurlView @JvmOverloads constructor(
     private var animTo = 0f
     private var animStartNs = 0L
     private var animDurNs = 0L
+    /** 손을 뗀 뒤 애니메이션의 시작 기울기(진행도 단위, I-716). */
+    private var animSlope = 0f
+    /** 넘기는 방향으로 끈 거리 / 쪽 너비(I-716). */
+    private var dragFrac = 0f
     private var autoRemaining = 0
     private var autoIntervalMs = 1000L
     private var autoDone: ((FrameReport) -> Unit)? = null
@@ -104,6 +109,7 @@ class PageCurlView @JvmOverloads constructor(
         cb(rawDownX / width, downY / height)
     }
     private var rawDownX = 0f
+    private var velocity: VelocityTracker? = null
 
     init {
         holder.addCallback(this)
@@ -235,6 +241,17 @@ class PageCurlView @JvmOverloads constructor(
         val w = width.toFloat().takeIf { it > 0 } ?: return false
         val mirror = config.direction == TurnDirection.RTL
         val lx = if (mirror) w - event.x else event.x
+        // 넘김 속도(I-716): 거울(오→왼) 좌표로 잰다
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            velocity?.recycle()
+            velocity = VelocityTracker.obtain()
+        }
+        velocity?.let { vt ->
+            val ev = MotionEvent.obtain(event)
+            ev.setLocation(lx, event.y)
+            vt.addMovement(ev)
+            ev.recycle()
+        }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 parent?.requestDisallowInterceptTouchEvent(true)
@@ -261,7 +278,15 @@ class PageCurlView @JvmOverloads constructor(
                 if (longFired) {
                     longFired = false
                 } else if (dragging) {
-                    gl.post { endDrag() }
+                    val vt = velocity
+                    var vx = 0f
+                    if (vt != null && event.actionMasked == MotionEvent.ACTION_UP) {
+                        vt.computeCurrentVelocity(1000)
+                        vx = vt.xVelocity
+                    }
+                    val dens = resources.displayMetrics.density
+                    val cancel = event.actionMasked == MotionEvent.ACTION_CANCEL
+                    gl.post { endDrag(vx, dens, cancel) }
                 } else if (event.actionMasked == MotionEvent.ACTION_UP &&
                     SystemClock.uptimeMillis() - downTime < ViewConfiguration.getLongPressTimeout()
                 ) {
@@ -269,6 +294,8 @@ class PageCurlView @JvmOverloads constructor(
                     onTap?.invoke(event.x / w, event.y / height)
                 }
                 dragging = false
+                velocity?.recycle()
+                velocity = null
             }
         }
         return true
@@ -318,6 +345,7 @@ class PageCurlView @JvmOverloads constructor(
         phase = Phase.DRAG
         gy = y.coerceIn(viewH * 0.05f, viewH * 0.95f)
         py = gy
+        dragFrac = 0f
     }
 
     private fun startCurl(next: Boolean) {
@@ -338,16 +366,24 @@ class PageCurlView @JvmOverloads constructor(
         val span = pageW() * if (isSpread()) 1.6f else 1.2f
         val d = (x0 - x) / span
         t = (if (forward) d else 1f - (-d)).coerceIn(0f, 1f)
+        dragFrac = (if (forward) x0 - x else x - x0) / pageW().coerceAtLeast(1f)
         py = y
         requestFrame()
     }
 
-    private fun endDrag() {
+    /**
+     * 손을 뗌(I-716). 실제 책처럼 쪽 너비의 약 1/4 을 넘기거나 넘기는 쪽으로 튕기면 넘기고, 아니면 제자리로.
+     * [vx] = 손가락 가로 속도(px/초, 거울 좌표), 애니메이션은 그 속도에서 이어서 시작한다.
+     */
+    private fun endDrag(vx: Float, density: Float, cancel: Boolean) {
         if (phase != Phase.DRAG) return
-        val commit = if (forward) CurlMath.shouldCommit(t) else !CurlMath.shouldCommit(t)
+        val velTurnDp = (if (forward) -vx else vx) / density.coerceAtLeast(0.1f)
+        // 취소(두 손가락 확대 등)는 제자리로
+        val commit = !cancel && CurlMath.commitOnRelease(dragFrac, velTurnDp)
         // 되감기(forward=false)에서 commit = 이전 쪽으로 넘어감 = t→0
         val target = if (forward) (if (commit) 1f else 0f) else (if (commit) 0f else 1f)
-        animateTo(target)
+        val span = pageW() * if (isSpread()) 1.6f else 1.2f
+        animateTo(target, vPerS = -vx / span.coerceAtLeast(1f))
     }
 
     private fun startTurn(next: Boolean, fromUser: Boolean) {
@@ -370,12 +406,20 @@ class PageCurlView @JvmOverloads constructor(
         animateTo(if (next) 1f else 0f)
     }
 
-    private fun animateTo(target: Float) {
+    /** [vPerS] = 손을 뗄 때 진행도 속도(진행도/초). null = 손가락 없는 넘김(탭·볼륨·자동): 예전과 같은 감속 곡선. */
+    private fun animateTo(target: Float, vPerS: Float? = null) {
         phase = Phase.ANIM
         animFrom = t
         animTo = target
         animStartNs = 0L // 다음 프레임의 vsync 시각에서 시작
-        animDurNs = max(1L, (config.turnDurationMs * 1_000_000L * abs(target - t)).toLong())
+        if (vPerS == null) {
+            animDurNs = max(1L, (config.turnDurationMs * 1_000_000L * abs(target - t)).toLong())
+            animSlope = 2f * (target - t) // 1-(1-k)² 와 같은 시작 기울기
+        } else {
+            val (ms, slope) = CurlMath.releasePlan(t, target, vPerS, config.turnDurationMs)
+            animDurNs = ms * 1_000_000L
+            animSlope = slope
+        }
         requestFrame()
     }
 
@@ -499,8 +543,8 @@ class PageCurlView @JvmOverloads constructor(
             // 넘김 진행은 vsync 시각 기준(그리기 시작이 조금 밀려도 프레임 간격이 고르다)
             if (animStartNs == 0L) animStartNs = vsyncNs
             val k = ((vsyncNs - animStartNs).toFloat() / animDurNs).coerceIn(0f, 1f)
-            val e = 1f - (1f - k) * (1f - k) // 감속
-            t = animFrom + (animTo - animFrom) * e
+            // 손을 뗄 때 속도에서 이어지는 감속 곡선(I-716)
+            t = CurlMath.releaseCurve(animFrom, animTo, animSlope, k).coerceIn(0f, 1f)
             if (k >= 1f) ended = true
         }
         val animating = phase != Phase.IDLE
@@ -560,7 +604,8 @@ class PageCurlView @JvmOverloads constructor(
         val gx = viewW
         val radius = CurlMath.radiusFor(t, pw * 0.18f)
         val fx = CurlMath.fingerX(gx, pw, t)
-        val lift = (py - gy) * (1f - t)
+        // I-716: 손가락 위아래는 조금만 따라가고(최대 쪽 높이의 8%) 넘어갈수록 0 으로
+        val lift = CurlMath.dampLift(py - gy, h * 0.08f) * (1f - t)
         val fy = gy + lift - (h * 0.06f) * 4f * t * (1f - t)
         val curl = CurlMath.curlFor(gx, gy, fx, fy, radius)
         if (spread) {

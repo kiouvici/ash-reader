@@ -72,10 +72,10 @@ object WordOriginal {
             temp?.deleteRecursively(); throw e
         } catch (e: OutOfMemoryError) {
             temp?.deleteRecursively(); pdf.delete()
-            throw OpenFailed("Word 문서가 너무 커서 원본 보기를 만들 수 없어요. 이북식으로 읽어 주세요.")
+            throw OpenFailed("Word 문서가 너무 커서 원본 보기를 만들 수 없어요. eBook 보기로 읽어 주세요.")
         } catch (e: Exception) {
             temp?.deleteRecursively(); pdf.delete()
-            throw OpenFailed("Word 원본 보기를 만들지 못했어요. 이북식으로 읽어 주세요.")
+            throw OpenFailed("Word 원본 보기를 만들지 못했어요. eBook 보기로 읽어 주세요.")
         }
         val tmp = temp
         val cleanup: (() -> Unit)? = if (tmp != null) { { tmp.deleteRecursively() } } else null

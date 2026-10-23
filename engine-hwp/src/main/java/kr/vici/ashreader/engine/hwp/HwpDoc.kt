@@ -68,7 +68,7 @@ class HwpDoc private constructor(private var handle: Long) : Closeable {
     fun toXhtml(dir: File, title: String): String {
         dir.mkdirs()
         return HwpNative.nativeToXhtml(handle, dir.absolutePath, title)
-            ?: throw HwpException("이북식 변환 실패: ${HwpNative.nativeLastError()}")
+            ?: throw HwpException("eBook 보기 변환 실패: ${HwpNative.nativeLastError()}")
     }
 
     override fun close() {

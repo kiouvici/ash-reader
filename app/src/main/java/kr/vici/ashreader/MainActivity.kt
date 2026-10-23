@@ -29,6 +29,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,11 +44,12 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -58,6 +60,7 @@ import kr.vici.ashreader.data.SeriesGroups
 import kr.vici.ashreader.data.Bookmark
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.LibraryRepo
+import kr.vici.ashreader.data.IntentInbox
 import kr.vici.ashreader.data.Highlight
 import kr.vici.ashreader.data.Note
 import kr.vici.ashreader.data.ReadingSession
@@ -116,6 +119,16 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
 
     val passwords: MutableMap<String, String> = HashMap()
 
+    /** 다른 앱에서 받은 문서(I-714). 처리를 끝낼 때까지 SavedStateHandle 에 남는다. */
+    val inbox = IntentInbox(
+        h.get<ArrayList<Uri>>(K_PENDING)?.let { IntentInbox.Item(h.get<Long>(K_PENDING_SEQ) ?: 0L, it.toList()) },
+        h.get<Long>(K_DONE) ?: 0L,
+    ) { item, done ->
+        h[K_PENDING] = item?.let { ArrayList(it.uris) }
+        h[K_PENDING_SEQ] = item?.seq ?: 0L
+        h[K_DONE] = done
+    }
+
     /** 화면 회전·재생성과 상관없이 보여 줄 안내(가져오기 결과 등). */
     val notices = Channel<String>(Channel.BUFFERED)
 
@@ -140,6 +153,9 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
     companion object {
         private const val K_SCREEN = "ash.screen"
         private const val K_TAB = "ash.tab"
+        private const val K_PENDING = "ash.pending"
+        private const val K_PENDING_SEQ = "ash.pendingSeq"
+        private const val K_DONE = "ash.pendingDone"
         const val MAX_IMPORT = 50
 
         fun encode(sc: Screen): Bundle = Bundle().apply {
@@ -194,26 +210,33 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
 }
 
 class MainActivity : ComponentActivity() {
-    /** 외부에서 받은 문서(VIEW·SEND). */
-    private val incoming = MutableStateFlow<List<Uri>>(emptyList())
+    /** 화면 상태 + 외부에서 받은 문서(VIEW·SEND) 받은편지함. Activity 가 다시 만들어져도 같은 것(ViewModel). */
+    private val nav: NavModel by lazy {
+        ViewModelProvider(this, viewModelFactory { initializer { NavModel(createSavedStateHandle()) } })[NavModel::class.java]
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (savedInstanceState == null) {
-            incoming.value = urisOf(intent)
+            // I-714: 최근 앱 목록에서 다시 띄운 경우(LAUNCHED_FROM_HISTORY)는 예전 '열기' 인텐트가 다시 오므로 무시한다
+            if (!fromHistory(intent)) nav.inbox.offer(urisOf(intent))
             // 필수 5: 앱 시작 때 쓸기 — 서재에 없는 문서의 변환 캐시 + (설정이 켜져 있으면) 한 번만 보기 사본.
             // 회전·복원(savedInstanceState 있음)일 때는 열린 한 번만 보기 문서를 지우지 않도록 건너뛴다.
             val app = ash
             app.appScope.launch { runCatching { app.library.sweep(app.prefs.settings.first().clearOnceOnExit) } }
         }
-        setContent { AshTheme { AshRoot(incoming) } }
+        setContent { AshTheme { AshRoot(nav) } }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        urisOf(intent).takeIf { it.isNotEmpty() }?.let { incoming.value = it }
+        // I-714: 읽기 화면이 열려 있든 서재든, 새로 받은 문서는 늘 그 문서로 연다(같은 파일을 다시 받아도 새로)
+        setIntent(intent)
+        if (!fromHistory(intent)) nav.inbox.offer(urisOf(intent))
     }
+
+    private fun fromHistory(i: Intent?): Boolean = i != null && (i.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
 
     /** VIEW·SEND 는 한 개, SEND_MULTIPLE(여러 파일 공유)은 여러 개(F-05). */
     private fun urisOf(i: Intent?): List<Uri> = when (i?.action) {
@@ -271,7 +294,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun AshRoot(incoming: MutableStateFlow<List<Uri>>) {
+private fun AshRoot(nav: NavModel) {
     val context = LocalContext.current
     val app = context.ash
     val dao = app.db.books()
@@ -280,9 +303,8 @@ private fun AshRoot(incoming: MutableStateFlow<List<Uri>>) {
     val settings by app.prefs.settings.collectAsState(initial = Settings())
     val books by remember { dao.recent() }.collectAsState(initial = emptyList())
     // 필수 2: 화면 상태는 ViewModel(SavedStateHandle)에 — 회전해도 읽기 화면·한 번만 보기 문서가 유지된다
-    val nav: NavModel = viewModel { NavModel(createSavedStateHandle()) }
     var nextVol by remember { mutableStateOf<Pair<Book, Book>?>(null) }
-    val pending by incoming.collectAsState()
+    val pending by nav.inbox.state.collectAsState()
 
     fun change(f: (Settings) -> Settings) { scope.launch { app.prefs.update(f) } }
 
@@ -374,12 +396,13 @@ private fun AshRoot(incoming: MutableStateFlow<List<Uri>>) {
     fun open(b: Book) = openTarget(b)
 
     // 외부 인텐트 → 한 번만 보기 (서재에 이미 있으면 그 책으로 연다)
+    // I-714: 받은편지함은 처리를 끝낸 뒤에만 비운다(복사 중 회전·재생성돼도 다시 처리). 새 것이 오면 이 처리는 취소되고 새 것을 연다.
     LaunchedEffect(pending) {
-        val all = pending
-        if (all.isEmpty()) return@LaunchedEffect
-        incoming.value = emptyList()
+        val item = pending ?: return@LaunchedEffect
+        val all = item.uris
         if (all.size > 1) {
             // 여러 파일 공유(SEND_MULTIPLE): 서재에 넣고 알린다(최대 50개, 회전해도 이어서)
+            nav.inbox.done(item.seq)
             nav.screen = nav.tab
             nav.importAll(app.library, all)
             return@LaunchedEffect
@@ -403,7 +426,12 @@ private fun AshRoot(incoming: MutableStateFlow<List<Uri>>) {
                 if (libPath == null) o else null,
             )
             else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true), o)
-        }.onFailure { snack.showSnackbar("파일을 열 수 없어요. ${it.message.orEmpty()}") }
+        }.onFailure { e ->
+            // 취소(새 문서를 받음·화면 재생성)는 실패가 아니다 — 받은편지함에 남겨 다시 처리한다
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            scope.launch { snack.showSnackbar("파일을 열 수 없어요. ${e.message.orEmpty()}") }
+        }
+        nav.inbox.done(item.seq)
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -432,58 +460,61 @@ private fun AshRoot(incoming: MutableStateFlow<List<Uri>>) {
             val bookmarks by remember(bookId) { dao.bookmarks(bookId) }.collectAsState(initial = emptyList<Bookmark>())
             val notes by remember(bookId) { dao.notes(bookId) }.collectAsState(initial = emptyList<Note>())
             val highlights by remember(bookId) { dao.highlights(bookId) }.collectAsState(initial = emptyList<Highlight>())
-            ReaderScreen(
-                target = sc.target, s = settings, onSettings = ::change,
-                onBack = { nav.screen = nav.tab },
-                onAddToLibrary = {
-                    sc.once?.let { o ->
-                        scope.launch {
-                            val b = app.library.addOpened(o)
-                            nav.screen = Screen.Reader(sc.target.copy(path = b.path, once = false), null)
-                            snack.showSnackbar("서재에 넣었어요.")
+            // I-714: 다른 문서로 바뀌면 읽기 화면 상태를 통째로 새로(앞 문서의 상태가 남아 앞 문서가 다시 보이지 않게)
+            key(sc.target.id) {
+                ReaderScreen(
+                    target = sc.target, s = settings, onSettings = ::change,
+                    onBack = { nav.screen = nav.tab },
+                    onAddToLibrary = {
+                        sc.once?.let { o ->
+                            scope.launch {
+                                val b = app.library.addOpened(o)
+                                nav.screen = Screen.Reader(sc.target.copy(path = b.path, once = false), null)
+                                snack.showSnackbar("서재에 넣었어요.")
+                            }
                         }
-                    }
-                },
-                onProgress = { p, n ->
-                    if (!sc.target.once) scope.launch {
-                        val st = if (p >= n - 1) Book.DONE else Book.READING
-                        dao.progress(bookId, p, n, st)
-                    }
-                },
-                onFinished = {
-                    if (!sc.target.once) scope.launch {
-                        // F-61: 같은 폴더(같은 묶음)의 파일명 숫자 순서로 다음 권, 없으면 같은 시리즈의 다음 권 번호
-                        val b = dao.get(bookId) ?: return@launch
-                        SeriesGroups.next(b, dao.visibleBooks())?.let { nextVol = b to it }
-                    }
-                },
-                onSession = { start, dur, pages ->
-                    if (!sc.target.once && dur > 5_000) scope.launch { dao.addSession(ReadingSession(bookId = bookId, startedAt = start, durationMs = dur, pagesTurned = pages)) }
-                },
-                bookmarks = bookmarks, notes = notes,
-                onToggleBookmark = { p, frac, existingId ->
-                    scope.launch {
-                        if (sc.target.once) { snack.showSnackbar("서재에 추가하면 책갈피를 남길 수 있어요."); return@launch }
-                        if (existingId != null) dao.removeBookmarkById(existingId) else dao.addBookmark(Bookmark(bookId = bookId, page = p, frac = frac))
-                    }
-                },
-                onAddNote = { p, text, frac -> scope.launch { dao.addNote(Note(bookId = bookId, page = p, text = text, frac = frac)) } },
-                highlights = highlights,
-                onAddHighlight = { p, st, en, text, color, note, frac ->
-                    scope.launch {
-                        dao.addHighlight(Highlight(bookId = bookId, page = p, startIdx = st, endIdx = en, text = text, color = color, note = note, frac = frac))
-                        snack.showSnackbar(if (note.isBlank()) "형광펜을 칠했어요." else "메모를 남겼어요.")
-                    }
-                },
-                onRemoveHighlight = { id -> scope.launch { dao.removeHighlight(id) } },
-                onViewMode = { mode -> if (!sc.target.once) scope.launch { dao.setViewMode(bookId, mode) } },
-                passwords = nav.passwords,
-                onTextEncoding = { enc -> if (!sc.target.once) scope.launch { dao.setEncoding(bookId, enc) } },
-                onOpenStore = {
-                    val first = stores.firstOrNull { Links.isInstalled(context, it.pkg) }
-                    if (first == null || !Links.launch(context, first.pkg)) nav.screen = Screen.StoreEdit
-                },
-            )
+                    },
+                    onProgress = { p, n ->
+                        if (!sc.target.once) scope.launch {
+                            val st = if (p >= n - 1) Book.DONE else Book.READING
+                            dao.progress(bookId, p, n, st)
+                        }
+                    },
+                    onFinished = {
+                        if (!sc.target.once) scope.launch {
+                            // F-61: 같은 폴더(같은 묶음)의 파일명 숫자 순서로 다음 권, 없으면 같은 시리즈의 다음 권 번호
+                            val b = dao.get(bookId) ?: return@launch
+                            SeriesGroups.next(b, dao.visibleBooks())?.let { nextVol = b to it }
+                        }
+                    },
+                    onSession = { start, dur, pages ->
+                        if (!sc.target.once && dur > 5_000) scope.launch { dao.addSession(ReadingSession(bookId = bookId, startedAt = start, durationMs = dur, pagesTurned = pages)) }
+                    },
+                    bookmarks = bookmarks, notes = notes,
+                    onToggleBookmark = { p, frac, existingId ->
+                        scope.launch {
+                            if (sc.target.once) { snack.showSnackbar("서재에 추가하면 책갈피를 남길 수 있어요."); return@launch }
+                            if (existingId != null) dao.removeBookmarkById(existingId) else dao.addBookmark(Bookmark(bookId = bookId, page = p, frac = frac))
+                        }
+                    },
+                    onAddNote = { p, text, frac -> scope.launch { dao.addNote(Note(bookId = bookId, page = p, text = text, frac = frac)) } },
+                    highlights = highlights,
+                    onAddHighlight = { p, st, en, text, color, note, frac ->
+                        scope.launch {
+                            dao.addHighlight(Highlight(bookId = bookId, page = p, startIdx = st, endIdx = en, text = text, color = color, note = note, frac = frac))
+                            snack.showSnackbar(if (note.isBlank()) "형광펜을 칠했어요." else "메모를 남겼어요.")
+                        }
+                    },
+                    onRemoveHighlight = { id -> scope.launch { dao.removeHighlight(id) } },
+                    onViewMode = { mode -> if (!sc.target.once) scope.launch { dao.setViewMode(bookId, mode) } },
+                    passwords = nav.passwords,
+                    onTextEncoding = { enc -> if (!sc.target.once) scope.launch { dao.setEncoding(bookId, enc) } },
+                    onOpenStore = {
+                        val first = stores.firstOrNull { Links.isInstalled(context, it.pkg) }
+                        if (first == null || !Links.launch(context, first.pkg)) nav.screen = Screen.StoreEdit
+                    },
+                )
+            }
             nextVol?.let { (done, next) ->
                 NextVolumeSheet(done, next,
                     onLibrary = { nextVol = null; nav.screen = Screen.Library },
