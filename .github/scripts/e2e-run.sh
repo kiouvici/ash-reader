@@ -31,10 +31,15 @@ adb shell settings put system accelerometer_rotation 0
 if [ "$ORIENT" != natural ]; then
   read -r W H < <(adb shell wm size | tr -d '\r' | tail -1 | sed -E 's/.*: ([0-9]+)x([0-9]+)/\1 \2/')
   NAT=portrait; [ "$W" -gt "$H" ] && NAT=landscape
-  if [ "$ORIENT" = "$NAT" ]; then adb shell settings put system user_rotation 0; else adb shell settings put system user_rotation 1; fi
+  ROT=0; [ "$ORIENT" != "$NAT" ] && ROT=1
 else
-  adb shell settings put system user_rotation 0
+  ROT=0
 fi
+adb shell settings put system user_rotation $ROT
+# Android 12+: 설정값만으로는 큰 화면에서 회전이 안 먹을 때가 있어 wm 으로도 잠근다
+[ "$SDK" -ge 31 ] && adb shell wm user-rotation lock $ROT >/dev/null 2>&1
+sleep 2
+note "회전 $ROT → $(adb shell dumpsys window displays 2>/dev/null | grep -oE 'cur=[0-9]+x[0-9]+' | head -1)"
 adb shell settings put global always_finish_activities 0
 adb shell svc power stayon true
 adb shell input keyevent 82 || true

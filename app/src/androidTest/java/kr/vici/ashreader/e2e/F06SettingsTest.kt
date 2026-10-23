@@ -113,7 +113,7 @@ class F06SettingsTest : E2eTest() {
         val header = obj(By.text(Pattern.compile(".+ \\(\\d+\\)")), 15_000)
         shot("licenses")
         val y = header.visibleBounds.centerY()
-        val first = device.findObjects(By.clickable(true)).filter { it.visibleBounds.centerY() > y }.minByOrNull { it.visibleBounds.centerY() }
+        val first = device.findObjects(By.clickable(true).pkg(PKG)).filter { it.visibleBounds.centerY() > y && it.visibleBounds.centerY() < device.displayHeight * 0.85 }.minByOrNull { it.visibleBounds.centerY() }
         assertTrue("라이선스 항목이 없음", first != null)
         first!!.click()
         SystemClock.sleep(1_500)

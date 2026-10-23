@@ -919,6 +919,9 @@ fun ReaderScreen(
                             }
                             v.setConfig(cfg)
                             if (v.tag !== source) { v.tag = source; v.setPageSource(source, page) }
+                            // 접근성(TalkBack·UiAutomator): Compose semantics 설명은 AndroidView 안의 넘김 화면 노드에 실리지 않아
+                            // (특히 Android 8) 읽기 화면이 '이름 없는 화면'이 된다 → View 자체에도 지금 쪽을 단다
+                            v.contentDescription = "${target.title} ${page + 1}쪽"
                         },
                         onRelease = { it.release() },
                         modifier = Modifier.fillMaxSize()

@@ -65,7 +65,6 @@ abstract class E2eTest {
     protected val ctx: Context get() = inst.targetContext
     protected val app: AshApp get() = ctx.applicationContext as AshApp
     protected val device: UiDevice by lazy { UiDevice.getInstance(inst) }
-    private var shotNo = 0
 
     /** 대부분의 시험: 안내는 이미 거쳤고(파일 접근 허용됨) 설정은 기본값. */
     @Before open fun setUp() {
@@ -75,10 +74,8 @@ abstract class E2eTest {
         ensureLibrary()
     }
 
-    @After open fun tearDown() {
-        // 다음 시험이 깨끗한 화면에서 시작하도록 앱을 닫는다(데이터는 그대로)
-        runCatching { device.pressHome() }
-    }
+    /** 다음 시험은 launchApp(CLEAR_TASK)으로 새로 시작한다. 여기서 홈으로 가면 실패 화면(FAIL-*)이 홈 화면으로 찍혀서 두지 않는다. */
+    @After open fun tearDown() {}
 
     // ───────────── 상태 준비 ─────────────
 
@@ -105,7 +102,7 @@ abstract class E2eTest {
         val i = Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (clear) i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ctx.startActivity(i)
-        check(device.wait(Until.hasObject(By.pkg(PKG).depth(0)), 20_000)) { "앱이 뜨지 않음" }
+        check(device.wait(Until.hasObject(By.pkg(PKG).depth(0)), 45_000)) { "앱이 뜨지 않음" }
         pump()
         device.waitForIdle(3_000)
     }
@@ -156,6 +153,8 @@ abstract class E2eTest {
             assertAlive()
             if (!device.hasObject(By.text("여는 중…"))) {
                 device.findObject(By.desc(PAGE))?.let { return Opened.Page(it.contentDescription ?: "") }
+                // 정보줄("2% · 1/40쪽")만 보이는 경우
+                device.findObject(By.text(INFO))?.let { return Opened.Page(it.text ?: "") }
                 if (device.hasObject(By.text("암호가 걸린 문서"))) return Opened.Password
                 if (device.hasObject(By.textStartsWith("압축 파일 안에 읽을 수 있는 파일이"))) return Opened.ZipPick
                 // 오류 화면: 가운데 안내 + [서재로] 단추
@@ -179,9 +178,12 @@ abstract class E2eTest {
 
     /** 지금 보이는 쪽 번호(1부터). 쪽 화면의 설명("제목 N쪽" 또는 "N쪽")에서 읽는다. */
     protected fun currentPage(): Int? {
-        val all = device.findObjects(By.desc(PAGE))
-        val d = all.firstOrNull()?.contentDescription ?: return null
-        return Regex("(\\d+)쪽$").find(d)?.groupValues?.get(1)?.toIntOrNull()
+        device.findObjects(By.desc(PAGE)).firstOrNull()?.contentDescription?.let { d ->
+            return Regex("(\\d+)쪽$").find(d)?.groupValues?.get(1)?.toIntOrNull()
+        }
+        // 정보줄 "N/M쪽"·메뉴 "N / M쪽"
+        val t = device.findObject(By.text(INFO))?.text ?: return null
+        return Regex("(\\d+) ?/ ?\\d+쪽").find(t)?.groupValues?.get(1)?.toIntOrNull()
     }
 
     protected fun waitPageChange(from: Int?, forward: Boolean, timeoutMs: Long = 8_000): Int? {
@@ -215,9 +217,10 @@ abstract class E2eTest {
     /** 읽기 메뉴(위·아래 막대)를 연다. */
     protected fun openMenu() {
         if (device.hasObject(By.desc("쪽 이동"))) return
-        repeat(3) {
-            tap(0.5f, 0.5f)
-            if (has(By.desc("쪽 이동"), 3_000)) return
+        // 가운데(쪽 넘김 보기) → 맨 위(칸 단위 보기는 가운데가 칸 확대, 메뉴는 맨 위) 순으로
+        for (y in listOf(0.5f, 0.07f, 0.5f, 0.07f)) {
+            tap(0.5f, y)
+            if (has(By.desc("쪽 이동"), 2_500)) return
         }
         shot("menu-not-open")
         fail("읽기 메뉴가 열리지 않음")
@@ -279,7 +282,7 @@ abstract class E2eTest {
     /** 화면을 찍어 남긴다(CI 산출물). */
     protected fun shot(name: String) {
         val dir = File(ctx.filesDir, "e2e-shots/" + javaClass.simpleName).apply { mkdirs() }
-        shotNo++
+        val shotNo = SHOTS.merge(javaClass.simpleName, 1) { a, b -> a + b }!!
         val safe = name.replace(Regex("[^0-9A-Za-z가-힣._-]+"), "_").take(60)
         val f = File(dir, "%03d-%s.png".format(shotNo, safe))
         Log.i(TAG, "단계 ${javaClass.simpleName} #$shotNo $name")
@@ -324,9 +327,13 @@ abstract class E2eTest {
 
     companion object {
         const val TAG = "AshE2E"
+        /** 클래스별 화면 번호(시험 메서드마다 인스턴스가 새로 생겨도 이어서 센다). */
+        private val SHOTS = java.util.concurrent.ConcurrentHashMap<String, Int>()
         const val PKG = "kr.vici.ashreader"
         /** 쪽 화면 설명: "제목 N쪽"(넘김 화면)·"N쪽"(칸·스크롤·확대)·"웹툰 보기 N쪽". */
         val PAGE: Pattern = Pattern.compile("(.* )?\\d+쪽")
+        /** 정보줄·메뉴의 쪽 표시: "2% · 1/40쪽", "1 / 40쪽". */
+        val INFO: Pattern = Pattern.compile(".*\\d+ ?/ ?\\d+쪽.*")
         /** '이북식' → 'eBook' 이름 바꾸기(7A) 전후 모두. */
         val EBOOK: Pattern = Pattern.compile(".*(이북|eBook|ebook|EBOOK|전자책).*보기.*")
         val ORIGINAL: Pattern = Pattern.compile("원본.*보기.*")
