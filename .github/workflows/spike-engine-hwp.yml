@@ -57,12 +57,17 @@ jobs:
           path: |
             ~/.cargo/registry
             engine-hwp/rust/target
-          key: cargo-hwp-${{ hashFiles('engine-hwp/rust/Cargo.toml', 'engine-hwp/rust/src/**') }}
+          key: cargo-hwp-${{ hashFiles('engine-hwp/rust/Cargo.toml', 'engine-hwp/rust/src/**', 'engine-hwp/rust/tests/**', 'engine-hwp/patches/**') }}
           restore-keys: cargo-hwp-
 
       - name: Build :engine-hwp (arm64-v8a, armeabi-v7a, x86_64) + test AAR
         shell: bash
         run: .github/scripts/gradle-annotate.sh :engine-hwp:assembleRelease -Pash.abis=arm64-v8a,armeabi-v7a,x86_64,x86 :engine-hwp:assembleDebugAndroidTest
+
+      # I-781: 칸 안 '종이 기준' 표 회귀 시험(합성 HWP → rhwp + ASH 패치 → 조판). 위 단계가 받은 build/rhwp(패치 적용본)를 쓴다.
+      - name: Rust host tests (engine-hwp)
+        shell: bash
+        run: cd engine-hwp/rust && cargo test --locked --tests
 
       - name: 16KB alignment & size report
         shell: bash

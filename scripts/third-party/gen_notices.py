@@ -273,7 +273,7 @@ def rust(n, args):
                 note = "크레이트에 원문 파일이 없어 SPDX 표준 원문을 붙임"
         authors = ", ".join(re.sub(r"\s*<[^>]*>", "", a) for a in p.get("authors") or [])
         if p["name"] == "rhwp":
-            note = (note + " " if note else "") + "HWP·HWPX 파서·조판(v0.8.7, 1a76570)"
+            note = (note + " " if note else "") + "HWP·HWPX 파서·조판(v0.8.7, 1a76570). 칸 안 종이 기준 표 배치 패치를 더해 빌드(engine-hwp/patches)"
         n.add(g, p["name"], p["version"], lic or "(표기 없음)", ids, authors, note.strip())
 
 

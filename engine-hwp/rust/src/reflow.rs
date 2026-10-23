@@ -76,6 +76,51 @@ pub fn to_xhtml(doc: &Document, img_dir: &Path, title: &str) -> String {
     c.out
 }
 
+/// 한 문단에 붙은 개체를 읽는 순서로 돌려준다(I-782).
+/// 버스 시간표처럼 '종이' 기준 부동 표 여러 개를 단처럼 나란히 놓은 문서는 저장 순서가
+/// 화면 순서와 달라(z 순서 등) 이북식에서 오른쪽 표가 먼저 나왔다. 그런 표가 셋 이상이면
+/// 다른 모든 표보다 위에 있는 표(제목 띠)를 먼저, 나머지를 왼쪽→오른쪽으로 둔다.
+/// 나머지 표끼리 가로 범위가 겹치면(단 배치가 아님) 저장 순서를 그대로 쓴다.
+/// 다른 개체(글자처럼 취급한 표·그림 등)는 원래 순서대로 앞에 둔다.
+fn reading_order(ctls: &[Control]) -> Vec<&Control> {
+    use rhwp::model::shape::{HorzRelTo, VertRelTo};
+    // (왼, 오른, 위, 아래)
+    let rect = |c: &Control| -> Option<(i64, i64, i64, i64)> {
+        let Control::Table(t) = c else { return None };
+        let m = &t.common;
+        (!m.treat_as_char && m.horz_rel_to == HorzRelTo::Paper && m.vert_rel_to == VertRelTo::Paper)
+            .then(|| {
+                let x = m.horizontal_offset as i32 as i64;
+                let y = m.vertical_offset as i32 as i64;
+                (x, x + m.width as i64, y, y + m.height as i64)
+            })
+    };
+    let floats: Vec<((i64, i64, i64, i64), &Control)> =
+        ctls.iter().filter_map(|c| rect(c).map(|r| (r, c))).collect();
+    if floats.len() < 3 {
+        return ctls.iter().collect();
+    }
+    let is_header = |i: usize| {
+        let b = floats[i].0 .3;
+        floats.iter().enumerate().all(|(j, f)| j == i || b <= f.0 .2)
+    };
+    let (mut head, mut rest): (Vec<_>, Vec<_>) = (Vec::new(), Vec::new());
+    for (i, f) in floats.iter().enumerate() {
+        if is_header(i) {
+            head.push(*f)
+        } else {
+            rest.push(*f)
+        }
+    }
+    rest.sort_by_key(|f| f.0 .0);
+    if rest.windows(2).any(|w| w[1].0 .0 < w[0].0 .1) {
+        return ctls.iter().collect(); // 가로로 겹침 → 단 배치가 아님
+    }
+    let mut out: Vec<&Control> = ctls.iter().filter(|c| rect(c).is_none()).collect();
+    out.extend(head.into_iter().chain(rest).map(|f| f.1));
+    out
+}
+
 /// 본문 글자 크기 = 글자 수 가중 최빈 기준 크기.
 fn body_size(doc: &Document) -> i32 {
     let mut hist: std::collections::HashMap<i32, usize> = std::collections::HashMap::new();
@@ -189,7 +234,7 @@ impl<'a> Ctx<'a> {
             }
         }
         // 문단에 딸린 개체(표·그림·글상자). 대부분 빈 문단에 붙어 있으므로 문단 뒤에 둔다.
-        for ctl in &p.controls {
+        for ctl in reading_order(&p.controls) {
             self.control(ctl);
         }
     }
@@ -415,5 +460,51 @@ impl<'a> Ctx<'a> {
         if let Some(cap) = &t.caption {
             self.caption(&cap.paragraphs);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rhwp::model::shape::{HorzRelTo, VertRelTo};
+
+    fn paper(x: u32, y: u32, w: u32, h: u32) -> Control {
+        let mut t = Table::default();
+        t.common.horz_rel_to = HorzRelTo::Paper;
+        t.common.vert_rel_to = VertRelTo::Paper;
+        t.common.horizontal_offset = x;
+        t.common.vertical_offset = y;
+        t.common.width = w;
+        t.common.height = h;
+        Control::Table(Box::new(t))
+    }
+
+    fn xs(v: Vec<&Control>) -> Vec<u32> {
+        v.iter()
+            .map(|c| if let Control::Table(t) = c { t.common.horizontal_offset } else { u32::MAX })
+            .collect()
+    }
+
+    /// I-782: 나란한 단(저장 순서 뒤섞임) → 제목 띠 먼저, 나머지 왼쪽→오른쪽
+    #[test]
+    fn side_by_side_paper_tables_read_left_to_right() {
+        let c = vec![
+            paper(61_568, 4_600, 20_000, 100_000),
+            paper(24_064, 1_776, 33_672, 2_380), // 제목 띠
+            paper(1_724, 4_600, 11_673, 100_000),
+            paper(37_596, 4_600, 11_000, 100_000),
+        ];
+        assert_eq!(xs(reading_order(&c)), vec![24_064, 1_724, 37_596, 61_568]);
+    }
+
+    /// 가로로 겹치는 표(위아래로 쌓인 표 등)는 저장 순서를 지킨다
+    #[test]
+    fn overlapping_tables_keep_stored_order() {
+        let c = vec![
+            paper(5_000, 50_000, 20_000, 10_000),
+            paper(1_000, 10_000, 20_000, 10_000),
+            paper(3_000, 30_000, 20_000, 10_000),
+        ];
+        assert_eq!(xs(reading_order(&c)), vec![5_000, 1_000, 3_000]);
     }
 }

@@ -1,0 +1,135 @@
+ASH Reader 패치 0001 — rhwp v0.8.7(1a76570) / MIT
+칸 안 '종이 기준' 부동 표를 본문 문단으로 올린다(보기 전용 정규화, docs/이슈목록.md I-781).
+
+한/글은 표 칸 안에 들어 있어도 글자처럼 취급하지 않고 가로·세로 모두 '종이' 기준인 표를
+용지 좌표에 그리고, 칸은 그 표를 담지 않는다. v0.8.7 은 칸 경로에서 이 기준을 읽지 않아
+표를 칸 안에 흘려 넣었다(좁은 칸에 눌려 글자가 세로로 쌓이고, 칸이 표 높이만큼 부풀어
+이웃 표를 덮음). 본문 경로는 종이 기준 표를 바르게 놓으므로 문서를 읽은 직후 그런 표를
+가장 바깥 표가 든 본문 문단의 컨트롤 끝으로 옮긴다. 회귀 시험: engine-hwp/rust/tests/.
+upstream devel(def947c 기준)은 조판 구조가 크게 달라 같은 수정을 옮길 수 없어 따로 고쳤다.
+
+diff --git a/src/document_core/commands/document.rs b/src/document_core/commands/document.rs
+index cf2a293e..3c85dee9 100644
+--- a/src/document_core/commands/document.rs
++++ b/src/document_core/commands/document.rs
+@@ -182,6 +182,9 @@ impl DocumentCore {
+         // line_seg 를 소비하기 전에 물리적으로 불가능한 과다 line_seg 배열을 제거한다.
+         Self::drop_corrupt_oversized_linesegs(&mut document);
+ 
++        // [ASH 0001] 표 칸 안에 있지만 '종이' 기준으로 자리를 잡은 부동 표를 본문 문단으로 올린다.
++        Self::hoist_paper_anchored_cell_tables(&mut document);
++
+         // [#2279 실험 전용] 본문 저장 lineseg 전면 무시 → fresh 재계산.
+         // 기계생성 결재문서의 부분-사다리 불신 실험 계측용 (기본 no-op).
+         // 주의: 92셋 전수 실측(2026-07-18)에서 전면 fresh 는 88→76 광역 회귀 —
+@@ -466,6 +469,110 @@ impl DocumentCore {
+     /// 의 line_seg 부재 폴백 등)가 문단을 텍스트로부터 정상 재구성한다. 상한을
+     /// `문자 수 + 64` 로 넉넉히 잡아 정상 문서(줄바꿈만 있는 문단 포함)는 절대 걸리지
+     /// 않으므로 동작이 완전히 동일하다. 포맷 무관 가드다.
++    /// [ASH 0001] 칸 안 '종이 기준' 부동 표를 칸 밖(본문 문단)으로 올린다(보기 전용 정규화).
++    ///
++    /// 한/글은 표 칸 안에 들어 있어도 글자처럼 취급하지 않고 가로·세로 모두 '종이' 기준인
++    /// 표를 칸이 아닌 용지 좌표에 그린다. 칸은 그 표를 담지 않는다(칸 높이·폭에 영향 없음).
++    /// rhwp v0.8.7 은 칸 경로에서 이 기준을 읽지 않아 표를 칸 안에 다시 흘려 넣는다 —
++    /// 칸 폭에 눌려 글자가 세로로 쌓이고(좁은 칸), 칸이 표 높이만큼 부풀어 이웃 표를 덮었다
++    /// (제천시 버스 시간표 1쪽: 제목 1×1 표 칸 안 46번 표, 21번 표 칸 안 31번 표).
++    ///
++    /// 본문 쪽 경로(쪽 2의 같은 형태 표들)는 종이 기준 표를 올바로 놓으므로, 그런 표를
++    /// 가장 바깥 표가 든 본문 문단의 컨트롤 끝으로 옮긴다. 보수적으로 다음을 모두 만족할 때만 옮긴다.
++    /// - 바깥 표: 본문 문단의 비-TAC 표, 가로·세로 '종이' 기준, 왼쪽·위 정렬
++    /// - 안쪽 표: 비-TAC, 가로·세로 '종이' 기준, 왼쪽·위 정렬, 용지 안에 들어감
++    /// - 안쪽 표의 용지 사각형이 바깥 표 사각형 안에 온전히 들지 않음(칸 안 배치로는 설명 불가)
++    /// 저장 경로에서는 위치가 바뀌므로 보기 전용이다(ASH Reader 는 저장하지 않는다).
++    pub(crate) fn hoist_paper_anchored_cell_tables(document: &mut Document) {
++        use crate::model::shape::{CommonObjAttr, HorzAlign, HorzRelTo, VertAlign, VertRelTo};
++        use crate::model::table::Table;
++
++        fn paper_rect(c: &CommonObjAttr) -> Option<(i64, i64, i64, i64)> {
++            let ok = !c.treat_as_char
++                && c.vert_rel_to == VertRelTo::Paper
++                && c.horz_rel_to == HorzRelTo::Paper
++                && matches!(c.vert_align, VertAlign::Top)
++                && matches!(c.horz_align, HorzAlign::Left);
++            if !ok {
++                return None;
++            }
++            let x = c.horizontal_offset as i32 as i64;
++            let y = c.vertical_offset as i32 as i64;
++            Some((x, y, x + c.width as i64, y + c.height as i64))
++        }
++
++        for section in &mut document.sections {
++            let pd = &section.section_def.page_def;
++            let paper = if pd.landscape {
++                (pd.height as i64, pd.width as i64)
++            } else {
++                (pd.width as i64, pd.height as i64)
++            };
++            if paper.0 <= 0 || paper.1 <= 0 {
++                continue;
++            }
++            for para in &mut section.paragraphs {
++                // 옮긴 표도 다시 살핀다(그 칸 안에 같은 형태 표가 또 있을 수 있음)
++                let mut ci = 0;
++                while ci < para.controls.len() {
++                    let hoisted = match &mut para.controls[ci] {
++                        Control::Table(t) => match paper_rect(&t.common) {
++                            Some(outer) => extract_paper_tables(t, outer, paper),
++                            None => Vec::new(),
++                        },
++                        _ => Vec::new(),
++                    };
++                    if !hoisted.is_empty() {
++                        // 끝에 붙여 앞 컨트롤의 글자 위치(char_offsets 갭 분배)를 건드리지 않는다
++                        para.align_ctrl_data_records();
++                        for c in hoisted {
++                            para.controls.push(c);
++                            para.ctrl_data_records.push(None);
++                        }
++                    }
++                    ci += 1;
++                }
++            }
++        }
++
++        /// 칸 안 문단에서 조건에 맞는 표 컨트롤을 꺼내 순서대로 돌려준다.
++        fn extract_paper_tables(
++            table: &mut Table,
++            outer: (i64, i64, i64, i64),
++            paper: (i64, i64),
++        ) -> Vec<Control> {
++            let mut out = Vec::new();
++            for cell in &mut table.cells {
++                for para in &mut cell.paragraphs {
++                    let mut i = 0;
++                    while i < para.controls.len() {
++                        let hoist = match &para.controls[i] {
++                            Control::Table(t) => paper_rect(&t.common).is_some_and(|r| {
++                                let inside_paper =
++                                    r.0 >= 0 && r.1 >= 0 && r.2 <= paper.0 && r.3 <= paper.1;
++                                let inside_outer = r.0 >= outer.0
++                                    && r.1 >= outer.1
++                                    && r.2 <= outer.2
++                                    && r.3 <= outer.3;
++                                inside_paper && !inside_outer && r.2 > r.0 && r.3 > r.1
++                            }),
++                            _ => false,
++                        };
++                        if hoist {
++                            out.push(para.controls.remove(i));
++                            if i < para.ctrl_data_records.len() {
++                                para.ctrl_data_records.remove(i);
++                            }
++                            continue;
++                        }
++                        i += 1;
++                    }
++                }
++            }
++            out
++        }
++    }
++
+     fn drop_corrupt_oversized_linesegs(document: &mut Document) {
+         for section in &mut document.sections {
+             for para in &mut section.paragraphs {
