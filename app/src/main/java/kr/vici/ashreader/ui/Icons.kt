@@ -41,4 +41,11 @@ object Icons {
     val Plus = line("plus", "M12 5v14M5 12h14")
     val Minus = line("minus", "M5 12h14")
     val Chevron = line("chevron", "M9 5l7 7-7 7")
+    val Star = line("star", "M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z")
+    val More = line("more", "M12 5h.01M12 12h.01M12 19h.01")
+    val Up = line("up", "M6 15l6-6 6 6")
+    val Down = line("down", "M6 9l6 6 6-6")
+    val Folder = line("folder", "M3 6h6l2 2h10v11H3z")
+    val Refresh = line("refresh", "M20 12a8 8 0 1 1 -2.3 -5.7", "M20 4v5h-5")
+    val Share = line("share", "M12 3v12", "M7 8l5-5 5 5", "M5 14v6h14v-6")
 }

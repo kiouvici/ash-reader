@@ -92,6 +92,8 @@ import kr.vici.ashreader.data.Settings
 import kr.vici.ashreader.doc.ComicReaderDoc
 import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.doc.DocOpener
+import kr.vici.ashreader.doc.DrmProtected
+import kr.vici.ashreader.engine.convert.TextEncoding
 import kr.vici.ashreader.doc.HwpReaderDoc
 import kr.vici.ashreader.doc.MupdfReaderDoc
 import kr.vici.ashreader.doc.PasswordNeeded
@@ -115,6 +117,8 @@ data class ReaderTarget(
     val viewMode: Int = Book.VIEW_ORIGINAL,
     /** [startPage]를 저장할 때의 쪽 수. 지금 쪽 수와 다르면(글꼴·크기·보기 방식 변경) 비율로 옮긴다. */
     val startCount: Int = 0,
+    /** TXT 인코딩 수동 지정(F-32): "" = 자동, 아니면 TextEncoding.Kind 이름. */
+    val textEncoding: String = "",
 )
 
 /** 볼륨 키 → 읽기 화면 (MainActivity 가 연결). 반환 true = 키를 소비. */
@@ -125,7 +129,8 @@ object VolumeKeys {
 private sealed interface Load {
     data object Loading : Load
     data class Ok(val doc: ReaderDoc) : Load
-    data class Err(val msg: String) : Load
+    /** [drm] = 서점 보호가 걸린 책(S-43 서점 보호 안내). */
+    data class Err(val msg: String, val drm: Boolean = false) : Load
     /** 암호 걸린 문서. [wrong] = 방금 넣은 암호가 틀림. */
     data class Locked(val wrong: Boolean) : Load
 }
@@ -184,6 +189,10 @@ fun ReaderScreen(
     onViewMode: (mode: Int) -> Unit = {},
     /** 문서 id → 암호. 회전해도 다시 묻지 않게 화면 바깥(ViewModel 메모리)에 둔다. 디스크·번들에는 저장하지 않는다. */
     passwords: MutableMap<String, String> = remember { HashMap() },
+    /** TXT 인코딩을 바꿈(F-32) → 책에 저장. "" = 자동. */
+    onTextEncoding: (String) -> Unit = {},
+    /** 서점 보호 책 안내에서 '내 서점 앱 열기'(S-43). */
+    onOpenStore: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -207,7 +216,10 @@ fun ReaderScreen(
     var jumpReq by remember { mutableStateOf<Int?>(null) }
     var tocTab by remember { mutableIntStateOf(0) }
     var openDoc by remember { mutableStateOf<ReaderDoc?>(null) }
+    var exportOpen by remember { mutableStateOf(false) }
     val fmt = target.format
+    /** TXT 인코딩(F-32): "" = 자동. 바꾸면 문서를 다시 연다. */
+    var txtEnc by rememberSaveable(target.id) { mutableStateOf(target.textEncoding) }
     // 한글 문서 보기 방식(F-28): false = 원본(쪽 그림), true = 이북식(다시 배치 — 글꼴·크기·테마·글자 선택·검색·목차)
     val isHwp = fmt.group == FormatGroup.HWP
     var hwpEbook by rememberSaveable(target.id) { mutableStateOf(target.viewMode == Book.VIEW_EBOOK) }
@@ -245,17 +257,27 @@ fun ReaderScreen(
         val hDp = maxHeight.value
         val spread = wDp > hDp && minOf(wDp, hDp) >= 600f
         val pageWdp = if (spread) wDp / 2f else wDp
-        val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook) else listOf(spread, hwpEbook, pdfComic)
+        val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook, txtEnc) else listOf(spread, hwpEbook, pdfComic)
 
         val load by produceState<Load>(Load.Loading, target.path, layoutKey, pwTry) {
             value = Load.Loading
             val pw = password
             val r = withContext(Dispatchers.IO) {
                 runCatching {
-                    DocOpener.open(context, File(target.path), fmt, pageWdp, hDp, s, hwpEbook = isHwp && hwpEbook, password = pw, docId = target.id, comic = pdfComic)
+                    DocOpener.open(
+                        context, File(target.path), fmt, pageWdp, hDp, s, hwpEbook = isHwp && hwpEbook, password = pw, docId = target.id, comic = pdfComic,
+                        textEncoding = TextEncoding.Kind.of(txtEnc),
+                    )
                 }
             }
-            value = r.fold({ Load.Ok(it) }, { e -> if (e is PasswordNeeded) Load.Locked(e.wrong) else Load.Err(e.message ?: "문서를 열 수 없어요.") })
+            value = r.fold({ Load.Ok(it) }, { e ->
+                when (e) {
+                    is PasswordNeeded -> Load.Locked(e.wrong)
+                    is DrmProtected -> Load.Err(e.message.orEmpty(), drm = true)
+                    is OutOfMemoryError -> Load.Err("문서가 너무 커서 열 수 없어요.")
+                    else -> Load.Err(e.message ?: "문서를 열 수 없어요.")
+                }
+            })
             awaitDispose { r.getOrNull()?.let { d -> Thread { GuardedSource.close(d) }.start() } }
         }
 
@@ -265,7 +287,12 @@ fun ReaderScreen(
                 Text("여는 중…", color = colors.subC, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
             }
             is Load.Err -> Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(l.msg, color = colors.fgC, fontSize = 16.sp)
+                if (l.drm) Text("서점 보호가 걸린 책이에요", color = colors.fgC, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+                Text(if (l.drm) "구매한 서점의 앱에서 읽어 주세요." else l.msg, color = colors.fgC, fontSize = 16.sp)
+                if (l.drm) Button(onClick = onOpenStore, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("내 서점 앱 열기") }
+                if (fmt == DocFormat.TXT && txtEnc.isNotEmpty()) {
+                    Button(onClick = { txtEnc = ""; onTextEncoding("") }, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("인코딩 자동으로") }
+                }
                 if (isHwp && hwpEbook) {
                     Button(onClick = { hwpEbook = false }, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("원본 보기로") }
                 }
@@ -528,7 +555,12 @@ fun ReaderScreen(
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = 140.dp))
     }
 
-    if (showAa) ViewSettingsSheet(s, reflow, onSettings) { showAa = false }
+    val txtUi = if (fmt == DocFormat.TXT) TxtEncodingUi(TextEncoding.Kind.of(txtEnc), (openDoc as? MupdfReaderDoc)?.textKind) { k ->
+        txtEnc = k?.name.orEmpty()
+        if (!target.once) onTextEncoding(txtEnc)
+    } else null
+    if (showAa) ViewSettingsSheet(s, reflow, onSettings, onDismiss = { showAa = false }, txt = txtUi)
+    if (exportOpen) ExportSheet(bookId = if (target.once) null else target.id) { exportOpen = false }
     val toc by produceState<List<kr.vici.ashreader.doc.TocEntry>?>(null, openDoc, showToc) {
         val d = openDoc
         value = if (d == null) emptyList() else withContext(Dispatchers.IO) { d.toc() }
@@ -550,6 +582,11 @@ fun ReaderScreen(
                 item { TocList(toc, page) { p -> showToc = false; jumpReq = p } }
 
             } else {
+                if (!target.once && (notes.isNotEmpty() || highlights.isNotEmpty())) item {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showToc = false; exportOpen = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("내보내기", color = colors.accentC) }
+                    }
+                }
                 if (bookmarks.isEmpty() && notes.isEmpty() && highlights.isEmpty()) item {
                     Text("책갈피·메모·형광펜이 아직 없어요. 글자를 길게 눌러 형광펜을 칠해 보세요.", fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
                 }

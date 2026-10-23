@@ -50,6 +50,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("notes", JSONArray().apply { notes.forEach { put(it.toJson()) } })
             .put("highlights", JSONArray().apply { hls.forEach { put(it.toJson()) } })
             .put("sessions", JSONArray().apply { ses.forEach { put(it.toJson()) } })
+            .put("storeApps", JSONArray().apply { dao.allStoreApps().forEach { put(JSONObject().put("pkg", it.pkg).put("label", it.label).put("ord", it.ord)) } })
             .put("settings", s.toJson())
         val out = context.contentResolver.openOutputStream(uri, "wt") ?: throw BadBackup("파일을 만들 수 없어요.")
         out.use { it.write(root.toString(1).toByteArray(Charsets.UTF_8)) }
@@ -79,8 +80,11 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
                     val safe = LibraryRepo.insideBooks(booksDir, inc.path)
                     if (safe != null && safe.isFile) { dao.upsert(inc.copy(path = safe.path)); updated++ } else missing++
                 } else if (inc.lastOpenedAt > cur.lastOpenedAt) {
-                    dao.upsert(cur.copy(lastPage = inc.lastPage, pageCount = inc.pageCount, status = inc.status, lastOpenedAt = inc.lastOpenedAt, viewMode = inc.viewMode))
+                    dao.upsert(cur.copy(lastPage = inc.lastPage, pageCount = inc.pageCount, status = inc.status, lastOpenedAt = inc.lastOpenedAt, viewMode = inc.viewMode,
+                        favorite = inc.favorite || cur.favorite, textEncoding = inc.textEncoding.ifEmpty { cur.textEncoding }))
                     updated++
+                } else if (inc.favorite && !cur.favorite) {
+                    dao.setFavorite(id, true)
                 }
             }
             val bmKeys = dao.allBookmarks().map { it.bookId to it.page }.toMutableSet()
@@ -108,10 +112,18 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
                 if (s.bookId.isNotEmpty() && s.durationMs > 0 && sesKeys.add(s.bookId to s.startedAt)) { dao.addSession(s); ns++ }
             }
         }
+        // 서점 바로가기(F-36): 백업에 있으면 그 목록으로 바꾼다
+        root.optJSONArray("storeApps")?.let { arr ->
+            val apps = arr.objects().mapNotNull { o -> o.optString("pkg").takeIf { it.isNotEmpty() }?.let { StoreApp(it, o.optString("label", it), o.optInt("ord")) } }
+            db.withTransaction {
+                dao.allStoreApps().forEach { dao.deleteStoreApp(it.pkg) }
+                dao.upsertStoreApps(apps)
+            }
+        }
         // 설정은 백업 값으로 바꾼다(한 사람이 쓰는 앱이라 합칠 대상이 없음).
         val so = root.optJSONObject("settings")
         if (so != null) {
-            prefs.update { settingsOf(so, it) }
+            prefs.update { settingsOf(so, it).copy(storageAsked = it.storageAsked, storeInit = true) }
         }
         ImportResult(updated, missing, nb, nn, nh, ns, so != null)
     }
@@ -134,6 +146,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("id", id).put("title", title).put("format", format).put("path", path).put("folder", folder)
             .put("sizeBytes", sizeBytes).put("pageCount", pageCount).put("lastPage", lastPage).put("addedAt", addedAt)
             .put("lastOpenedAt", lastOpenedAt).put("status", status).put("seriesKey", seriesKey).put("volume", volume).put("viewMode", viewMode)
+            .put("favorite", favorite).put("textEncoding", textEncoding)
 
         private fun bookOf(o: JSONObject) = Book(
             id = o.optString("id"), title = o.optString("title"), format = o.optString("format"), path = o.optString("path"),
@@ -141,6 +154,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             lastPage = o.optInt("lastPage"), addedAt = o.optLong("addedAt", System.currentTimeMillis()),
             lastOpenedAt = o.optLong("lastOpenedAt"), status = o.optInt("status"), seriesKey = o.optString("seriesKey"),
             volume = o.optInt("volume"), viewMode = o.optInt("viewMode"),
+            favorite = o.optBoolean("favorite", false), textEncoding = o.optString("textEncoding"),
         )
 
         private fun Bookmark.toJson() = JSONObject().put("bookId", bookId).put("page", page).put("label", label).put("createdAt", createdAt).put("frac", frac.toDouble())

@@ -2385,6 +2385,52 @@
    ]
   },
   {
+   "group": "문서 변환·DjVu 엔진 (C·C++)",
+   "name": "libmobi",
+   "version": "0.12",
+   "license": "LGPL-3.0-or-later",
+   "copyright": "Copyright (c) Bartek Fabiszewski",
+   "note": "MOBI·AZW3(KF8) → EPUB 재구성. 암호 해제(USE_ENCRYPTION) 빼고 정적 링크(engine-convert). 내장 miniz(MIT)·xmlwriter 포함",
+   "texts": [
+    "texts/4b3775371664.txt",
+    "texts/be1e8d2c47e3.txt"
+   ]
+  },
+  {
+   "group": "문서 변환·DjVu 엔진 (C·C++)",
+   "name": "miniz (libmobi 포함)",
+   "version": "1.15",
+   "license": "Unlicense",
+   "copyright": "Rich Geldreich",
+   "note": "libmobi 에 함께 들어 있는 판(src/miniz.c), 공개 도메인",
+   "texts": [
+    "texts/b928afa4b81a.txt"
+   ]
+  },
+  {
+   "group": "문서 변환·DjVu 엔진 (C·C++)",
+   "name": "libmspack",
+   "version": "55d5019",
+   "license": "LGPL-2.1-only",
+   "copyright": "(C) 2003-2019 Stuart Caie",
+   "note": "CHM 풀기(chmd·lzxd)만 정적 링크(engine-convert)",
+   "texts": [
+    "texts/7fbe81ab0fa9.txt"
+   ]
+  },
+  {
+   "group": "문서 변환·DjVu 엔진 (C·C++)",
+   "name": "DjVuLibre",
+   "version": "3.5.30",
+   "license": "GPL-2.0-or-later",
+   "copyright": "Copyright (c) 2002 Leon Bottou and Yann Le Cun; Copyright (c) 2001 AT&T; Copyright (c) 1999-2001 LizardTech, Inc.",
+   "note": "DjVu 쪽 그리기(libdjvu, engine-djvu). 'GPL v2 또는 (선택에 따라) 그 이후 판'이라 AGPL-3.0-or-later 앱과 함께 배포(D-001 A안)",
+   "texts": [
+    "texts/0e5aad9553dc.txt",
+    "texts/f1f8f25a9b27.txt"
+   ]
+  },
+  {
    "group": "자바·코틀린 라이브러리",
    "name": "androidx.activity:activity",
    "version": "1.13.0",

@@ -41,6 +41,10 @@ data class Settings(
     val tapGuideShown: Boolean = false,
     /** AI 화질 개선 캐시 상한(MB). 300 / 1024(기본) / 2048 (F-73). */
     val upscaleCacheMb: Int = 1024,
+    /** 파일 접근 안내(S-02)를 한 번 거쳤나(허용·거부·나중에 모두). */
+    val storageAsked: Boolean = false,
+    /** 서점 바로가기 기본 항목(예스24)을 넣었나(F-36). 사용자가 빼면 다시 넣지 않는다. */
+    val storeInit: Boolean = false,
 )
 
 class Prefs(private val context: Context) {
@@ -56,6 +60,8 @@ class Prefs(private val context: Context) {
         val once = booleanPreferencesKey("clear_once")
         val tap = booleanPreferencesKey("tap_guide_shown")
         val upCache = intPreferencesKey("upscale_cache_mb")
+        val storageAsked = booleanPreferencesKey("storage_asked")
+        val storeInit = booleanPreferencesKey("store_init")
     }
 
     val settings: Flow<Settings> = context.dataStore.data
@@ -74,6 +80,8 @@ class Prefs(private val context: Context) {
         clearOnceOnExit = p[K.once] ?: true,
         tapGuideShown = p[K.tap] ?: false,
         upscaleCacheMb = (p[K.upCache] ?: 1024).let { v -> UPSCALE_CACHE_CHOICES.firstOrNull { it == v } ?: 1024 },
+        storageAsked = p[K.storageAsked] ?: false,
+        storeInit = p[K.storeInit] ?: false,
     )
 
     /**
@@ -94,6 +102,8 @@ class Prefs(private val context: Context) {
             p[K.once] = s.clearOnceOnExit
             p[K.tap] = s.tapGuideShown
             p[K.upCache] = s.upscaleCacheMb
+            p[K.storageAsked] = s.storageAsked
+            p[K.storeInit] = s.storeInit
         }
     }
 

@@ -24,6 +24,11 @@ import kr.vici.ashreader.engine.comic.PageDecoder
 import kr.vici.ashreader.engine.comic.PagePanels
 import kr.vici.ashreader.engine.comic.PanelDetector
 import kr.vici.ashreader.engine.comic.ReadingDirection
+import kr.vici.ashreader.engine.convert.ChmEpub
+import kr.vici.ashreader.engine.convert.ConvertResult
+import kr.vici.ashreader.engine.convert.MobiEpub
+import kr.vici.ashreader.engine.convert.TextEncoding
+import kr.vici.ashreader.engine.djvu.DjvuDoc
 import kr.vici.ashreader.engine.hwp.HwpDoc
 import kr.vici.ashreader.engine.hwp.HwpHealth
 import kr.vici.ashreader.engine.mupdf.MupdfDoc
@@ -61,6 +66,9 @@ interface ReaderDoc : Closeable {
 data class TocEntry(val title: String, val depth: Int, val page: Int)
 
 class OpenFailed(msg: String) : Exception(msg)
+
+/** 서점 보호(DRM)가 걸린 책(D-002, S-43 서점 보호 안내). 해제하지 않는다. */
+class DrmProtected : Exception("서점 보호가 걸린 책이에요. 구매한 서점의 앱에서 읽어 주세요.")
 
 /** 암호 걸린 문서: 암호가 필요함([wrong]=false) 또는 틀림([wrong]=true). 암호는 저장하지 않는다. */
 class PasswordNeeded(val wrong: Boolean) : Exception(if (wrong) "암호가 맞지 않아요." else "암호가 걸린 문서예요.")
@@ -134,12 +142,24 @@ object DocOpener {
     fun open(
         context: Context, file: File, format: DocFormat, pageWdp: Float, pageHdp: Float, s: Settings,
         hwpEbook: Boolean = false, password: String? = null, docId: String = DocCaches.keyOf(file), comic: Boolean = false,
+        /** TXT 인코딩 수동 지정(F-32). null = 자동 판별. */
+        textEncoding: TextEncoding.Kind? = null,
     ): ReaderDoc {
         BundledFonts.install(context)
         return when (format.engine) {
             DocFormat.Engine.MUPDF -> if (comic && format == DocFormat.PDF) {
                 ComicReaderDoc(PdfComicPages(file, password), format, docId)
+            } else if (format == DocFormat.TXT) {
+                val t = TxtUtf8.convert(context, file, docId, textEncoding)
+                MupdfReaderDoc(t.file, format, pageWdp, pageHdp, s, context).also { it.textKind = t.kind; it.textAuto = textEncoding == null }
             } else MupdfReaderDoc(file, format, pageWdp, pageHdp, s, context, password = password)
+            DocFormat.Engine.CONVERT -> {
+                val epub = Converted.epub(context, file, format, docId)
+                if (epub != null) MupdfReaderDoc(epub, format, pageWdp, pageHdp, s, context, reflow = true)
+                // libmobi 가 못 읽은(DRM 아닌) MOBI·AZW3 는 MuPDF 의 MOBI 처리기로 한 번 더(옛 PalmDOC 본문만)
+                else MupdfReaderDoc(file, DocFormat.MOBI, pageWdp, pageHdp, s, context, reflow = true)
+            }
+            DocFormat.Engine.DJVU -> DjvuReaderDoc(file)
             DocFormat.Engine.HWP -> {
                 HwpDiag.check(file)
                 if (hwpEbook) {
@@ -257,12 +277,84 @@ class MupdfReaderDoc(
 
     @Volatile private var closed = false
 
+    /** TXT 로 열었을 때 쓴 인코딩(F-32)과 자동 판별 여부(읽기 메뉴 표시용). */
+    @Volatile var textKind: TextEncoding.Kind? = null
+    @Volatile var textAuto: Boolean = true
+
     /** 그림만 든 PDF(스캔 만화)인지 — '만화로 보기' 제안용. 닫힌 뒤에는 false. */
     fun isImageOnly(): Boolean = format == DocFormat.PDF && synchronized(lock) { !closed && doc.isImageOnly() }
 
     override fun close() {
         synchronized(lock) { if (!closed) { closed = true; doc.close() } }
         onClose?.invoke()
+    }
+}
+
+/** DjVu(F-26 고정 쪽, DjVuLibre). 쪽 그림 + 목차 + 숨은 글자층 줄 글자(듣기·검색). 글자 위치는 쓰지 않는다. */
+class DjvuReaderDoc(file: File) : ReaderDoc {
+    override val format: DocFormat = DocFormat.DJVU
+    private val doc: DjvuDoc = try { DjvuDoc.open(file.absolutePath) } catch (e: Exception) {
+        throw OpenFailed(e.message?.takeIf { it.contains("기기") } ?: "DjVu 파일을 열 수 없어요. 손상되었을 수 있어요.")
+    }
+    override val pageCount: Int = runCatching { doc.pageCount() }.getOrDefault(0)
+
+    override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap {
+        val sz = doc.pageSize(index)
+        // 쪽 맞춤: 화면 안에 들어가는 폭으로 그린다(세로로 긴 쪽은 높이에 맞춤)
+        val fitW = minOf(w.toFloat(), h.toFloat() * sz.width / sz.height).toInt().coerceAtLeast(1)
+        return fitInto(doc.renderPage(index, fitW), w, h, colors, applyTheme = true)
+    }
+
+    override fun pageLines(index: Int): List<String> = runCatching { doc.pageLines(index) }.getOrDefault(emptyList())
+
+    override fun toc(): List<TocEntry> = runCatching { doc.outline().map { TocEntry(it.title, it.depth, it.page) } }.getOrDefault(emptyList())
+
+    override fun close() = doc.close()
+}
+
+/**
+ * MOBI·AZW3·CHM → 합성 EPUB(:engine-convert). 결과는 cache/convert/<docId>.epub 에 두고 다시 열 때 쓴다(필수 5 의 변환 캐시 규칙).
+ * null = libmobi 가 읽지 못함(MuPDF 로 한 번 더). DRM 은 [DrmProtected].
+ */
+object Converted {
+    fun epub(context: Context, file: File, format: DocFormat, key: String): File? {
+        val dir = File(context.cacheDir, "convert/$key").apply { mkdirs() }
+        val out = File(dir, "book.epub")
+        if (out.isFile && out.length() > 0) return out
+        val work = File(context.cacheDir, "convert-work/" + UUID.randomUUID())
+        val r = when (format) {
+            DocFormat.CHM -> ChmEpub.convert(file, work, out, file.nameWithoutExtension)
+            else -> MobiEpub.convert(file, work, out)
+        }
+        return when (r) {
+            is ConvertResult.Ok -> r.epub
+            ConvertResult.Drm -> throw DrmProtected()
+            is ConvertResult.Unsupported -> throw OpenFailed(r.why)
+            is ConvertResult.Failed -> if (format == DocFormat.CHM) throw OpenFailed(r.why) else null
+        }
+    }
+}
+
+/** TXT → UTF-8(F-32). 자동 판별(BOM·UTF-16·UTF-8·CP949) 또는 사용자가 고른 인코딩. 결과는 cache/txt/<docId>/<인코딩>.txt. */
+object TxtUtf8 {
+    class Out(val file: File, val kind: TextEncoding.Kind)
+
+    fun convert(context: Context, file: File, key: String, forced: TextEncoding.Kind?): Out {
+        if (file.length() > (256L shl 20)) throw OpenFailed("텍스트 파일이 너무 커요(256MB 넘음).")
+        val kind = forced ?: run {
+            val head = ByteArray(minOf(file.length(), TextEncoding.SAMPLE.toLong()).toInt())
+            java.io.RandomAccessFile(file, "r").use { it.readFully(head) }
+            TextEncoding.detect(head)
+        }
+        val dir = File(context.cacheDir, "txt/$key").apply { mkdirs() }
+        val out = File(dir, kind.name + ".txt")
+        if (!out.isFile || out.length() == 0L || out.lastModified() < file.lastModified()) {
+            val text = TextEncoding.decode(file.readBytes(), kind)
+            val tmp = File(dir, kind.name + ".tmp")
+            tmp.writeText(text, Charsets.UTF_8)
+            if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
+        }
+        return Out(out, kind)
     }
 }
 
@@ -447,7 +539,7 @@ object HwpDiag {
  * 한 번만 보기 문서는 닫을 때 지우고, 앱 시작 때 서재에 없는 문서의 캐시를 쓸어 낸다.
  */
 object DocCaches {
-    private val DIRS = listOf("office", "hwp-ebook", "upscale")
+    private val DIRS = listOf("office", "hwp-ebook", "upscale", "convert", "txt")
 
     /** 파일 이름이 'id.확장자'(서재·한 번만 보기 사본 규칙)면 id, 아니면 경로 기반 SHA-256 앞부분. */
     fun keyOf(file: File): String {
@@ -465,6 +557,7 @@ object DocCaches {
 
     /** [keep](서재 문서 id)에 없는 문서의 변환 캐시를 지운다. 서재 문서의 AI 화질 캐시는 상한으로만 관리한다(F-73). */
     fun sweep(context: Context, keep: Set<String>) {
+        File(context.cacheDir, "convert-work").deleteRecursively()
         for (d in DIRS) {
             File(context.cacheDir, d).listFiles()?.forEach { f -> if (f.name !in keep) f.deleteRecursively() }
         }

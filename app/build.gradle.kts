@@ -123,6 +123,8 @@ dependencies {
     implementation(project(":engine-hwp"))
     implementation(project(":engine-comic"))
     implementation(project(":engine-office"))
+    implementation(project(":engine-convert"))
+    implementation(project(":engine-djvu"))
 
     testImplementation(libs.junit)
 }
