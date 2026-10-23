@@ -75,8 +75,8 @@ class B02LibraryTest : E2eTest() {
         has(By.pkg(Pattern.compile(".*documentsui.*")), 10_000)
         SystemClock.sleep(1_000)
         shot("folder-picker")
-        device.pressBack()
-        SystemClock.sleep(1_000)
+        // 시스템 폴더 고르기(com.android.documentsui / com.google.android.documentsui)는 '뒤로'가 서랍부터 닫을 수 있다
+        repeat(3) { if (device.currentPackageName != PKG) { device.pressBack(); SystemClock.sleep(1_000) } }
         assertAlive()
         // Download 줄 [빼기] → 스낵바 [되돌리기] → 다시 들어옴
         val before = runBlocking { app.db.books().allScanFolders() }.count { it.include }

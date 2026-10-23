@@ -34,8 +34,12 @@ class E05ComicTest : E2eTest() {
     }
 
     private fun closeSheet() {
-        device.findObject(By.desc("만화 설정 닫기"))?.click() ?: device.pressBack()
-        SystemClock.sleep(800)
+        // 시트가 다 펼쳐졌거나 안을 밀었으면 '뒤로' 한 번에 안 닫힐 수 있다 → 시트 글자가 사라질 때까지
+        repeat(3) {
+            if (!device.hasObject(By.text("만화 설정")) && !device.hasObject(By.text("읽는 방향")) && !device.hasObject(By.text("화질"))) return@repeat
+            device.findObject(By.desc("만화 설정 닫기"))?.click() ?: device.pressBack()
+            SystemClock.sleep(800)
+        }
         closeMenu()
     }
 

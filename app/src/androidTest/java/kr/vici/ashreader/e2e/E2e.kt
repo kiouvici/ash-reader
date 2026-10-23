@@ -13,6 +13,7 @@ import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
+import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
@@ -239,35 +240,66 @@ abstract class E2eTest {
 
     // ───────────── 찾기 도우미 ─────────────
 
-    protected fun find(sel: BySelector, timeoutMs: Long): UiObject2? {
+    /**
+     * 찾은 화면 요소. Compose 가 다시 그리면 UiObject2 가 낡아(StaleObjectException) 누르기·읽기가 실패하므로
+     * 같은 선택자로 다시 찾아 몇 번 더 해 본다.
+     */
+    inner class UiRef(val sel: BySelector, private var o: UiObject2) {
+        private fun <T> live(f: (UiObject2) -> T): T {
+            repeat(4) { i ->
+                try { return f(o) } catch (e: StaleObjectException) {
+                    SystemClock.sleep(300); pump()
+                    o = device.findObject(sel) ?: if (i == 3) throw e else return@repeat
+                }
+            }
+            return f(o)
+        }
+        fun click() = live { it.click() }
+        fun longClick() = live { it.longClick() }
+        var text: String?
+            get() = live { it.text }
+            set(v) { live { it.text = v ?: "" } }
+        val visibleBounds: Rect get() = live { it.visibleBounds }
+        val isChecked: Boolean get() = live { it.isChecked }
+        val contentDescription: String? get() = live { it.contentDescription }
+    }
+
+    protected fun find(sel: BySelector, timeoutMs: Long): UiRef? {
         val end = SystemClock.uptimeMillis() + timeoutMs
         while (true) {
             pump()
-            device.findObject(sel)?.let { return it }
+            runCatching { device.findObject(sel) }.getOrNull()?.let { return UiRef(sel, it) }
             if (SystemClock.uptimeMillis() > end) return null
             SystemClock.sleep(250)
         }
     }
 
-    protected fun obj(sel: BySelector, timeoutMs: Long = 10_000): UiObject2 =
+    protected fun obj(sel: BySelector, timeoutMs: Long = 10_000): UiRef =
         find(sel, timeoutMs) ?: run {
             shot("missing")
             fail("화면에서 찾지 못함: $sel")
             throw IllegalStateException()
         }
 
+    /** 지금 쪽 번호를 (조금 기다려) 반드시 얻는다. */
+    protected fun page(): Int {
+        val end = SystemClock.uptimeMillis() + 6_000
+        while (SystemClock.uptimeMillis() < end) { runCatching { currentPage() }.getOrNull()?.let { return it }; SystemClock.sleep(250) }
+        shot("no-page"); fail("쪽 번호를 읽을 수 없음"); throw IllegalStateException()
+    }
+
     protected fun has(sel: BySelector, timeoutMs: Long = 5_000): Boolean = find(sel, timeoutMs) != null
 
     protected fun clickText(t: String, timeoutMs: Long = 10_000) = obj(By.text(t), timeoutMs).click().also { SystemClock.sleep(500) }
 
     /** 스크롤해 가며 찾는다(Compose 스크롤 목록도 접근성 스크롤로 움직인다). */
-    protected fun scrollFind(sel: BySelector, maxSwipes: Int = 12): UiObject2? {
-        device.findObject(sel)?.let { return it }
-        val scrollable = device.findObject(By.scrollable(true))
+    protected fun scrollFind(sel: BySelector, maxSwipes: Int = 12): UiRef? {
+        find(sel, 0)?.let { return it }
+        val scrollable = runCatching { device.findObject(By.scrollable(true)) }.getOrNull()
         repeat(maxSwipes) {
             if (scrollable != null) runCatching { scrollable.scroll(Direction.DOWN, 0.6f) } else swipe(0.5f, 0.75f, 0.5f, 0.35f, 30)
             SystemClock.sleep(300)
-            device.findObject(sel)?.let { return it }
+            find(sel, 0)?.let { return it }
         }
         return null
     }

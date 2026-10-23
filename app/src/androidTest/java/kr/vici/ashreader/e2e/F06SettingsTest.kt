@@ -125,9 +125,9 @@ class F06SettingsTest : E2eTest() {
         val header = obj(By.text(Pattern.compile(".+ \\(\\d+\\)")), 15_000)
         shot("licenses")
         val y = header.visibleBounds.centerY()
-        // 묶음 제목 바로 아래 줄의 글자(누르면 그 줄이 눌린다)
-        val first = device.findObjects(By.clazz("android.widget.TextView").pkg(PKG)).filter { it.visibleBounds.centerY() > y + 10 && it.visibleBounds.centerY() < device.displayHeight * 0.85 }.minByOrNull { it.visibleBounds.centerY() }
-        assertTrue("라이선스 항목이 없음", first != null)
+        // MuPDF 줄(라이선스 원문이 있는 항목)
+        val first = scrollFind(By.textStartsWith("MuPDF"))
+        assertTrue("라이선스 항목이 없음 (제목 y=$y)", first != null)
         first!!.click()
         SystemClock.sleep(1_500)
         assertTrue("라이선스 원문 화면이 아님", !device.hasObject(By.text("오픈소스 라이선스")))
@@ -155,26 +155,24 @@ class F06SettingsTest : E2eTest() {
         assertTrue("내보내기 결과가 없음", has(By.textStartsWith("내보냈어요."), 20_000))
         shot("export-done")
         clickText("확인")
-        // 가져오기: 방금 만든 파일(최근 파일·다운로드)
+        // 가져오기(S-53, 7F): '백업 가져오기' 화면 — 기억한 백업 폴더의 .ashbak 목록에서 골라 [가져오기].
+        // (옛 판: 시스템 파일 고르기). 폴더를 아직 고르지 않았으면 시스템 폴더 고르기가 기기마다 달라 화면만 남긴다.
         row("백업·내보내기")
-        clickText("파일에서 가져오기")
-        assertTrue(has(By.pkg(Pattern.compile(".*documentsui.*")), 15_000))
-        SystemClock.sleep(2_000)
-        var file = find(By.textStartsWith("ASH-백업-"), 6_000)
-        if (file == null) {
-            // 최근 목록에 없으면 다운로드로
-            device.findObject(By.desc(Pattern.compile("(?i)show roots|루트 표시")))?.click()
-            SystemClock.sleep(800)
-            device.findObject(By.text(Pattern.compile("(?i)downloads?|다운로드")))?.click()
-            SystemClock.sleep(1_500)
-            file = find(By.textStartsWith("ASH-백업-"), 8_000)
+        clickText(find(By.text("백업 가져오기"), 3_000)?.let { "백업 가져오기" } ?: "파일에서 가져오기")
+        SystemClock.sleep(1_500)
+        shot("import-screen")
+        val newest = find(By.text("가장 최근 백업"), 8_000)
+        if (newest != null) {
+            newest.click()
+            SystemClock.sleep(500)
+            obj(By.text("가져오기")).click()
+            assertTrue("가져오기 결과가 없음", has(By.textStartsWith("가져와서 합쳤어요."), 20_000))
+            shot("import-done")
+            find(By.text("확인"), 3_000)?.click()
+        } else {
+            android.util.Log.w(TAG, "백업 폴더를 아직 고르지 않아 가져오기는 화면만 확인")
+            device.pressBack()
         }
-        shot("import-picker")
-        assertTrue("내보낸 백업 파일을 고르기에서 찾지 못함", file != null)
-        file!!.click()
-        assertTrue("가져오기 결과가 없음", has(By.textStartsWith("가져와서 합쳤어요."), 20_000))
-        shot("import-done")
-        clickText("확인")
         assertAlive()
     }
 }

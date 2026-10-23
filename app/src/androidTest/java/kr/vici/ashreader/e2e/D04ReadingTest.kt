@@ -39,7 +39,7 @@ class D04ReadingTest : E2eTest() {
         assertTrue("탭 안내가 뜨지 않음", has(By.text("화면을 누르는 곳에 따라 쪽을 넘겨요"), 8_000))
         shot("tap-guide")
         clickText("알겠어요")
-        val p0 = currentPage()!!
+        val p0 = page()
         // 오른쪽 = 다음, 왼쪽 = 이전(좌우 배치 기본)
         tap(0.9f, 0.5f)
         val p1 = waitPageChange(p0, forward = true)!!
@@ -58,7 +58,7 @@ class D04ReadingTest : E2eTest() {
         val p4 = waitPageChange(p3, forward = false)!!
         assertTrue("밀어서 돌아오지 않음 ($p3 → $p4)", p4 < p3)
         // 종이책(curl): 오른쪽 아래 모서리를 천천히 끌어 왼쪽으로
-        swipe(0.97f, 0.92f, 0.05f, 0.55f, 60)
+        swipe(0.88f, 0.9f, 0.05f, 0.55f, 60) // 오른쪽 끝 띠는 시스템 뒤로 가기 제스처라 피한다
         val p5 = waitPageChange(p4, forward = true)!!
         shot("curl-drag")
         assertTrue("모서리를 끌어 넘어가지 않음 ($p4 → $p5)", p5 > p4)
@@ -70,13 +70,13 @@ class D04ReadingTest : E2eTest() {
             shot("turn-sheet-$effect")
             device.pressBack(); SystemClock.sleep(400)
             closeMenu()
-            val a = currentPage()!!
+            val a = page()
             tap(0.9f, 0.5f)
             val b = waitPageChange(a, forward = true)!!
             assertTrue("넘김 효과 '$effect' 에서 넘어가지 않음 ($a → $b)", b > a)
         }
         // 볼륨 키(다음 쪽)
-        val v0 = currentPage()!!
+        val v0 = page()
         device.pressKeyCode(android.view.KeyEvent.KEYCODE_VOLUME_DOWN)
         val v1 = waitPageChange(v0, forward = true)
         shot("volume-key")
@@ -88,7 +88,7 @@ class D04ReadingTest : E2eTest() {
     fun rotation_keepsReaderAndPosition() {
         openBook()
         repeat(3) { tap(0.9f, 0.5f) }
-        val before = currentPage()!!
+        val before = page()
         shot("before-rotate")
         val rot0 = device.displayRotation
         try {
@@ -97,7 +97,7 @@ class D04ReadingTest : E2eTest() {
             val d = waitPage()
             shot("rotated")
             assertTrue("회전 뒤 읽던 책이 아님: $d", d.startsWith(book) || Regex("\\d+쪽").matches(d))
-            val after = currentPage()!!
+            val after = page()
             // 다시 배치되며 쪽 수가 바뀌어도 읽던 비율 근처여야 한다(처음으로 돌아가면 실패)
             assertTrue("회전 뒤 처음 쪽으로 돌아감 ($before → $after)", before <= 2 || after > 1)
             // 회전한 채로 넘기기·메뉴
@@ -141,8 +141,8 @@ class D04ReadingTest : E2eTest() {
         scrollFind(By.text("글자 단위"))?.click()
         scrollFind(By.text("영문 하이픈 넣기"))?.click()
         shot("aa-para")
-        // 시트 닫기(첫 '뒤로'는 키보드·펼침만 닫을 수 있다)
-        repeat(3) { if (device.hasObject(By.text("문단"))) { device.pressBack(); SystemClock.sleep(700) } }
+        // 시트 닫기: 쪽이 다시 보일 때까지 '뒤로'(시트가 다 펼쳐지면 탭 이름이 화면 밖이라 글자로는 못 본다)
+        repeat(3) { if (device.hasObject(By.text("줄 간격")) || device.hasObject(By.text("글꼴")) || device.hasObject(By.text("영문 하이픈 넣기"))) { device.pressBack(); SystemClock.sleep(800) } }
         // 다시 배치된 문서가 열리는지
         waitPage()
         closeMenu()
@@ -212,13 +212,13 @@ class D04ReadingTest : E2eTest() {
         SystemClock.sleep(1_200)
         assertTrue("검색 표시 띠가 없음", has(By.text("검색 결과로"), 5_000))
         shot("search-hit")
-        val now = currentPage()!!
+        val now = page()
         assertTrue("검색 결과 쪽으로 가지 않음 (기대 $target, 지금 $now)", kotlin.math.abs(now - target) <= 1)
         obj(By.desc("검색 표시 지우기")).click()
         // 목차 → 3장
         openMenu()
         closeMenu()
-        val before = currentPage()!!
+        val before = page()
         openMenu()
         clickText("목차")
         val ch = obj(By.textContains("제3장"), 10_000)
@@ -234,7 +234,7 @@ class D04ReadingTest : E2eTest() {
     fun bookmark_memo_highlight() {
         openBook()
         tap(0.9f, 0.5f)
-        val page = currentPage()!!
+        val page = page()
         // 책갈피
         openMenu()
         obj(By.desc("책갈피")).click()
@@ -249,12 +249,18 @@ class D04ReadingTest : E2eTest() {
         clickText("저장")
         // 형광펜: 본문 글자를 길게 눌러 고르기 → 형광펜 → 노랑
         closeMenu()
-        longPress(0.45f, 0.3f)
-        if (!has(By.text("형광펜"), 4_000)) longPress(0.5f, 0.45f)
-        shot("selection")
-        clickText("형광펜")
-        obj(By.desc("노랑 형광펜")).click()
-        assertTrue("형광펜 안내가 없음", has(By.text("형광펜을 칠했어요."), 5_000))
+        // 낱말 위를 길게 누른다(줄 사이·빈칸을 누르면 빈칸만 골라질 수 있어 몇 군데 시도)
+        var done = false
+        for ((x, y) in listOf(0.25f to 0.35f, 0.5f to 0.42f, 0.3f to 0.55f, 0.6f to 0.62f)) {
+            longPress(x, y)
+            if (!has(By.text("형광펜"), 3_000)) continue
+            shot("selection")
+            clickText("형광펜")
+            obj(By.desc("노랑 형광펜")).click()
+            if (has(By.text("형광펜을 칠했어요."), 4_000)) { done = true; break }
+            device.pressBack(); SystemClock.sleep(500)
+        }
+        assertTrue("형광펜 안내가 없음", done)
         shot("highlighted")
         // 목록 확인
         openMenu()

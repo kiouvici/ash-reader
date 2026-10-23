@@ -32,7 +32,7 @@ class H08RestoreTest : E2eTest() {
         waitPage()
         dismissTapGuide()
         repeat(3) { tap(0.9f, 0.5f) }
-        val before = currentPage()!!
+        val before = page()
         shot("before-home")
         shell("settings put global always_finish_activities 1")
         device.pressHome()
