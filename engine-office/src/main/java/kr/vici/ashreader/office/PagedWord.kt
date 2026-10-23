@@ -21,7 +21,13 @@ class PagedWord(
     val notes: List<Pair<String, String>>,
     val images: Map<String, ByteArray>,
     val stats: Stats,
+    /** EMF·WMF 그림: 쪽 묶음 이름(…png) → 원본. [writeTo] 가 앱의 그리기 함수로 PNG 를 만든다(못 그리면 회색 상자). */
+    val metafiles: Map<String, MetaPic> = emptyMap(),
+    /** 목차(원본 보기 F-10): 제목 문단 표지 id → (단계 0.., 제목). 쪽 번호는 합성기가 정한다. */
+    val headings: List<Heading> = emptyList(),
 ) {
+    class MetaPic(val data: ByteArray, val wPt: Float, val hPt: Float)
+    class Heading(val id: String, val level: Int, val title: String)
     class Section(
         val pageW: Float, val pageH: Float,
         val top: Float, val right: Float, val bottom: Float, val left: Float,
@@ -35,6 +41,9 @@ class PagedWord(
         val headers: Map<String, String>,
         val footers: Map<String, String>,
         val overlays: List<Overlay>,
+        /** 다단(w:cols): 단 수와 단 사이 간격(pt). 단 폭은 같게 나눈다. */
+        val cols: Int = 1,
+        val colSpace: Float = 36f,
     )
 
     /** 글 뒤/앞 떠 있는 그림. relX: page|margin, relY: page|margin|paragraph. 좌표·크기 pt. */
@@ -43,11 +52,25 @@ class PagedWord(
     data class Stats(
         val sections: Int, val paragraphs: Int, val tables: Int, val images: Int, val overlays: Int,
         val headers: Int, val footers: Int, val footnotes: Int, val tabParagraphs: Int, val pageBreaks: Int,
+        val metafiles: Int = 0, val headings: Int = 0,
     )
 
-    fun writeTo(dir: File) {
+    /**
+     * 쪽 묶음 폴더를 쓴다. [raster] = EMF·WMF 그리기(그림 목록, 폭 px, 높이 px → PNG). 없거나 실패하면 회색 상자 PNG.
+     */
+    fun writeTo(dir: File, raster: ((Metafile, Int, Int) -> ByteArray?)? = null) {
         dir.mkdirs()
         for ((name, data) in images) File(dir, name).apply { parentFile?.mkdirs() }.writeBytes(data)
+        for ((name, m) in metafiles) {
+            val wPx = (m.wPt * RASTER_DPI / 72f).toInt().coerceIn(8, 2400)
+            val hPx = (m.hPt * RASTER_DPI / 72f).toInt().coerceIn(8, 2400)
+            val png = if (raster == null) null else runCatching { Metafile.parse(m.data)?.let { raster(it, wPx, hPx) } }.getOrNull()
+            File(dir, name).apply { parentFile?.mkdirs() }.writeBytes(png ?: GRAY_PNG)
+        }
+        if (headings.isNotEmpty()) {
+            // 목차 표지 id·단계·제목(합성기가 쪽 번호를 붙여 toc.txt 로 쓴다)
+            File(dir, "headings.txt").writeText(headings.joinToString("\n") { h -> h.id + "\t" + h.level + "\t" + h.title.replace('\t', ' ').replace('\n', ' ') })
+        }
         val man = StringBuilder("# ash-paged 1\n")
         if (notes.isNotEmpty()) {
             val sb = StringBuilder()
@@ -61,6 +84,7 @@ class PagedWord(
         for ((i, s) in sections.withIndex()) {
             man.append("section\n")
             man.append("geom ").append(listOf(s.pageW, s.pageH, s.top, s.right, s.bottom, s.left, s.headerDist, s.footerDist).joinToString(" ") { f(it) }).append('\n')
+            if (s.cols > 1) man.append("cols ").append(s.cols).append(' ').append(f(s.colSpace)).append('\n')
             man.append("flags ").append(if (s.titlePg) 1 else 0).append(' ').append(if (s.evenOdd) 1 else 0).append(' ').append(s.pgStart).append(' ').append(s.pgFmt.ifEmpty { "decimal" }).append('\n')
             File(dir, "s$i-body.xhtml").writeText(wrap(s.body))
             man.append("body s$i-body.xhtml\n")
@@ -77,6 +101,21 @@ class PagedWord(
 
     companion object {
         const val PB = "<div class=\"pb\"></div>"
+        /** 단 나눔(w:br type=column): 쪽 나눔과 같이 갤리를 끊되, 다단 구역에서는 다음 단으로 간다. */
+        const val CB = "<div style=\"font-size:0.1pt;line-height:0.1pt\"><a href=\"#ash-colbr\">&#x2060;</a></div><div class=\"pb\"></div>"
+        /** EMF·WMF 를 그리는 해상도(dpi). */
+        const val RASTER_DPI = 200f
+        /** 그리지 못한 EMF·WMF 자리(1×1 연회색 PNG, 크기는 img 너비·높이로). */
+        val GRAY_PNG: ByteArray = byteArrayOf(
+            -119, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0, -112, 119, 83, -34, 0, 0, 0, 12, 73, 68, 65, 84,
+            120, -100, 99, 120, -16, -32, 1, 0, 5, 68, 2, -95, 46, 97, -23, 2, 0, 0, 0, 0, 73, 69, 78, 68, -82, 66, 96, -126,
+        )
+        /** 문단 시작 표지(과부·고아 줄 처리): 문단 첫 줄 위치를 합성기에 알린다. */
+        fun pMark(widow: Boolean) = if (widow) "<a href=\"#ash-pw\">&#x2060;</a>" else ""
+        /** 문단 끝 표지(과부·고아 줄 처리). */
+        const val P_END = "<a href=\"#ash-pe\">&#x2060;</a>"
+        /** 제목 표지(목차). */
+        fun hMark(id: String) = "<a href=\"#ash-h-$id\">&#x2060;</a>"
         /** 조각 끝 표지(머리글·바닥글·각주 높이 = 줄 상자 끝까지). */
         const val END = "<div style=\"font-size:0.1pt;line-height:0.1pt\"><a href=\"#ash-end\">&#x2060;</a></div>"
         /** 문단 앞 간격 표지: 쪽 첫 줄이 이 문단이면 Word 처럼 앞 간격을 쪽 위에 둔다. */

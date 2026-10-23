@@ -19,6 +19,8 @@ import org.w3c.dom.Element
  *  - 표: 격자 너비·들여쓰기·정렬·테두리(표 스타일/표/칸, 바깥·안쪽)·음영·가로/세로 병합·행 높이·칸 여백·세로 정렬·중첩 표
  *  - 그림: 글자처럼 배치(inline), 떠 있는 그림(글 뒤/앞 = 쪽 위 절대 위치, 그 밖 배치 = 문단 위 블록으로 근사), EMF/WMF 는 회색 상자
  *  - 각주(쪽 아래), 미주(문서 끝), 쪽 번호 필드(PAGE·NUMPAGES), 글상자 글자(문단 뒤 블록)
+ *  - 5묶음: 다단(w:cols)·단 나눔, 과부·고아 줄 방지(widowControl), 표 스타일 조건부 서식(첫/끝 행·열, 줄무늬, 모서리 칸),
+ *    EMF·WMF 그림(그리기 목록 → 앱이 PNG 로), 목차(개요 수준·제목 스타일)
  */
 class DocxPaged {
     fun convert(docx: ByteArray): PagedWord = Ctx(DocxConverter.readZip(docx)).run()
@@ -39,6 +41,7 @@ class DocxPaged {
         var line: Float? = null, var lineRule: String? = null, var contextual: Boolean? = null, var pageBreakBefore: Boolean? = null,
         var tabs: MutableMap<Int, Tab> = LinkedHashMap(), var numId: String? = null, var ilvl: Int? = null,
         var shd: String? = null, var wordWrap: Boolean? = null, var snap: Boolean? = null,
+        var widow: Boolean? = null, var outline: Int? = null,
         var borders: MutableMap<String, Pair<WordHtml.Border, Float>> = HashMap(),
     )
 
@@ -47,7 +50,12 @@ class DocxPaged {
     private class Geo(
         val w: Float, val h: Float, val top: Float, val right: Float, val bottom: Float, val left: Float, val hdr: Float, val ftr: Float,
         val titlePg: Boolean, val pgStart: Int, val pgFmt: String, val grid: Float, val type: String,
-    ) { val cw get() = (w - left - right).coerceAtLeast(72f) }
+        val cols: Int = 1, val colSpace: Float = 36f,
+    ) {
+        val cw get() = (w - left - right).coerceAtLeast(72f)
+        /** 다단이면 단 폭(본문은 단 폭으로 조판한다). */
+        val colW get() = if (cols <= 1) cw else ((cw - (cols - 1) * colSpace) / cols).coerceAtLeast(36f)
+    }
 
     private class Ctx(val zip: Map<String, ByteArray>) {
         val styles = HashMap<String, Style>()
@@ -70,7 +78,9 @@ class DocxPaged {
         var paras = 0; var tables = 0; var imgs = 0; var tabParas = 0; var pageBreaks = 0
         var geo: Geo? = null
         /** 지금 칸의 표 스타일 (pPr, rPr). 기본 문단 스타일 문단에는 표 스타일이 문단 스타일보다 앞선다(Word 동작). */
-        var cellStyle: Pair<Element?, Element?>? = null
+        var cellStyle: Pair<List<Element>, List<Element>>? = null
+        val metas = LinkedHashMap<String, PagedWord.MetaPic>()
+        val headings = ArrayList<PagedWord.Heading>()
 
         fun run(): PagedWord {
             val docXml = zip["word/document.xml"] ?: throw IllegalArgumentException("word/document.xml 없음")
@@ -99,7 +109,7 @@ class DocxPaged {
                 this.geo = geo
                 overlays.clear()
                 val sb = StringBuilder()
-                blockList(g.first, docRels, geo.cw, sb)
+                blockList(g.first, docRels, geo.colW, sb)
                 // 미주는 마지막 구역 끝에
                 if (gi == groups.size - 1 && endRefs.isNotEmpty()) endnotes(geo.cw, sb)
                 // 머리글/바닥글 참조(없는 종류는 앞 구역 것을 이어 씀)
@@ -121,12 +131,13 @@ class DocxPaged {
                 }
                 // 이어지는(continuous) 구역은 쪽 설정이 같으면 앞 구역에 붙인다
                 val prev = sections.lastOrNull()
-                if (prev != null && geo.type == "continuous" && prev.pageW == geo.w && prev.pageH == geo.h && prev.left == geo.left && prev.right == geo.right) {
+                // 단 수가 다르면 같은 쪽에 이어 붙이지 못한다(새 쪽에서 시작 — 한계)
+                if (prev != null && geo.type == "continuous" && prev.pageW == geo.w && prev.pageH == geo.h && prev.left == geo.left && prev.right == geo.right && prev.cols == geo.cols) {
                     sections[sections.size - 1] = PagedWord.Section(prev.pageW, prev.pageH, prev.top, prev.right, prev.bottom, prev.left, prev.headerDist, prev.footerDist,
-                        prev.titlePg, prev.evenOdd, prev.pgStart, prev.pgFmt, prev.body + sb, prev.headers, prev.footers, prev.overlays + overlays)
+                        prev.titlePg, prev.evenOdd, prev.pgStart, prev.pgFmt, prev.body + sb, prev.headers, prev.footers, prev.overlays + overlays, prev.cols, prev.colSpace)
                 } else {
                     sections += PagedWord.Section(geo.w, geo.h, geo.top, geo.right, geo.bottom, geo.left, geo.hdr, geo.ftr, geo.titlePg, evenOdd,
-                        if (sections.isEmpty() && geo.pgStart < 0) 1 else geo.pgStart, geo.pgFmt, sb.toString(), hs, fs, ArrayList(overlays))
+                        if (sections.isEmpty() && geo.pgStart < 0) 1 else geo.pgStart, geo.pgFmt, sb.toString(), hs, fs, ArrayList(overlays), geo.cols, geo.colSpace)
                 }
             }
 
@@ -146,7 +157,11 @@ class DocxPaged {
                     notes += id to sb.toString()
                 }
             }
-            return PagedWord(sections, notes, images, PagedWord.Stats(sections.size, paras, tables, imgs, sections.sumOf { it.overlays.size }, headersN, footersN, notes.size, tabParas, pageBreaks))
+            return PagedWord(
+                sections, notes, images,
+                PagedWord.Stats(sections.size, paras, tables, imgs, sections.sumOf { it.overlays.size }, headersN, footersN, notes.size, tabParas, pageBreaks, metas.size, headings.size),
+                metas, headings,
+            )
         }
 
         var noteNumber = 0
@@ -174,6 +189,11 @@ class DocxPaged {
             val pn = sp?.let { first(it, "pgNumType") }
             val grid = sp?.let { first(it, "docGrid") }
             val gridOn = grid?.getAttributeNS(W, "type") in setOf("lines", "linesAndChars", "snapToChars")
+            // 다단: 같은 폭 단(num·space). 폭이 다른 단(w:col 여러 개)은 단 수만 쓰고 같은 폭으로 근사한다.
+            val colsEl = sp?.let { first(it, "cols") }
+            val colChildren = colsEl?.let { children(it).filter { c -> c.localName == "col" } }.orEmpty()
+            val nCols = (colsEl?.getAttributeNS(W, "num")?.toIntOrNull() ?: colChildren.size.takeIf { it > 1 } ?: 1).coerceIn(1, 6)
+            val colSpace = tw(colsEl, "space") ?: colChildren.firstOrNull()?.let { tw(it, "space") } ?: 36f
             return Geo(
                 w, h,
                 kotlin.math.abs(tw(m, "top") ?: 72f), tw(m, "right") ?: 72f, kotlin.math.abs(tw(m, "bottom") ?: 72f), (tw(m, "left") ?: 72f) + (tw(m, "gutter") ?: 0f),
@@ -183,6 +203,7 @@ class DocxPaged {
                 pn?.getAttributeNS(W, "fmt")?.ifEmpty { null } ?: "decimal",
                 if (gridOn) tw(grid, "linePitch") ?: 0f else 0f,
                 sp?.let { first(it, "type") }?.getAttributeNS(W, "val")?.ifEmpty { null } ?: "nextPage",
+                nCols, colSpace,
             )
         }
 
@@ -196,7 +217,7 @@ class DocxPaged {
             val units = ArrayList<Blk>()
             fun collect(list: List<Element>) {
                 for (el in list) when (el.localName) {
-                    "p" -> units += paragraph(el, rels, cw, inCell)
+                    "p" -> units += paragraph(el, rels, cw, inCell, plain = inCell || headerPart)
                     "tbl" -> { val sb = StringBuilder(); table(el, rels, cw, sb); units += Blk.Html(sb.toString()) }
                     "sdt" -> first(el, "sdtContent")?.let { collect(children(it)) }
                     "customXml", "ins", "smartTag", "moveTo" -> collect(children(el))
@@ -225,7 +246,7 @@ class DocxPaged {
 
         fun copyPara(p: WordHtml.Para, before: Float = p.before, after: Float = p.after) = WordHtml.Para(
             p.items, p.jc, p.left, p.right, p.firstLine, before, after, p.lineRule, p.lineVal, p.tabs, p.defaultTab, p.markSize, p.markFont,
-            p.bg, p.keepAll, p.pageBreakBefore, p.gridPitch, p.id, p.borders,
+            p.bg, p.keepAll, p.pageBreakBefore, p.gridPitch, p.id, p.borders, p.widow, p.headId,
         )
 
         // ---------------- 스타일 해석 ----------------
@@ -307,6 +328,8 @@ class DocxPaged {
                 }
             }
             first(pPr, "snapToGrid")?.let { pp.snap = onOff(it) }
+            first(pPr, "widowControl")?.let { pp.widow = onOff(it) }
+            first(pPr, "outlineLvl")?.getAttributeNS(W, "val")?.toIntOrNull()?.let { pp.outline = it }
         }
 
         fun paraStyleId(p: Element): String? = first(p, "pPr")?.let { first(it, "pStyle") }?.getAttributeNS(W, "val") ?: defStyleP
@@ -316,14 +339,15 @@ class DocxPaged {
             applyR(rp, docDefR)
             val ts = cellStyle
             val tableWins = ts != null && (styleId == null || styleId == defStyleP)
-            if (ts != null && !tableWins) applyR(rp, ts.second)
+            if (ts != null && !tableWins) ts.second.forEach { applyR(rp, it) }
             for (s in chain(styleId)) applyR(rp, first(s.el, "rPr"))
-            if (ts != null && tableWins) applyR(rp, ts.second)
+            if (ts != null && tableWins) ts.second.forEach { applyR(rp, it) }
             return rp
         }
 
         // ---------------- 문단 ----------------
-        fun paragraph(p: Element, rels: Map<String, String>, cw: Float, inCell: Boolean): Blk {
+        /** [plain] = 표 칸·머리글·각주 문단(과부·고아 줄 표지와 목차 표지를 달지 않는다). */
+        fun paragraph(p: Element, rels: Map<String, String>, cw: Float, inCell: Boolean, plain: Boolean = inCell): Blk {
             paras++
             val pPr = first(p, "pPr")
             val styleId = paraStyleId(p)
@@ -331,9 +355,9 @@ class DocxPaged {
             applyP(pp, docDefP)
             val ts = cellStyle
             val tableWins = ts != null && (styleId == null || styleId == defStyleP)
-            if (ts != null && !tableWins) applyP(pp, ts.first)
+            if (ts != null && !tableWins) ts.first.forEach { applyP(pp, it) }
             for (s in chain(styleId)) applyP(pp, first(s.el, "pPr"))
-            if (ts != null && tableWins) applyP(pp, ts.first)
+            if (ts != null && tableWins) ts.first.forEach { applyP(pp, it) }
             // 번호: 스타일·직접 numPr
             val direct = PP(); applyP(direct, pPr)
             val numId = direct.numId ?: pp.numId
@@ -356,9 +380,15 @@ class DocxPaged {
                 }
             }
             inline(p, rels, base, items, pre, post, FieldState(), cw)
-            if (items.any { it is Item.PageBreak }) pageBreaks++
+            if (items.any { it is Item.PageBreak || it is Item.ColumnBreak }) pageBreaks++
             val sz = mark.sz ?: 10f
             val g = geo?.grid ?: 0f
+            // 목차(F-10 원본 보기): 개요 수준(0~8) 또는 '제목 N' 스타일 이름
+            val level = (pp.outline ?: headingLevel(styleId))?.takeIf { it in 0..8 }
+            val headId = if (!plain && level != null) {
+                val title = items.filterIsInstance<Item.Text>().joinToString("") { it.run.text }.trim().replace(Regex("\\s+"), " ")
+                if (title.isNotEmpty() && !title.contains(PagedWord.PAGE)) "h${headings.size}".also { headings += PagedWord.Heading(it, level, title.take(120)) } else null
+            } else null
             val lineRule = pp.lineRule ?: "auto"
             val lineVal = when (lineRule) { "exact", "atLeast" -> (pp.line ?: 240f) / 20f; else -> (pp.line ?: 240f) / 240f }
             val para = WordHtml.Para(
@@ -375,8 +405,19 @@ class DocxPaged {
                 pageBreakBefore = pp.pageBreakBefore == true && !inCell,
                 gridPitch = if (pp.snap != false && !inCell) g else 0f,
                 borders = pp.borders,
+                widow = pp.widow == true && !plain,
+                headId = headId,
             )
             return Blk.P(para, styleId, pp.contextual == true, pre.toString(), post.toString())
+        }
+
+        /** 스타일 이름이 '제목 N'(heading N)이면 개요 수준 N-1. */
+        fun headingLevel(styleId: String?): Int? {
+            for (st in chain(styleId).asReversed()) {
+                val name = first(st.el, "name")?.getAttributeNS(W, "val")?.lowercase() ?: continue
+                HEADING.find(name)?.let { return it.groupValues[2].toInt() - 1 }
+            }
+            return null
         }
 
         fun mkRun(rp: RP, text: String) = WordHtml.Run(
@@ -449,7 +490,8 @@ class DocxPaged {
                     "t" -> if (!hidden && !suppress) items += Item.Text(mkRun(rp, c.textContent))
                     "tab", "ptab" -> if (!hidden && !suppress) items += Item.Tab
                     "br" -> if (!suppress) when (c.getAttributeNS(W, "type")) {
-                        "page", "column" -> items += Item.PageBreak
+                        "page" -> items += Item.PageBreak
+                        "column" -> items += Item.ColumnBreak
                         else -> items += Item.LineBreak
                     }
                     "cr" -> if (!suppress) items += Item.LineBreak
@@ -498,7 +540,15 @@ class DocxPaged {
             val path = resolve("word/", target)
             val bytes = zip[path] ?: return "" to null
             val lower = path.lowercase()
-            if (lower.endsWith(".emf") || lower.endsWith(".wmf") || lower.endsWith(".svg")) {
+            if (lower.endsWith(".emf") || lower.endsWith(".wmf")) {
+                // EMF·WMF: 그리기 목록으로 읽을 수 있으면 앱이 PNG 로 그린다(못 읽으면 회색 상자)
+                if (!Metafile.isEmf(bytes) && !Metafile.isWmf(bytes)) return "<span class=\"img-unsupported\" style=\"font-size:9pt\">[그림]</span>" to null
+                imgs++
+                val name = "images/" + path.substringAfterLast('/') + ".png"
+                metas[name] = PagedWord.MetaPic(bytes, wPt, hPt)
+                return "<img src=\"${esc(name)}\" alt=\"\" style=\"width:${WordHtml.f(wPt)}pt;height:${WordHtml.f(hPt)}pt\"/>" to name
+            }
+            if (lower.endsWith(".svg")) {
                 return "<span class=\"img-unsupported\" style=\"font-size:9pt\">[그림]</span>" to null
             }
             imgs++
@@ -602,10 +652,32 @@ class DocxPaged {
                 }
             }
             var styleP: Element? = null; var styleR: Element? = null
+            // 조건부 서식(표 스타일 tblStylePr): 종류 → 요소. 뒤 스타일(상속 아래)이 앞을 덮는다.
+            val cond = HashMap<String, Element>()
+            var rowBand = 1; var colBand = 1
             for (s in chain(styleId)) {
-                first(s.el, "tblPr")?.let { tp -> bordersM.putAll(sides(first(tp, "tblBorders"))); mar(first(tp, "tblCellMar")) }
+                first(s.el, "tblPr")?.let { tp ->
+                    bordersM.putAll(sides(first(tp, "tblBorders"))); mar(first(tp, "tblCellMar"))
+                    first(tp, "tblStyleRowBandSize")?.getAttributeNS(W, "val")?.toIntOrNull()?.let { rowBand = it.coerceAtLeast(1) }
+                    first(tp, "tblStyleColBandSize")?.getAttributeNS(W, "val")?.toIntOrNull()?.let { colBand = it.coerceAtLeast(1) }
+                }
                 first(s.el, "pPr")?.let { styleP = it }; first(s.el, "rPr")?.let { styleR = it }
+                for (c in children(s.el)) if (c.localName == "tblStylePr") c.getAttributeNS(W, "type").takeIf { it.isNotEmpty() }?.let { cond[it] = c }
             }
+            // 표 모양(tblLook): 첫 행·마지막 행·첫 열·마지막 열·줄무늬 켜고 끄기(속성 또는 옛 16진 val)
+            val look = tblPr?.let { first(it, "tblLook") }
+            fun lookFlag(attr: String, bit: Int, def: Boolean): Boolean {
+                val a = look?.getAttributeNS(W, attr).orEmpty()
+                if (a.isNotEmpty()) return a == "1" || a == "true" || a == "on"
+                val v = look?.getAttributeNS(W, "val")?.toIntOrNull(16) ?: return def
+                return v and bit != 0
+            }
+            val lkFirstRow = lookFlag("firstRow", 0x0020, true)
+            val lkLastRow = lookFlag("lastRow", 0x0040, false)
+            val lkFirstCol = lookFlag("firstColumn", 0x0080, true)
+            val lkLastCol = lookFlag("lastColumn", 0x0100, false)
+            val lkNoH = lookFlag("noHBand", 0x0200, false)
+            val lkNoV = lookFlag("noVBand", 0x0400, true)
             tblPr?.let { bordersM.putAll(sides(first(it, "tblBorders"))); mar(first(it, "tblCellMar")) }
             val ind = tblPr?.let { first(it, "tblInd") }?.let { tw(it, "w") } ?: 0f
             val jc = tblPr?.let { first(it, "jc") }?.getAttributeNS(W, "val")
@@ -646,7 +718,6 @@ class DocxPaged {
                     val tcPr = first(c.tc, "tcPr")
                     val cb = sides(tcPr?.let { first(it, "tcBorders") })
                     val lastCol = c.col + c.span >= cols.size
-                    fun side(k: String, edge: Boolean, inside: String) = if (cb.containsKey(k)) cb[k] else if (edge) bordersM[k] else bordersM[inside]
                     var rowspan = 1
                     if (c.vm == "restart") {
                         var k = ri + 1
@@ -658,18 +729,44 @@ class DocxPaged {
                         for (x in children(m)) { val v = tw(x, "w") ?: continue; when (x.localName) { "left", "start" -> cpl = v; "right", "end" -> cpr = v; "top" -> cpt = v; "bottom" -> cpb = v } }
                     }
                     val w = (c.col until minOf(c.col + c.span, cols.size)).sumOf { cols[it].toDouble() }.toFloat()
+                    // 이 칸에 걸리는 조건부 서식(Word 적용 순서: 줄무늬 열 → 줄무늬 행 → 첫/끝 열 → 첫/끝 행 → 모서리)
+                    val isFirstRow = lkFirstRow && ri == 0
+                    val isLastRow = lkLastRow && lastRow
+                    val isFirstCol = lkFirstCol && c.col == 0
+                    val isLastCol = lkLastCol && lastCol
+                    val kinds = ArrayList<String>()
+                    if (!lkNoV && !isFirstCol && !isLastCol) kinds += if (((c.col - (if (lkFirstCol) 1 else 0)) / colBand) % 2 == 0) "band1Vert" else "band2Vert"
+                    if (!lkNoH && !isFirstRow && !isLastRow) kinds += if (((ri - (if (lkFirstRow) 1 else 0)) / rowBand) % 2 == 0) "band1Horz" else "band2Horz"
+                    if (isFirstCol) kinds += "firstCol"
+                    if (isLastCol) kinds += "lastCol"
+                    if (isFirstRow) kinds += "firstRow"
+                    if (isLastRow) kinds += "lastRow"
+                    if (isFirstRow && isFirstCol) kinds += "nwCell"
+                    if (isFirstRow && isLastCol) kinds += "neCell"
+                    if (isLastRow && isFirstCol) kinds += "swCell"
+                    if (isLastRow && isLastCol) kinds += "seCell"
+                    val condEls = kinds.mapNotNull { cond[it] }
+                    var condBg: String? = null
+                    val condB = HashMap<String, WordHtml.Border?>()
+                    for (ce in condEls) {
+                        first(ce, "tcPr")?.let { tp ->
+                            first(tp, "shd")?.getAttributeNS(W, "fill")?.let { f -> condBg = f.takeIf { HEX.matches(it) }?.uppercase() }
+                            condB.putAll(sides(first(tp, "tcBorders")))
+                        }
+                    }
+                    fun side(k: String, edge: Boolean, inside: String) = if (cb.containsKey(k)) cb[k] else if (condB.containsKey(k)) condB[k] else if (edge) bordersM[k] else bordersM[inside]
                     val inner = StringBuilder()
                     if (c.vm != "continue") {
-                        // 표 스타일 문단·글자 속성은 간단히: 칸 안 문단에 그대로
+                        // 표 스타일 문단·글자 속성 + 조건부 서식(첫 행 굵게 등)을 칸 안 문단에
                         val saved = cellStyle
-                        cellStyle = styleP to styleR
+                        cellStyle = (listOfNotNull(styleP) + condEls.mapNotNull { first(it, "pPr") }) to (listOfNotNull(styleR) + condEls.mapNotNull { first(it, "rPr") })
                         try { blockList(children(c.tc), rels, maxOf(w - cpl - cpr, 4f), inner, inCell = true) } finally { cellStyle = saved }
                     }
                     outCells += WordHtml.Cell(
                         c.col, c.span, rowspan, inner.toString(),
                         top = side("top", ri == 0, "insideH"), right = side("right", lastCol, "insideV"),
                         bottom = side("bottom", lastRow, "insideH"), left = side("left", c.col == 0, "insideV"),
-                        bg = tcPr?.let { first(it, "shd") }?.getAttributeNS(W, "fill")?.takeIf { HEX.matches(it) }?.uppercase()?.takeIf { it != "FFFFFF" },
+                        bg = (tcPr?.let { first(it, "shd") }?.getAttributeNS(W, "fill")?.takeIf { HEX.matches(it) }?.uppercase() ?: condBg)?.takeIf { it != "FFFFFF" },
                         vAlign = tcPr?.let { first(it, "vAlign") }?.getAttributeNS(W, "val"),
                         padL = cpl, padR = cpr, padT = cpt, padB = cpb,
                         covered = c.vm == "continue",
@@ -843,6 +940,7 @@ class DocxPaged {
 
     companion object {
         private val HEX = Regex("[0-9A-Fa-f]{6}")
+        private val HEADING = Regex("^(heading|제목)\\s*(\\d)$")
         private val GANADA = listOf("가", "나", "다", "라", "마", "바", "사", "아", "자", "차", "카", "타", "파", "하")
         private val CHOSUNG = listOf("ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ", "ㅂ", "ㅅ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ")
         private val HIGHLIGHT = mapOf(

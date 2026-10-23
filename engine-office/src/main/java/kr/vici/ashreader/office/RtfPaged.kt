@@ -11,7 +11,7 @@ import kr.vici.ashreader.office.WordHtml.Item
  *  - 문단: \q*, \li/\ri/\fi, \sb/\sa, \sl/\slmult, \tx(\tqr/\tqc/\tldot), \pagebb, \page
  *  - 글자: \f(글꼴표·문자 집합), \fs, \b, \i, \ul, \strike, \cf, \highlight/\cb, \super/\sub, \caps, \v
  *  - 표: \trowd/\cellx/\cell/\row, \trqc/\trleft, \trrh, 칸·행 테두리(\clbrdr*, \trbrdr*), \clcbpat, \clvmgf/\clvmrg, \clmgf/\clmrg, \clvertal*
- *  - 그림: \pict(\pngblip/\jpegblip, 16진·\bin), 크기 \picwgoal·\picscale. EMF/WMF 는 회색 상자
+ *  - 그림: \pict(\pngblip/\jpegblip, 16진·\bin), 크기 \picwgoal·\picscale. EMF/WMF 는 그리기 목록 → 앱이 PNG 로, \dibitmap 은 BMP 로
  *  - 머리글/바닥글(\header·\headerf·\headerl·\headerr, footer 동일), 각주(\footnote), 쪽 번호 필드(\field PAGE/NUMPAGES), \pntext·\listtext 번호 글자
  */
 object RtfPaged {
@@ -64,6 +64,7 @@ object RtfPaged {
         val headers = HashMap<String, String>(); val footers = HashMap<String, String>()
         val notes = ArrayList<Pair<String, String>>()
         val images = LinkedHashMap<String, ByteArray>()
+        val metas = LinkedHashMap<String, PagedWord.MetaPic>()
         var imgSeq = 0; var paras = 0; var tables = 0; var tabParas = 0; var pageBreaks = 0
         val sections = ArrayList<PagedWord.Section>()
 
@@ -164,7 +165,7 @@ object RtfPaged {
             paragraphEnd(force = false)
             flushTable()
             endSection()
-            return PagedWord(sections, notes, images, PagedWord.Stats(sections.size, paras, tables, imgSeq, 0, headers.size, footers.size, notes.size, tabParas, pageBreaks))
+            return PagedWord(sections, notes, images, PagedWord.Stats(sections.size, paras, tables, imgSeq, 0, headers.size, footers.size, notes.size, tabParas, pageBreaks, metas.size), metas)
         }
 
         fun textDest() = st.dest == Dest.NONE || st.dest == Dest.HEADER || st.dest == Dest.FOOTNOTE || st.dest == Dest.FLDRSLT || st.dest == Dest.FLDINST
@@ -455,6 +456,20 @@ object RtfPaged {
             }
             val wPt = (if (picwg > 0) picwg / 20f else picw * 0.75f) * scx / 100f
             val hPt = (if (pichg > 0) pichg / 20f else pich * 0.75f) * scy / 100f
+            if ((pictType == "emfblip" || pictType == "wmetafile") && data.isNotEmpty() && (Metafile.isEmf(data) || Metafile.isWmf(data))) {
+                val name = "images/rtf${imgSeq++}.${if (pictType == "emfblip") "emf" else "wmf"}.png"
+                metas[name] = PagedWord.MetaPic(data, wPt, hPt)
+                out.items += Item.Raw("<img src=\"$name\" alt=\"\" style=\"width:${WordHtml.f(wPt)}pt;height:${WordHtml.f(hPt)}pt\"/>", wPt, hPt)
+                return
+            }
+            if (pictType == "dibitmap" && data.isNotEmpty()) {
+                Metafile.dibToBmp(data)?.let { bmp ->
+                    val name = "images/rtf${imgSeq++}.bmp"
+                    images[name] = bmp
+                    out.items += Item.Raw("<img src=\"$name\" alt=\"\" style=\"width:${WordHtml.f(wPt)}pt;height:${WordHtml.f(hPt)}pt\"/>", wPt, hPt)
+                    return
+                }
+            }
             val ext = when (pictType) { "pngblip" -> "png"; "jpegblip" -> "jpg"; else -> null }
             if (ext == null || data.isEmpty()) {
                 out.items += Item.Raw("<span class=\"img-unsupported\" style=\"font-size:9pt\">[그림]</span>", 30f, 12f)

@@ -93,4 +93,41 @@ object SyntheticDocx {
         }
         return bos.toByteArray()
     }
+
+    /**
+     * 5묶음 시험용: 2단 구역(단 나눔 포함), 과부·고아 줄 방지 문단, 제목 스타일 2개(목차), 표 스타일 조건부 서식(첫 행·줄무늬), EMF 그림.
+     */
+    fun buildBatch5(): ByteArray {
+        val body = StringBuilder()
+        body.append("<w:p><w:pPr><w:pStyle w:val=\"Heading1\"/></w:pPr><w:r><w:t>1장 다단 시험</w:t></w:r></w:p>")
+        val long = "가나다라마바사 아자차카타파하 다단 본문이 길게 이어지는 문장입니다. ".repeat(12)
+        repeat(6) { body.append(p(long)) }
+        body.append("<w:p><w:r><w:t>단 나눔 앞</w:t></w:r><w:r><w:br w:type=\"column\"/></w:r><w:r><w:t>단 나눔 뒤</w:t></w:r></w:p>")
+        body.append("<w:tbl><w:tblPr><w:tblStyle w:val=\"GridTable\"/><w:tblW w:w=\"4000\" w:type=\"dxa\"/><w:tblLook w:firstRow=\"1\" w:lastRow=\"0\" w:firstColumn=\"0\" w:lastColumn=\"0\" w:noHBand=\"0\" w:noVBand=\"1\"/></w:tblPr>" +
+            "<w:tblGrid><w:gridCol w:w=\"2000\"/><w:gridCol w:w=\"2000\"/></w:tblGrid>" +
+            "<w:tr><w:tc>${p("머리1")}</w:tc><w:tc>${p("머리2")}</w:tc></w:tr>" +
+            "<w:tr><w:tc>${p("줄1")}</w:tc><w:tc>${p("값1")}</w:tc></w:tr>" +
+            "<w:tr><w:tc>${p("줄2")}</w:tc><w:tc>${p("값2")}</w:tc></w:tr></w:tbl>")
+        body.append("<w:p><w:r><w:drawing><wp:inline><wp:extent cx=\"1270000\" cy=\"635000\"/><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic><pic:blipFill><a:blip r:embed=\"rIdEmf\"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>")
+        body.append("<w:p><w:pPr><w:pStyle w:val=\"Heading1\"/></w:pPr><w:r><w:t>2장 끝</w:t></w:r></w:p>")
+        body.append("<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"851\" w:footer=\"992\"/>" +
+            "<w:cols w:num=\"2\" w:space=\"720\"/></w:sectPr>")
+        val doc = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:document $NS><w:body>$body</w:body></w:document>"
+        val styles = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><w:styles $NS><w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val=\"20\"/></w:rPr></w:rPrDefault></w:docDefaults>" +
+            "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:pPr><w:widowControl/></w:pPr></w:style>" +
+            "<w:style w:type=\"paragraph\" w:styleId=\"Heading1\"><w:name w:val=\"heading 1\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:outlineLvl w:val=\"0\"/></w:pPr><w:rPr><w:b/><w:sz w:val=\"32\"/></w:rPr></w:style>" +
+            "<w:style w:type=\"table\" w:styleId=\"GridTable\"><w:name w:val=\"Grid Table\"/><w:tblPr><w:tblBorders><w:top w:val=\"single\" w:sz=\"4\"/><w:bottom w:val=\"single\" w:sz=\"4\"/></w:tblBorders></w:tblPr>" +
+            "<w:tblStylePr w:type=\"firstRow\"><w:rPr><w:b/><w:color w:val=\"FFFFFF\"/></w:rPr><w:tcPr><w:shd w:val=\"clear\" w:fill=\"4472C4\"/></w:tcPr></w:tblStylePr>" +
+            "<w:tblStylePr w:type=\"band1Horz\"><w:tcPr><w:shd w:val=\"clear\" w:fill=\"D9E2F3\"/></w:tcPr></w:tblStylePr></w:style></w:styles>"
+        val rels = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+            "<Relationship Id=\"rIdEmf\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image2.emf\"/></Relationships>"
+        val bos = ByteArrayOutputStream()
+        ZipOutputStream(bos).use { z ->
+            fun put(n: String, b: ByteArray) { z.putNextEntry(ZipEntry(n)); z.write(b); z.closeEntry() }
+            put("[Content_Types].xml", "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"/>".toByteArray())
+            put("word/document.xml", doc.toByteArray()); put("word/styles.xml", styles.toByteArray())
+            put("word/_rels/document.xml.rels", rels.toByteArray()); put("word/media/image2.emf", SyntheticMetafile.emf())
+        }
+        return bos.toByteArray()
+    }
 }
