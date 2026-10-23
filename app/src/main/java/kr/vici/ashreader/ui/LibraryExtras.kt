@@ -560,16 +560,6 @@ fun ExportSheet(bookId: String?, onDismiss: () -> Unit) {
         }
     }
     msg?.let { AlertDialog(onDismissRequest = { msg = null }, text = { Text(it) }, confirmButton = { TextButton(onClick = { msg = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text("확인") } }) }
-    pathPick?.let { include ->
-        // 빼는 폴더는 모으는 폴더 안에서 고른다. 모으는 폴더는 내장 저장소에서.
-        @Suppress("DEPRECATION")
-        val storage = android.os.Environment.getExternalStorageDirectory()
-        val roots = if (include) listOf(storage) else folders.filter { it.include }
-            .mapNotNull { f -> if (f.path.startsWith("/")) f.path else StorageAccess.pathOfTree(Uri.parse(f.path)) }
-            .map { java.io.File(it) }.filter { it.isDirectory }.ifEmpty { listOf(storage) }
-        PathFolderDialog(if (include) "모을 폴더 고르기" else "뺄 폴더 고르기", roots,
-            onPick = { f -> pathPick = null; addPath(f, include) }, onDismiss = { pathPick = null })
-    }
 }
 
 private fun save(context: android.content.Context, uri: Uri, text: String?, done: (String) -> Unit) {
@@ -610,12 +600,6 @@ fun ZipPickSheet(title: String, entries: List<kr.vici.ashreader.data.LibraryRepo
             }
         }
     }
-}
-
-private fun sizeLabel(b: Long): String = when {
-    b < 0 -> ""
-    b < (1L shl 20) -> "${(b + 1023) / 1024}KB"
-    else -> "%.1fMB".format(java.util.Locale.ROOT, b / 1048576.0)
 }
 
 // ───────────────────────────── 경로로 폴더 고르기(모든 파일 접근이 있을 때) ─────────────────────────────
