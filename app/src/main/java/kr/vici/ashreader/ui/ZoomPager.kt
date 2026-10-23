@@ -72,6 +72,8 @@ fun ZoomPager(
     onToggleMenu: () -> Unit,
     onPage: (Int) -> Unit,
     onLongPress: ((Int) -> Unit)? = null,
+    /** 길게 누른 곳 + 지금 그린 쪽 칸(확대·이동 반영, 화면 px). 있으면 [onLongPress] 대신 부른다(7B 글자 선택). */
+    onLongPressAt: ((slot: PageSlot, x: Float, y: Float) -> Unit)? = null,
     turnRequest: Int,
     turnForward: Boolean,
     jumpRequest: Int? = null,
@@ -193,6 +195,7 @@ fun ZoomPager(
 
         val exit by rememberUpdatedState(onExit)
         val tapOf by rememberUpdatedState(tapAction)
+        val longAt by rememberUpdatedState(onLongPressAt)
         Box(
             Modifier.fillMaxSize()
                 .pointerInput(wPx, hPx) {
@@ -220,7 +223,14 @@ fun ZoomPager(
                                 clamp(); zoomTick++
                             }
                         },
-                        onLongPress = { onLongPress?.invoke(index) },
+                        onLongPress = { p ->
+                            val at = longAt
+                            val cur = shown
+                            if (at != null && cur != null && cur.first == index) {
+                                val z = cur.second
+                                at(SelectGeo.zoomSlot(index, ox, oy, z.bmp.width, z.bmp.height, base(z) * uz), p.x, p.y)
+                            } else onLongPress?.invoke(index)
+                        },
                     ) { p ->
                         if (menuVisible) { onToggleMenu(); return@detectTapGestures }
                         when (tapOf(p.x / wPx, p.y / hPx)) {

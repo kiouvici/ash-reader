@@ -125,6 +125,7 @@ import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.doc.DocOpener
 import kr.vici.ashreader.doc.DrmProtected
 import kr.vici.ashreader.engine.convert.TextEncoding
+import kr.vici.ashreader.doc.HwpReaderDoc
 import kr.vici.ashreader.doc.MupdfReaderDoc
 import kr.vici.ashreader.doc.PasswordNeeded
 import kr.vici.ashreader.doc.ReaderDoc
@@ -325,6 +326,8 @@ fun ReaderScreen(
     var sel by remember { mutableStateOf<Selection?>(null) }
     var selMemo by remember { mutableStateOf<Selection?>(null) }
     var searchOpen by remember { mutableStateOf(false) }
+    /** 글자 선택 '검색'으로 연 검색어(7B). */
+    var searchSeed by remember { mutableStateOf("") }
     var hit by remember { mutableStateOf<Hit?>(null) }
     var jumpReq by remember { mutableStateOf<Int?>(null) }
     var tocTab by remember { mutableIntStateOf(0) }
@@ -629,6 +632,9 @@ fun ReaderScreen(
                 val comic = rememberComicSession(doc, target.id, target.once, spread, wDp > hDp, s.panelMode)
                 val pxW = constraints.maxWidth.toFloat()
                 val pxH = constraints.maxHeight.toFloat()
+                // 화면 폭이 바뀌면(회전·창 크기) 쪽 칸이 달라지므로 글자 선택을 닫는다(7B).
+                // 높이는 보지 않는다 — 메뉴를 닫으며 시스템 막대가 숨어 높이만 바뀌어도 방금 고른 글자가 닫히지 않게.
+                LaunchedEffect(pxW) { sel = null }
                 val count = doc.pageCount
                 LaunchedEffect(page, count) {
                     if (count > 0) {
@@ -796,7 +802,8 @@ fun ReaderScreen(
                                 ZoomImage(source.render(i, rw, rh), rw)
                             },
                             tapAction = tapOf, menuVisible = menu, onToggleMenu = { menu = !menu },
-                            onPage = { if (it != page) { page = it; pagesTurned++ } },
+                            onPage = { if (it != page) { page = it; pagesTurned++; sel = null } },
+                            onLongPressAt = { slot, x, y -> menu = false; selectAt(slot, x, y) }, // 7B 폭·높이 맞춤에서도 글자 선택
                             turnRequest = turnReq, turnForward = turnFwd,
                             jumpRequest = jumpReq, onJumpHandled = { jumpReq = null },
                             reloadKey = source,
@@ -964,11 +971,14 @@ fun ReaderScreen(
                             onToggleMenu = { zoomAt = null; jumpReq = page; menu = true },
                             onPage = { if (it != page) { page = it; pagesTurned++ } },
                             onLongPress = if (comicDoc != null) ({ i: Int -> comicMenuOf(comicDoc.sourceOf(i)) }) else null,
+                            // 7B 확대 덧화면에서도 글자 선택(확대·이동한 칸으로 좌표를 맞춘다)
+                            onLongPressAt = if (comicDoc == null) ({ slot: PageSlot, x: Float, y: Float -> selectAt(slot, x, y) }) else null,
                             turnRequest = turnReq, turnForward = turnFwd,
+                            reloadKey = source,
                             initialZoom = z.zoom, initialFocus = Offset(z.fx, z.fy),
                             onExit = { zoomAt = null; jumpReq = page },
                         )
-                        BackHandler { zoomAt = null; jumpReq = page }
+                        BackHandler { if (sel != null) sel = null else { zoomAt = null; jumpReq = page } }
                     }
                     if (doc is ComicReaderDoc) {
                         // solid CBR 풀기 진행·쪽 준비 중(S-41). 보이는 쪽이 풀리면 다시 그린다.
@@ -1067,7 +1077,7 @@ fun ReaderScreen(
                     val portraitNow = LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
                     TopBar(target.title, colors, bookmarked = curBookmark != null, onBack = onBack,
                         onBookmark = { onToggleBookmark(page, locatorFrac(page, count), curBookmark?.id) },
-                        onSearch = { if (doc is MupdfReaderDoc || doc is DjvuReaderDoc) { menu = false; searchOpen = true } else stub(noTextMsg(fmt)) },
+                        onSearch = { if (doc is MupdfReaderDoc || doc is DjvuReaderDoc || doc is HwpReaderDoc) { menu = false; searchOpen = true } else stub(noTextMsg(fmt)) },
                         rotationLocked = s.rotation != Rotation.AUTO,
                         onRotate = {
                             val r = if (s.rotation != Rotation.AUTO) Rotation.AUTO else if (portraitNow) Rotation.PORTRAIT else Rotation.LANDSCAPE
@@ -1148,10 +1158,11 @@ fun ReaderScreen(
                             sel = null
                         },
                         onMemo = { if (target.once) stub("서재에 추가하면 메모를 남길 수 있어요.") else selMemo = cur; sel = null },
+                        onSearch = { searchSeed = cur.text.take(60); sel = null; menu = false; searchOpen = true },
                     )
                 }
 
-                if (searchOpen) SearchPanel(doc, colors, onClose = { searchOpen = false }) { h ->
+                if (searchOpen) SearchPanel(doc, colors, onClose = { searchOpen = false; searchSeed = "" }, initialQuery = searchSeed) { h ->
                     searchOpen = false; hit = h; jumpReq = h.page
                 }
 
@@ -1456,9 +1467,8 @@ private fun selFrac(sel: Selection, count: Int): Float =
     locatorFrac(sel.slot.page, count, if (sel.tp.text.isEmpty()) 0.5f else sel.start.toFloat() / sel.tp.text.length)
 
 private fun noTextMsg(fmt: DocFormat): String = when (fmt.group) {
-    FormatGroup.HWP -> "원본 보기에서는 글자를 고를 수 없어요. ‘이북식’으로 바꾸면 글자 선택·검색·형광펜을 쓸 수 있어요."
     FormatGroup.COMIC -> "만화는 그림이라 글자를 고를 수 없어요."
-    else -> "이 쪽에는 고를 수 있는 글자가 없어요. (그림으로 된 PDF일 수 있어요)"
+    else -> "이 쪽에는 고를 수 있는 글자가 없어요"
 }
 
 /** 암호 걸린 Word·PDF 문서 암호 입력(S-42). 틀리면 다시 묻는다. 입력값은 저장하지 않는다. */
