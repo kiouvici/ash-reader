@@ -35,6 +35,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -229,13 +230,14 @@ private fun StatCard(label: String, value: String, modifier: Modifier) {
 fun AppSettingsScreen(
     s: Settings, onChange: ((Settings) -> Settings) -> Unit, onClearOnce: () -> Unit, onLicenses: () -> Unit = {},
     onStorage: () -> Unit = {}, onFolders: () -> Unit = {}, onStoreEdit: () -> Unit = {}, onExportAll: () -> Unit = {},
+    /** S-53 백업 가져오기(폴더에서 백업 파일 고르기) 화면으로. */
+    onBackupImport: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var info by remember { mutableStateOf<String?>(null) }
     var backupOpen by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
-    val backup = remember { context.ash.let { Backup(context.applicationContext, it.db, it.prefs) } }
     var upTick by remember { mutableIntStateOf(0) }
     var warmTime by remember { mutableStateOf(false) }
     var tapEditor by remember { mutableStateOf(false) }
@@ -245,40 +247,22 @@ fun AppSettingsScreen(
         if (upTick > 0 || s.upscaleCacheMb != 1024) kotlinx.coroutines.delay(300)
         value = withContext(Dispatchers.IO) { ComicUpscale.usedBytes(context.applicationContext) }
     }
-    // S-53 백업: 저장 위치·가져올 파일은 사용자가 고른다(SAF). 네트워크 없음.
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(Backup.MIME)) { uri ->
-        if (uri != null) scope.launch {
-            busy = true
-            info = runCatching { backup.export(uri) }.fold(
-                { r -> "내보냈어요. 책 ${r.books}권 · 책갈피 ${r.bookmarks}개 · 메모 ${r.notes}개 · 형광펜 ${r.highlights}개 · 독서 기록 ${r.sessions}개와 설정을 담았어요. (책 파일은 들어가지 않아요)" },
-                { e -> "내보내지 못했어요. ${e.message.orEmpty()}" },
-            )
-            busy = false
-        }
+    // S-53 백업: 저장 위치는 사용자가 고른다(SAF, 기억한 백업 폴더에서 시작). 가져오기는 백업 가져오기 화면. 네트워크 없음.
+    val exportBackup = rememberBackupExporter(onBusy = { busy = it }, onResult = { info = it })
+    // S-17 서재 폴더 줄: 폴더 이름들 · 개수
+    val libFolders by remember { context.ash.db.books().scanFolders() }.collectAsState(initial = emptyList())
+    val folderNames = libFolders.filter { it.include }.map { f ->
+        val c = kr.vici.ashreader.data.StorageAccess.canonOf(f.path)
+        if (c.startsWith("path:") || c.startsWith("tree:")) f.label.substringAfterLast('/')
+        else kr.vici.ashreader.data.FolderRules.nameOf(c) { v -> kr.vici.ashreader.data.StorageAccess.volumeLabel(context, v) }
     }
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            busy = true
-            info = runCatching { backup.import(uri) }.fold(
-                { r ->
-                    buildString {
-                        append("가져와서 합쳤어요. 새 책갈피 ${r.bookmarks}개 · 메모 ${r.notes}개 · 형광펜 ${r.highlights}개 · 독서 기록 ${r.sessions}개, 읽은 위치 ${r.booksUpdated}권")
-                        if (r.settings) append(", 설정")
-                        append(".")
-                        if (r.booksMissing > 0) append(" 이 기기에 파일이 없는 책 ${r.booksMissing}권은 서재에 넣지 않았어요. 같은 파일을 서재에 넣으면 책갈피·메모·형광펜이 다시 붙어요.")
-                    }
-                },
-                { e -> "가져오지 못했어요. ${e.message.orEmpty()}" },
-            )
-            busy = false
-        }
-    }
+    val aiCap = remember { kr.vici.ashreader.doc.AiCapability.cached(context) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle("설정")
         Group("서재") {
             val access = remember { kr.vici.ashreader.data.StorageAccess.hasFileAccess(context) }
             ValueRow("파일 접근 권한", "기기 안 책·문서를 찾는 권한(S-02 다시 보기)", if (access) "허용됨" else "허용 안 됨", onStorage)
-            ValueRow("모으는 폴더", "기본 Download · 폴더 더하기·빼기", "", onFolders)
+            ValueRow("서재 폴더", if (folderNames.isEmpty()) "아직 고른 폴더가 없어요" else folderNames.joinToString(" · "), "${folderNames.size}개", onFolders)
             SwitchRow("서점 바로가기 줄 보이기", "서재 위 '내 서점 앱' 줄", s.showStores) { v -> onChange { it.copy(showStores = v) } }
             ValueRow("서점 바로가기 편집", "서재 위 '내 서점 앱' 줄 · 더하기·빼기·순서", "", onStoreEdit)
         }
@@ -345,21 +329,31 @@ fun AppSettingsScreen(
             ValueRow("칸 단위 보기", "칸 누르면 확대 / 자동 순서", s.panelMode.label) {
                 onChange { it.copy(panelMode = PanelMode.entries[(it.panelMode.ordinal + 1) % PanelMode.entries.size]) }
             }
-            SwitchRow("AI 화질 개선", "기기 안에서 처리 · 저화질 만화를 2배 선명하게 · 배터리 더 씀 · 절전 모드에서는 쉼", s.aiUpscale) { v -> onChange { it.copy(aiUpscale = v) } }
-            // F-73: 캐시 상한(300MB / 1GB / 2GB)과 캐시 지우기
-            ValueRow("AI 화질 캐시 상한", "넘으면 오래 안 본 쪽부터 지워요" + (upUsed?.let { " · 지금 ${mbLabel(it)}" } ?: ""), mbLabel(s.upscaleCacheMb.toLong() shl 20)) {
-                onChange { cur ->
-                    val ch = Prefs.UPSCALE_CACHE_CHOICES
-                    cur.copy(upscaleCacheMb = ch[(ch.indexOf(cur.upscaleCacheMb) + 1).mod(ch.size)])
-                }
-            }
-            ValueRow("AI 화질 캐시 지우기", "처리해 둔 쪽을 모두 지워요(다시 볼 때 새로 처리)", "") {
-                scope.launch {
-                    withContext(Dispatchers.IO) { ComicUpscale.clear(context.applicationContext) }
-                    upTick++
-                    info = "AI 화질 캐시를 지웠어요."
-                }
-            }
+            // F-73: 책마다 켜고 끈다(기본 끔). 여기서는 아직 정하지 않은 새 만화의 기본값만.
+            SwitchRow("새 만화에 AI 화질 향상 기본으로 켜기", "책마다 만화 설정 [화질]에서 켜고 꺼요 · 기기 안에서 처리 · 배터리 더 씀", s.aiUpscale) { v -> onChange { it.copy(aiUpscale = v) } }
+            // F-73: 저장 공간 상한(300MB / 1GB / 2GB, 만화·EPUB 그림 함께)과 [지우기]
+            StorageLimitRow(
+                limit = mbLabel(s.upscaleCacheMb.toLong() shl 20), used = upUsed?.let { mbLabel(it) },
+                onCycle = {
+                    onChange { cur ->
+                        val ch = Prefs.UPSCALE_CACHE_CHOICES
+                        cur.copy(upscaleCacheMb = ch[(ch.indexOf(cur.upscaleCacheMb) + 1).mod(ch.size)])
+                    }
+                },
+                onClear = {
+                    scope.launch {
+                        withContext(Dispatchers.IO) { ComicUpscale.clear(context.applicationContext) }
+                        upTick++
+                        info = "AI 화질 향상으로 처리해 둔 그림을 모두 지웠어요. 다시 볼 때 새로 처리해요."
+                    }
+                },
+            )
+        }
+        Group("eBook") {
+            // F-73 확장(D-021): EPUB 안의 작은 그림·삽화만 2배로. 글자에는 적용 안 함. 기본 끔.
+            val bad = aiCap?.verdict?.let { it != kr.vici.ashreader.doc.AiCapability.Verdict.OK } == true
+            if (bad) ValueRow("EPUB 그림 AI 화질 향상", "이 기기에서는 쓸 수 없어요(메모리·처리 속도)", "쓸 수 없음") {}
+            else SwitchRow("EPUB 그림 AI 화질 향상", "작은 그림·삽화를 선명하게 · 글자에는 적용 안 함", s.epubAiUpscale) { v -> onChange { it.copy(epubAiUpscale = v) } }
         }
         Group("연결") {
             ValueRow("사전", "단어 길게 눌러 찾기", "말글사전") {
@@ -398,16 +392,16 @@ fun AppSettingsScreen(
         title = { Text("백업·내보내기") },
         text = {
             Column {
-                Text("서재 정보·읽은 위치·책갈피·메모·형광펜·독서 기록·설정을 JSON 파일 하나로 저장해요. 책 파일은 담지 않아요. " +
-                    "가져오면 지금 기록과 합쳐요(같은 항목은 하나만 남겨요).", fontSize = 14.sp, lineHeight = 20.sp)
+                Text("서재 정보·읽은 위치·책갈피·메모·형광펜·독서 기록·설정을 백업 파일(ASH백업_날짜.ashbak) 하나로 저장해요. 책 파일은 담지 않아요. " +
+                    "가져올 때는 지금 기록과 합치거나 모두 바꿀 수 있어요.", fontSize = 14.sp, lineHeight = 20.sp)
                 Button(
-                    onClick = { backupOpen = false; exportLauncher.launch(Backup.fileName()) }, enabled = !busy,
+                    onClick = { backupOpen = false; exportBackup() }, enabled = !busy,
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp).heightIn(min = 48.dp),
                 ) { Text("파일로 내보내기") }
                 OutlinedButton(
-                    onClick = { backupOpen = false; importLauncher.launch(arrayOf(Backup.MIME, "text/plain", "application/octet-stream")) }, enabled = !busy,
+                    onClick = { backupOpen = false; onBackupImport() }, enabled = !busy,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(min = 48.dp),
-                ) { Text("파일에서 가져오기") }
+                ) { Text("백업 가져오기") }
             }
         },
         confirmButton = { TextButton(onClick = { backupOpen = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("닫기") } },
@@ -425,9 +419,26 @@ private fun ValueRow(name: String, sub: String, value: String, onClick: () -> Un
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(name, fontSize = 15.sp)
-            if (sub.isNotEmpty()) Text(sub, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (sub.isNotEmpty()) Text(sub, fontSize = 14.sp, lineHeight = 19.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        if (value.isNotEmpty()) Text(value, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
+        if (value.isNotEmpty()) Text(value, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp))
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(horizontal = 16.dp))
+}
+
+/** F-73 저장 공간 상한 줄: 줄을 누르면 상한을 바꾸고, 오른쪽 [지우기](48dp)로 처리해 둔 그림을 지운다. */
+@Composable
+private fun StorageLimitRow(limit: String, used: String?, onCycle: () -> Unit, onClear: () -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f).clickable(onClick = onCycle).heightIn(min = 56.dp).padding(start = 16.dp, top = 10.dp, bottom = 10.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("저장 공간 상한", fontSize = 15.sp)
+                Text("AI 화질 향상으로 처리한 그림(만화·EPUB)" + (used?.let { " · 지금 $it" } ?: ""), fontSize = 14.sp, lineHeight = 19.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Text(limit, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp))
+        }
+        TextButton(onClick = onClear, modifier = Modifier.heightIn(min = 48.dp).padding(end = 8.dp)) { Text("지우기", fontSize = 15.sp) }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(horizontal = 16.dp))
 }
@@ -437,9 +448,9 @@ private fun SwitchRow(name: String, sub: String, on: Boolean, onToggle: (Boolean
     Row(Modifier.fillMaxWidth().clickable { onToggle(!on) }.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(name, fontSize = 15.sp)
-            if (sub.isNotEmpty()) Text(sub, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (sub.isNotEmpty()) Text(sub, fontSize = 14.sp, lineHeight = 19.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        Switch(checked = on, onCheckedChange = onToggle)
+        Switch(checked = on, onCheckedChange = onToggle, modifier = Modifier.padding(start = 8.dp))
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(horizontal = 16.dp))
 }

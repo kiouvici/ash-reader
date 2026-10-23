@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>설정</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&amp;display=swap">
+<style>body{margin:0} button{font-family:inherit;cursor:pointer}</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; font-family: 'Noto Sans KR', sans-serif; background: #FBF9F5; color: #1F1F1F">
+<div style="height: 56px; display: flex; align-items: center; padding: 0 20px; font-size: 18px; font-weight: 700; border-bottom: 1px solid #E5E0D6">설정</div>
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+<div style="padding: 16px 20px 6px; font-size: 13px; color: #2E4A6B; font-weight: 700">{{g.title}}</div>
+<sc-for list="{{g.rows}}" as="r" hint-placeholder-count="3">
+<button onClick="{{r.tap}}" style="width: 100%; min-height: 52px; display: flex; align-items: center; gap: 12px; padding: 0 20px; border: none; border-bottom: 1px solid #EEEAE2; background: #FFFFFF; text-align: left">
+<div style="flex-grow: 1"><div style="font-size: 15px">{{r.name}}</div><div style="font-size: 12px; color: #5F6368">{{r.sub}}</div></div>
+<div style="display: {{r.showSw}}; width: 44px; height: 26px; border-radius: 13px; background: {{r.swBg}}; position: relative"><div style="position: absolute; top: 3px; left: {{r.knob}}; width: 20px; height: 20px; border-radius: 10px; background: #FFFFFF; transition: left 150ms"></div></div>
+<div style="display: {{r.showVal}}; font-size: 14px; color: #5F6368">{{r.val}}</div>
+</button>
+</sc-for>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+constructor(p) { super(p); this.state = { vol: true, curl: true, ai: false, epubAi: false, keep: true }; }
+renderVals() {
+const s = this.state;
+const sw = (k, name, sub) => ({ name, sub, showSw: 'block', showVal: 'none', val: '', swBg: s[k] ? '#2E4A6B' : '#C9C4BA', knob: s[k] ? '21px' : '3px', tap: () => this.setState({ [k]: !s[k] }) });
+const v = (name, sub, val) => ({ name, sub, val, showSw: 'none', showVal: 'block', swBg: '', knob: '', tap: () => {} });
+return { groups: [
+{ title: '서재', rows: [v('서재 폴더', 'Download · 업무 문서 · 만화', '3개')] },
+{ title: '읽기', rows: [v('본문 글꼴', '나눔명조 · 리디바탕 · 마루부리', '나눔명조'), sw('curl', '종이 넘김 효과', '끄면 밀어서 넘기기'), sw('vol', '볼륨 버튼으로 넘기기', '')] },
+{ title: '만화', rows: [v('칸 단위 보기', '칸 누르면 확대 / 자동 순서', '누르면 확대'), sw('ai', 'AI 화질 개선', '기기 안에서 처리 · 저화질 만화를 선명하게 · 배터리 더 씀')] },
+{ title: 'eBook', rows: [sw('epubAi', 'EPUB 그림 AI 화질 개선', '작은 그림·삽화를 선명하게 · 글자에는 적용 안 함')] },
+{ title: '연결', rows: [v('사전', '단어 길게 눌러 찾기', '말글사전'), v('구매한 책 열기', '서재 위 바로가기', '예스24')] },
+{ title: '정보', rows: [v('백업·내보내기', '서재·책갈피·메모를 파일로 저장', ''), sw('keep', '한 번만 보기 기록 지우기', '앱 닫으면 지워요'), v('오픈소스 라이선스', 'AGPL-3.0 · 사용한 라이브러리', ''), v('버전', '', '1.0.0')] }
+] };
+}
+}
+</script>
+</body>
+</html>

@@ -16,6 +16,7 @@ internal object HwpNative {
     @JvmStatic external fun nativePageTextChars(h: Long, i: Int): Int
     @JvmStatic external fun nativeToXhtml(h: Long, dir: String, title: String): String?
     @JvmStatic external fun nativeImageRects(h: Long, i: Int): FloatArray?
+    @JvmStatic external fun nativePageTextLayout(h: Long, i: Int): FloatArray?
     @JvmStatic external fun nativeClose(h: Long)
 }
 
@@ -51,6 +52,12 @@ class HwpDoc private constructor(private var handle: Long) : Closeable {
     /** 쪽 안 그림 영역(쪽 기준 0..1, l t r b 반복). 야간 '그림은 반전 안 함'(F-21)에 쓴다. 없으면 빈 배열. */
     fun imageRects(i: Int): FloatArray = HwpNative.nativeImageRects(handle, i) ?: FloatArray(0)
 
+    /**
+     * 쪽 글자 줄기와 글자 위치(원본 보기 글자 선택, 7B). rhwp 쪽 px 좌표의 평평한 배열 — 형식은 rust/src/textlayout.rs.
+     * 풀이는 앱 쪽(HwpText)이 한다. 실패하면 null.
+     */
+    fun textLayout(i: Int): FloatArray? = HwpNative.nativePageTextLayout(handle, i)
+
     /** 쪽 본문 글자 수(공백 제외). */
     fun pageTextChars(i: Int): Int = HwpNative.nativePageTextChars(handle, i)
 
@@ -61,7 +68,7 @@ class HwpDoc private constructor(private var handle: Long) : Closeable {
     fun toXhtml(dir: File, title: String): String {
         dir.mkdirs()
         return HwpNative.nativeToXhtml(handle, dir.absolutePath, title)
-            ?: throw HwpException("이북식 변환 실패: ${HwpNative.nativeLastError()}")
+            ?: throw HwpException("eBook 보기 변환 실패: ${HwpNative.nativeLastError()}")
     }
 
     override fun close() {

@@ -77,6 +77,8 @@ fun ComicSettingsSheet(
     onDismiss: () -> Unit,
     /** 태블릿 가로: 바텀시트 대신 오른쪽 측면 시트. */
     side: Boolean = false,
+    /** [화질] 탭 '전후 비교'(F-73): 시트를 닫고 비교 화면을 연다. null 이면 비교 단추를 흐리게. */
+    onCompare: (() -> Unit)? = null,
 ) {
     var tab by remember { mutableStateOf(ComicTab.TURN) }
     val p = cs.prefs
@@ -93,7 +95,7 @@ fun ComicSettingsSheet(
             when (tab) {
                 ComicTab.TURN -> TurnTab(cs, p, globalPanel)
                 ComicTab.VIEW -> ViewTab(cs, p)
-                ComicTab.QUALITY -> QualityTab(cs, p, globalAi, upscale, upscaleLimitMb)
+                ComicTab.QUALITY -> QualityTab(cs, globalAi, globalPanel, upscale, upscaleLimitMb, onCompare)
             }
             HorizontalDivider(Modifier.padding(top = 16.dp))
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -230,7 +232,7 @@ private fun ViewTab(cs: ComicSession, p: ComicBookPrefs) {
 }
 
 @Composable
-private fun QualityTab(cs: ComicSession, p: ComicBookPrefs, globalAi: Boolean, upscale: ComicUpscale?, limitMb: Int) {
+private fun QualityTab(cs: ComicSession, globalAi: Boolean, globalPanel: PanelMode, upscale: ComicUpscale?, limitMb: Int, onCompare: (() -> Unit)?) {
     val context = LocalContext.current
     val cap by produceState(AiCapability.cached(context)) {
         if (value == null) value = AiCapability.measureWithin(context)
@@ -243,29 +245,47 @@ private fun QualityTab(cs: ComicSession, p: ComicBookPrefs, globalAi: Boolean, u
         c.verdict == AiCapability.Verdict.LOW_MEMORY -> Text("이 기기는 메모리가 부족해서 AI 화질 향상을 쓸 수 없어요.", fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
         c.verdict == AiCapability.Verdict.TOO_SLOW -> Text("이 기기에서는 처리가 너무 느려서 AI 화질 향상을 쓸 수 없어요.", fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
         else -> {
-            var confirm by remember { mutableStateOf(false) }
+            // S-36: 처음 'AI 향상'·'전후 비교'를 고르면 확인창. 값 = 확인 뒤 갈 방식(1 AI 향상, 2 전후 비교)
+            var confirm by remember { mutableStateOf<Int?>(null) }
             val on = cs.aiOn(globalAi)
-            SwitchLine("AI 화질 향상", on, sub = "작은 그림을 2배로 선명하게 키워요.") { v ->
-                if (v && !AiConsent.given(context)) confirm = true else cs.update { it.copy(ai = if (v) 1 else 0) }
+            // 칸 보기·웹툰에서는 비교할 수 없다(화면이 쪽 단위가 아님)
+            val blocked = cs.webtoon || cs.panelMode(globalPanel) != PanelMode.OFF
+            fun go(mode: Int) {
+                cs.update { it.copy(ai = 1) }
+                if (mode == 2) onCompare?.invoke()
             }
-            if (!c.gpu) Text("이 기기에서는 쪽마다 시간이 조금 걸려요(약 ${c.secPerPage}초).", fontSize = 12.sp, color = sub)
+            Label("AI 화질 향상", "작은 그림을 2배로 선명하게 키워요. 기기 안에서 처리해요.")
+            AiModeSegmented(
+                selected = if (on) 1 else 0, compareEnabled = !blocked && onCompare != null, modifier = Modifier.padding(top = 8.dp),
+                onPick = { m ->
+                    when {
+                        m == 0 -> cs.update { it.copy(ai = 0) }
+                        !AiConsent.given(context) -> confirm = m
+                        else -> go(m)
+                    }
+                },
+            )
+            if (blocked) Text("칸 보기·웹툰에서는 비교할 수 없어요", fontSize = 14.sp, color = sub, modifier = Modifier.padding(top = 6.dp))
+            if (!c.gpu) Text("이 기기에서는 쪽마다 시간이 조금 걸려요(약 ${c.secPerPage}초).", fontSize = 14.sp, color = sub, modifier = Modifier.padding(top = 6.dp))
             val paused = upscale?.paused?.collectAsState()?.value
-            if (on && paused != null) Text("기기가 뜨겁거나 배터리가 적어서 잠시 멈췄어요. 식거나 충전하면 다시 시작해요.", fontSize = 13.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 6.dp))
+            if (on && paused != null) Text("기기가 뜨겁거나 배터리가 적어서 잠시 멈췄어요. 식거나 충전하면 다시 시작해요.", fontSize = 14.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 6.dp))
             val ready = upscale?.ready?.collectAsState()?.value
             val stats by produceState<Pair<Int, Long>?>(null, ready?.size) {
                 value = withContext(Dispatchers.IO) { ComicUpscale.doneCount(context, cs.doc.cacheKey) to ComicUpscale.usedBytes(context) }
             }
             stats?.let { (n, used) ->
-                Text("처리한 쪽: $n / ${cs.doc.sourceCount}   저장 공간 ${used shr 20}MB / ${if (limitMb >= 1024) "${limitMb / 1024}GB" else "${limitMb}MB"}", fontSize = 12.sp, color = sub, modifier = Modifier.padding(top = 8.dp))
+                Text("처리한 쪽: $n / ${cs.doc.sourceCount}   저장 공간 ${used shr 20}MB / ${if (limitMb >= 1024) "${limitMb / 1024}GB" else "${limitMb}MB"}", fontSize = 14.sp, color = sub, modifier = Modifier.padding(top = 8.dp))
             }
-            if (confirm) AlertDialog(
-                onDismissRequest = { confirm = false },
-                text = { Text("AI 화질 향상을 켤까요? 처리하는 동안 배터리를 더 쓰고 기기가 따뜻해질 수 있어요. 처리한 그림은 최대 ${if (limitMb >= 1024) "${limitMb / 1024}GB" else "${limitMb}MB"}까지 저장해 둡니다.") },
-                confirmButton = {
-                    TextButton(onClick = { AiConsent.give(context); confirm = false; cs.update { it.copy(ai = 1) } }, modifier = Modifier.heightIn(min = 48.dp)) { Text("켜기") }
-                },
-                dismissButton = { TextButton(onClick = { confirm = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("취소") } },
-            )
+            confirm?.let { mode ->
+                AlertDialog(
+                    onDismissRequest = { confirm = null },
+                    text = { Text("AI 화질 향상을 켤까요? 처리하는 동안 배터리를 더 쓰고 기기가 따뜻해질 수 있어요. 처리한 그림은 최대 ${if (limitMb >= 1024) "${limitMb / 1024}GB" else "${limitMb}MB"}까지 저장해 둡니다.") },
+                    confirmButton = {
+                        TextButton(onClick = { AiConsent.give(context); confirm = null; go(mode) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("켜기") }
+                    },
+                    dismissButton = { TextButton(onClick = { confirm = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text("취소") } },
+                )
+            }
         }
     }
 }

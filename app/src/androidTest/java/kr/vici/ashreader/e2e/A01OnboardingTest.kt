@@ -47,7 +47,15 @@ class A01OnboardingTest : E2eTest() {
             shot("permission-dialog")
             if (allow != null) allow.click() else shell("pm grant $PKG android.permission.READ_EXTERNAL_STORAGE")
         }
-        // 돌아오면 서재 + Download 를 모은다
+        // 돌아오면 서재 폴더 고르기(S-17, 7F): [Download 폴더 바로 추가] → [서재로 가기]. (옛 판: 바로 서재 + Download 자동)
+        val quick = find(By.text("Download 폴더 바로 추가"), 15_000)
+        if (quick != null) {
+            shot("folders-intro")
+            quick.click()
+            SystemClock.sleep(1_500)
+            shot("folders-download-added")
+            (scrollFind(By.text("서재로 가기")) ?: obj(By.text("서재로 가기"))).click()
+        }
         assertTrue("서재로 오지 않음", device.wait(Until.hasObject(By.text("독서 기록")), 20_000))
         assertTrue("파일 접근이 허용되지 않음", StorageAccess.hasFileAccess(ctx))
         val anyBook = device.wait(Until.hasObject(By.desc(Pattern.compile(".*, .*% 읽음"))), 60_000)

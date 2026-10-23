@@ -152,6 +152,8 @@ abstract class E2eTest {
         while (SystemClock.uptimeMillis() < end) {
             assertAlive()
             if (!device.hasObject(By.text("여는 중…"))) {
+                // 처음 여는 책의 탭 안내는 화면 전체를 덮어 쪽 설명이 접근성 트리에서 가려진다 → 열린 것으로 본다
+                if (device.hasObject(By.text("알겠어요"))) return Opened.Page("탭 안내")
                 device.findObject(By.desc(PAGE))?.let { return Opened.Page(it.contentDescription ?: "") }
                 // 정보줄("2% · 1/40쪽")만 보이는 경우
                 device.findObject(By.text(INFO))?.let { return Opened.Page(it.text ?: "") }

@@ -1,6 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.ui
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
+import kr.vici.ashreader.doc.PageFrame
 import android.content.Context
 import android.os.BatteryManager
 import android.os.SystemClock
@@ -18,7 +28,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -113,6 +122,7 @@ fun LightOverlay(s: Settings, dimNow: Int) {
  * 정보줄(S-20): 시계·배터리·이번 장 남은 쪽·전체 진행률·남은 읽기 시간. 항목·위치는 설정.
  * [chapterLeft] = 이번 장 남은 쪽(모르면 null), [msPerPage] = 최근 읽기 속도(모르면 null → 남은 시간 숨김).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ReaderInfoLine(
     page: Int, count: Int, chapterLeft: Int?, msPerPage: Long?, s: Settings, c: ReadingColors, modifier: Modifier,
@@ -131,27 +141,31 @@ fun ReaderInfoLine(
     if (on(InfoItem.CHAPTER_LEFT) && chapterLeft != null) right += if (chapterLeft <= 0) "이 장 마지막 쪽" else "이 장 ${chapterLeft}쪽 남음"
     if (on(InfoItem.PROGRESS) && count > 0) right += "${(page + 1) * 100 / count}% · ${page + 1}/${count}쪽"
     if (on(InfoItem.TIME_LEFT) && msPerPage != null && count > 0) right += "약 " + durationLabel((count - page - 1).coerceAtLeast(0) * msPerPage)
-    val pad = if (s.infoTop) Modifier.statusBarsPadding() else Modifier.navigationBarsPadding()
+    // I-711: eBook 보기가 비워 둔 자리(PageFrame)와 같은 곳에 놓이게 막대가 숨어도 잡히는 값으로 띄운다
+    val pad = Modifier.windowInsetsPadding(
+        if (s.infoTop) WindowInsets.statusBarsIgnoringVisibility.union(WindowInsets.displayCutout).only(WindowInsetsSides.Top)
+        else WindowInsets.navigationBarsIgnoringVisibility.union(WindowInsets.displayCutout).only(WindowInsetsSides.Bottom),
+    )
     if (halves != null) {
         // 쪽마다: 각 쪽 가운데에 그 쪽 번호, 왼쪽 쪽 바깥에 시계·배터리, 오른쪽 쪽 바깥에 진행 정보
         val (lp, rp) = halves
         val desc = (left + listOfNotNull(lp?.let { "왼쪽 ${it + 1}쪽" }, rp?.let { "오른쪽 ${it + 1}쪽" }) + right).joinToString(", ")
         Row(modifier.fillMaxWidth().then(pad).padding(vertical = 6.dp).semantics { contentDescription = desc }) {
             Box(Modifier.weight(1f).padding(horizontal = 20.dp)) {
-                Text(left.joinToString(" · "), fontSize = 12.sp, color = c.subC, maxLines = 1, modifier = Modifier.align(Alignment.CenterStart))
-                if (lp != null) Text("${lp + 1}", fontSize = 12.sp, color = c.subC, modifier = Modifier.align(Alignment.Center))
+                Text(left.joinToString(" · "), fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, maxLines = 1, modifier = Modifier.align(Alignment.CenterStart))
+                if (lp != null) Text("${lp + 1}", fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, modifier = Modifier.align(Alignment.Center))
             }
             Box(Modifier.weight(1f).padding(horizontal = 20.dp)) {
-                if (rp != null) Text("${rp + 1}", fontSize = 12.sp, color = c.subC, modifier = Modifier.align(Alignment.Center))
-                Text(right.joinToString("  "), fontSize = 12.sp, color = c.subC, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.align(Alignment.CenterEnd))
+                if (rp != null) Text("${rp + 1}", fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, modifier = Modifier.align(Alignment.Center))
+                Text(right.joinToString("  "), fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.align(Alignment.CenterEnd))
             }
         }
         return
     }
     if (left.isEmpty() && right.isEmpty()) return
     Row(modifier.fillMaxWidth().then(pad).padding(horizontal = 20.dp, vertical = 6.dp).semantics { contentDescription = (left + right).joinToString(", ") }) {
-        Text(left.joinToString(" · "), fontSize = 12.sp, color = c.subC, maxLines = 1, modifier = Modifier.weight(1f))
-        Text(right.joinToString("  "), fontSize = 12.sp, color = c.subC, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(left.joinToString(" · "), fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, maxLines = 1, modifier = Modifier.weight(1f))
+        Text(right.joinToString("  "), fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

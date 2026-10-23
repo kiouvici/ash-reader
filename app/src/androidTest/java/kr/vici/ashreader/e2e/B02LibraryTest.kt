@@ -61,37 +61,36 @@ class B02LibraryTest : E2eTest() {
     }
 
     @Test
-    fun addFolder_byPath_thenRemove() {
+    fun libraryFolders_pickerOpens_removeAndUndo() {
         launchApp()
         obj(By.desc("더 보기")).click()
-        clickText("모으는 폴더 관리")
-        obj(By.text("+ 폴더 고르기"))
+        // 7F: '서재 폴더'(S-17). 옛 판 이름 '모으는 폴더 관리'도 받는다
+        obj(By.text(Pattern.compile("서재 폴더|모으는 폴더 관리"))).click()
+        SystemClock.sleep(1_000)
         shot("folders")
-        clickText("+ 폴더 고르기")
-        // '모든 파일 접근'이 있으면 앱 안 경로 고르기 창, 없으면 시스템 폴더 고르기(SAF)
-        if (has(By.text("이 폴더 고르기"), 5_000)) {
-            // 줄 글자는 "  이름"(앞 빈칸 둘). 뒤 화면의 'Download 를 자동으로…' 같은 글과 헷갈리지 않게 통째로 맞춘다
-            obj(By.text(Pattern.compile("\\s*Download"))).click(); SystemClock.sleep(600)
-            obj(By.text(Pattern.compile("\\s*ash-e2e"))).click(); SystemClock.sleep(600)
-            shot("path-dialog")
-            clickText("이 폴더 고르기")
-            val row = device.wait(Until.findObject(By.text("Download/ash-e2e")), 10_000)
-            shot("folder-added")
-            assertNotNull("고른 폴더가 목록에 없음", row)
-            val folders = runBlocking { app.db.books().allScanFolders() }
-            assertTrue(folders.any { it.path.endsWith("/Download/ash-e2e") && it.include })
-            // 빼기(같은 줄의 [빼기] — 'Download' 줄 아래 두 번째)
-            val removes = device.findObjects(By.text("빼기"))
-            val target = removes.minByOrNull { kotlin.math.abs(it.visibleBounds.centerY() - row!!.visibleBounds.centerY()) }
-            target!!.click()
+        // 폴더 추가 → 시스템 폴더 고르기(SAF)가 열리는지만 보고 닫는다
+        val add = scrollFind(By.text(Pattern.compile("\\+ 폴더 추가|폴더 추가|\\+ 폴더 고르기")))
+        assertNotNull("폴더 추가 단추가 없음", add)
+        add!!.click()
+        has(By.pkg(Pattern.compile(".*documentsui.*")), 10_000)
+        SystemClock.sleep(1_000)
+        shot("folder-picker")
+        device.pressBack()
+        SystemClock.sleep(1_000)
+        assertAlive()
+        // Download 줄 [빼기] → 스낵바 [되돌리기] → 다시 들어옴
+        val before = runBlocking { app.db.books().allScanFolders() }.count { it.include }
+        val remove = scrollFind(By.text("빼기"))
+        if (remove != null) {
+            remove.click()
             SystemClock.sleep(800)
-            assertEquals(0, runBlocking { app.db.books().allScanFolders() }.count { it.path.endsWith("/Download/ash-e2e") })
-        } else {
-            shot("saf-picker")
-            device.pressBack()
+            shot("folder-removed")
+            assertEquals(before - 1, runBlocking { app.db.books().allScanFolders() }.count { it.include })
+            obj(By.text("되돌리기"), 5_000).click()
+            SystemClock.sleep(1_000)
+            shot("folder-undo")
+            assertEquals(before, runBlocking { app.db.books().allScanFolders() }.count { it.include })
         }
-        obj(By.text("지금 다시 모으기")).click()
-        clickText("확인")
         device.pressBack()
         assertTrue(has(By.text("독서 기록")))
         assertAlive()

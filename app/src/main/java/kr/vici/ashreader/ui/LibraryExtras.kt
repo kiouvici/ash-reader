@@ -78,7 +78,6 @@ import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.SeriesGroups
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.NotesExport
-import kr.vici.ashreader.data.ScanFolder
 import kr.vici.ashreader.data.StorageAccess
 import kr.vici.ashreader.data.StoreApp
 import kr.vici.ashreader.data.StoreRepo
@@ -112,7 +111,7 @@ fun StorageIntroScreen(onGranted: () -> Unit, onFolders: () -> Unit) {
         Text("기기 안의 책과 문서를\n찾으려면 허락이 필요해요", fontFamily = Myeongjo, fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 34.sp,
             color = cs.primary, modifier = Modifier.padding(top = 24.dp, bottom = 20.dp))
         listOf(
-            "다운로드 폴더의 파일을 서재에 자동으로 모읍니다.",
+            "고른 폴더(서재 폴더)의 책을 서재에 모아요. 다음 화면에서 폴더를 골라요.",
             "파일은 읽기만 하고 고치지 않아요.",
             "인터넷 권한이 없어 어디로도 보내지 않아요.",
         ).forEach { t ->
@@ -150,111 +149,6 @@ fun StorageIntroScreen(onGranted: () -> Unit, onFolders: () -> Unit) {
         TextButton(onClick = onFolders, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(top = 4.dp)) {
             Text("폴더만 직접 고를게요", fontSize = 15.sp)
         }
-    }
-}
-
-// ───────────────────────────── S-03 / 설정: 모으는 폴더 ─────────────────────────────
-
-/**
- * 모으는 폴더·빼는 폴더(F-01, S-03, 설정 > 서재). [intro] = 첫 안내에서 왔음(아래 [서재로 가기]).
- * 폴더는 SAF 로 고른다(처음 위치 Download). '모든 파일 접근'이 있으면 고른 폴더를 경로로 빠르게 훑는다.
- */
-@Composable
-fun FoldersScreen(intro: Boolean, onBack: () -> Unit, onAccess: () -> Unit, onScan: () -> Unit) {
-    val context = LocalContext.current
-    val app = context.ash
-    val scope = rememberCoroutineScope()
-    val folders by remember { app.db.books().scanFolders() }.collectAsState(initial = emptyList())
-    val busy by app.collector.busy.collectAsState()
-    val hasAccess = remember(folders) { StorageAccess.hasFileAccess(context) }
-    var msg by remember { mutableStateOf<String?>(null) }
-    fun added(uri: Uri?, include: Boolean) {
-        if (uri != null) scope.launch {
-            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            app.db.books().upsertScanFolder(ScanFolder(uri.toString(), include, StorageAccess.labelOf(uri.toString())))
-            onScan()
-        }
-    }
-    val pickInclude = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { added(it, true) }
-    val pickExclude = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { added(it, false) }
-    /** 경로로 고르기(모든 파일 접근이 있을 때): true = 모으는 폴더, false = 빼는 폴더. */
-    var pathPick by remember { mutableStateOf<Boolean?>(null) }
-    fun addPath(f: java.io.File, include: Boolean) {
-        scope.launch {
-            app.db.books().upsertScanFolder(ScanFolder(f.path, include, StorageAccess.labelOf(f.path)))
-            onScan()
-        }
-    }
-    val cs = MaterialTheme.colorScheme
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        ScreenTitle(if (intro) "폴더 고르기" else "모으는 폴더", onBack = onBack)
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 20.dp))
-        Text(
-            if (intro) "괜찮아요. 책이 있는 폴더를 직접 골라 주세요. 고른 폴더와 그 안의 폴더만 서재에 모읍니다."
-            else "고른 폴더와 그 안의 폴더에서 책·문서를 찾아 서재에 넣어요. 기기의 파일은 읽기만 해요.",
-            fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-        )
-        if (Build.VERSION.SDK_INT >= 30 && !hasAccess) {
-            Text("Android 11부터는 Download 폴더 자체는 고를 수 없어요. 그 안의 폴더를 골라 주세요.", fontSize = 13.sp, color = cs.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-        }
-        Row(Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(cs.surfaceContainer)
-            .clickable(onClick = onAccess).heightIn(min = 56.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("모든 파일 접근", fontSize = 15.sp)
-                Text(if (hasAccess) "허용됨 · Download 를 자동으로 모아요" else "허용 안 됨 · 고른 폴더만 모아요", fontSize = 12.sp, color = cs.onSurfaceVariant)
-            }
-            Text(if (hasAccess) "켜짐" else "허용하러 가기", fontSize = 14.sp, color = cs.primary)
-        }
-        FolderGroup("모으는 폴더", folders.filter { it.include }, empty = "아직 고른 폴더가 없어요.") { f ->
-            scope.launch {
-                app.db.books().deleteScanFolder(f.path)
-                if (!f.path.startsWith("/")) runCatching { context.contentResolver.releasePersistableUriPermission(Uri.parse(f.path), Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                onScan()
-            }
-        }
-        Button(onClick = { if (hasAccess) pathPick = true else pickInclude.launch(StorageAccess.downloadInitialUri()) }, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth().heightIn(min = 48.dp)) {
-            Text("+ 폴더 고르기")
-        }
-        FolderGroup("빼는 폴더", folders.filter { !it.include }, empty = "모으는 폴더 안에서 빼고 싶은 폴더를 고를 수 있어요.") { f ->
-            scope.launch { app.db.books().deleteScanFolder(f.path); onScan() }
-        }
-        OutlinedButton(onClick = { if (hasAccess) pathPick = false else pickExclude.launch(StorageAccess.downloadInitialUri()) }, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth().heightIn(min = 48.dp)) {
-            Text("+ 빼는 폴더 고르기")
-        }
-        if (!intro) OutlinedButton(onClick = { onScan(); msg = "폴더를 다시 훑고 있어요." }, enabled = !busy,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth().heightIn(min = 48.dp)) { Text("지금 다시 모으기") }
-        if (intro) Button(onClick = onBack, modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp).fillMaxWidth().heightIn(min = 52.dp)) { Text("서재로 가기") }
-        Spacer(Modifier.height(24.dp))
-    }
-    msg?.let { AlertDialog(onDismissRequest = { msg = null }, text = { Text(it) }, confirmButton = { TextButton(onClick = { msg = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text("확인") } }) }
-    pathPick?.let { include ->
-        // 빼는 폴더는 모으는 폴더 안에서 고른다. 모으는 폴더는 내장 저장소에서.
-        @Suppress("DEPRECATION")
-        val storage = android.os.Environment.getExternalStorageDirectory()
-        val roots = if (include) listOf(storage) else folders.filter { it.include }
-            .mapNotNull { f -> if (f.path.startsWith("/")) f.path else StorageAccess.pathOfTree(Uri.parse(f.path)) }
-            .map { java.io.File(it) }.filter { it.isDirectory }.ifEmpty { listOf(storage) }
-        PathFolderDialog(if (include) "모을 폴더 고르기" else "뺄 폴더 고르기", roots,
-            onPick = { f -> pathPick = null; addPath(f, include) }, onDismiss = { pathPick = null })
-    }
-}
-
-@Composable
-private fun FolderGroup(title: String, list: List<ScanFolder>, empty: String, onRemove: (ScanFolder) -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = cs.primary, modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp))
-    if (list.isEmpty()) Text(empty, fontSize = 14.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-    list.forEach { f ->
-        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Folder, null, Modifier.size(22.dp), tint = cs.onSurfaceVariant)
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(f.label, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(if (f.path.startsWith("/")) "기기 경로" else "직접 고른 폴더", fontSize = 12.sp, color = cs.onSurfaceVariant)
-            }
-            TextButton(onClick = { onRemove(f) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("빼기") }
-        }
-        HorizontalDivider(color = cs.outlineVariant, modifier = Modifier.padding(horizontal = 20.dp))
     }
 }
 
@@ -625,46 +519,3 @@ fun ZipPickSheet(title: String, entries: List<kr.vici.ashreader.data.LibraryRepo
     }
 }
 
-// ───────────────────────────── 경로로 폴더 고르기(모든 파일 접근이 있을 때) ─────────────────────────────
-
-/**
- * 기기 폴더를 경로로 훑어 고르기(4A 남은 일: 빼는 폴더를 경로로). '모든 파일 접근'이 있을 때만 쓴다.
- * [roots] = 처음 보일 곳(모으는 폴더들, 없으면 내장 저장소). 숨은 폴더·Android 폴더는 보이지 않는다.
- */
-@Composable
-fun PathFolderDialog(title: String, roots: List<java.io.File>, onPick: (java.io.File) -> Unit, onDismiss: () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    var cur by remember { mutableStateOf<java.io.File?>(if (roots.size == 1) roots[0] else null) }
-    val subs by produceState<List<java.io.File>>(emptyList(), cur) {
-        val c = cur
-        value = if (c == null) roots else withContext(Dispatchers.IO) {
-            c.listFiles()?.filter { it.isDirectory && !it.name.startsWith(".") && it.name != "Android" }?.sortedBy { it.name.lowercase() } ?: emptyList()
-        }
-    }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column {
-                Text(cur?.let { StorageAccess.labelOf(it.path) } ?: "어디서 고를까요?", fontSize = 13.sp, color = cs.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                    val c = cur
-                    if (c != null && (roots.size > 1 || roots.none { it.path == c.path })) item {
-                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { cur = if (roots.any { it.path == c.path }) null else c.parentFile }, verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Up, null, Modifier.size(20.dp)); Text("  위로", fontSize = 15.sp)
-                        }
-                    }
-                    items(subs, key = { it.path }) { d ->
-                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { cur = d }, verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Folder, null, Modifier.size(20.dp), tint = cs.onSurfaceVariant)
-                            Text("  " + (if (cur == null) StorageAccess.labelOf(d.path) else d.name), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                    if (cur != null && subs.isEmpty()) item { Text("안에 폴더가 없어요.", fontSize = 14.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(vertical = 12.dp)) }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = { cur?.let(onPick) }, enabled = cur != null, modifier = Modifier.heightIn(min = 48.dp)) { Text("이 폴더 고르기") } },
-        dismissButton = { TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("취소") } },
-    )
-}

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>서재 폴더</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&amp;display=swap">
+<style>body{margin:0} button{font-family:inherit;cursor:pointer}</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; font-family: 'Noto Sans KR', sans-serif; background: #FBF9F5; color: #1F1F1F">
+<div style="height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid #E5E0D6">
+<div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="2" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></div>
+<div style="font-size: 18px; font-weight: 700">서재 폴더</div>
+</div>
+<div style="padding: 16px 20px 8px; font-size: 14px; line-height: 1.6; color: #5F6368">고른 폴더 안의 책을 서재에 모아 보여 줘요. 폴더는 여러 개 고를 수 있어요.</div>
+<sc-for list="{{folders}}" as="f" hint-placeholder-count="3">
+<div style="margin: 8px 16px 0; padding: 14px 12px 14px 16px; border-radius: 14px; background: #FFFFFF; border: 1px solid #E5E0D6; display: flex; align-items: center; gap: 12px">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2E4A6B" stroke-width="2" aria-hidden="true"><path d="M3 7h6l2 2h10v10H3z"></path></svg>
+<div style="flex-grow: 1; min-width: 0">
+<div style="font-size: 15px; font-weight: 500">{{f.name}}</div>
+<div style="font-size: 12px; color: #5F6368">{{f.path}} · 책 {{f.n}}권</div>
+<button onClick="{{f.toggleSub}}" style="margin-top: 6px; padding: 0; border: none; background: none; font-size: 13px; color: #2E4A6B; display: flex; align-items: center; gap: 6px"><span style="display: inline-block; width: 16px; height: 16px; border-radius: 4px; border: 2px solid #2E4A6B; background: {{f.subBg}}; box-sizing: border-box"></span>하위 폴더도 포함</button>
+</div>
+<button onClick="{{f.remove}}" aria-label="폴더 빼기" style="width: 44px; height: 44px; border: none; background: none; color: #8C5A2B; font-size: 13px">빼기</button>
+</div>
+</sc-for>
+<button onClick="{{add}}" style="margin: 12px 16px 0; width: calc(100% - 32px); height: 52px; border-radius: 14px; border: 1px dashed #2E4A6B; background: #F2F5F9; color: #2E4A6B; font-size: 15px; font-weight: 700">+ 폴더 추가</button>
+<div style="margin: 12px 20px 0; font-size: 12px; line-height: 1.6; color: #5F6368">'폴더 추가'를 누르면 휴대폰의 폴더 고르기 화면이 열려요. 고른 폴더만 읽고, 다른 폴더는 보지 않아요.</div>
+<div style="position: absolute; left: 16px; right: 16px; bottom: 24px; padding: 14px 16px; border-radius: 14px; background: #2E4A6B; color: #FFFFFF; font-size: 14px; display: flex; justify-content: space-between; align-items: center">
+<div>서재에 있는 책</div><div style="font-weight: 700">{{total}}권</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+constructor(p) { super(p); this.state = { list: [
+{ name: 'Download', path: '내장 저장공간/Download', n: 23, sub: false },
+{ name: '업무 문서', path: '내장 저장공간/Documents/업무', n: 64, sub: true },
+{ name: '만화', path: 'SD 카드/Comics', n: 41, sub: true }
+], extra: 0 }; }
+renderVals() {
+const s = this.state;
+const pool = [{ name: 'eBook', path: '내장 저장공간/Books', n: 12, sub: true }, { name: '카카오톡 받은 파일', path: '내장 저장공간/Download/KakaoTalk', n: 9, sub: false }];
+const set = (l) => this.setState({ list: l });
+return {
+total: s.list.reduce((a, f) => a + f.n, 0),
+add: () => { if (s.extra < pool.length) this.setState({ list: s.list.concat([pool[s.extra]]), extra: s.extra + 1 }); },
+folders: s.list.map((f, i) => ({ name: f.name, path: f.path, n: f.n, subBg: f.sub ? '#2E4A6B' : '#FFFFFF',
+toggleSub: () => set(s.list.map((g, j) => j === i ? Object.assign({}, g, { sub: !g.sub }) : g)),
+remove: () => set(s.list.filter((g, j) => j !== i)) }))
+};
+}
+}
+</script>
+</body>
+</html>

@@ -202,9 +202,12 @@ fun ScrollReader(
                             zoomShownAt++
                         }),
                         onLongPress = { o ->
-                            if (zoom > 1f) return@detectTapGestures
-                            val info = state.layoutInfo.visibleItemsInfo.firstOrNull { o.y >= it.offset && o.y < it.offset + it.size } ?: return@detectTapGestures
-                            longPress(PageSlot(info.index, colLeft, info.offset.toFloat(), colPx.toFloat(), info.size.toFloat()), o.x, o.y)
+                            // 7B: 확대(가운데 기준 배율 + 가로 이동)한 상태면 누른 곳을 확대 전 자리로 되돌려 쪽을 찾고, 칸은 화면 자리로 넘긴다
+                            val cx = wPx / 2f; val cy = hPx / 2f
+                            val ly = SelectGeo.unscale(o.y, cy, zoom, 0f)
+                            val info = state.layoutInfo.visibleItemsInfo.firstOrNull { ly >= it.offset && ly < it.offset + it.size } ?: return@detectTapGestures
+                            val slot = PageSlot(info.index, colLeft, info.offset.toFloat(), colPx.toFloat(), info.size.toFloat())
+                            longPress(if (zoom > 1f) SelectGeo.scaledSlot(slot, cx, cy, zoom, panX) else slot, o.x, o.y)
                         },
                     ) { o -> tap(o.x / wPx, o.y / hPx) }
                 },

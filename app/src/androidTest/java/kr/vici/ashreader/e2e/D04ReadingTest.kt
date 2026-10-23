@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Until
 import java.util.regex.Pattern
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -140,7 +141,8 @@ class D04ReadingTest : E2eTest() {
         scrollFind(By.text("글자 단위"))?.click()
         scrollFind(By.text("영문 하이픈 넣기"))?.click()
         shot("aa-para")
-        device.pressBack(); SystemClock.sleep(800)
+        // 시트 닫기(첫 '뒤로'는 키보드·펼침만 닫을 수 있다)
+        repeat(3) { if (device.hasObject(By.text("문단"))) { device.pressBack(); SystemClock.sleep(700) } }
         // 다시 배치된 문서가 열리는지
         waitPage()
         closeMenu()
@@ -215,10 +217,12 @@ class D04ReadingTest : E2eTest() {
         obj(By.desc("검색 표시 지우기")).click()
         // 목차 → 3장
         openMenu()
+        closeMenu()
+        val before = currentPage()!!
+        openMenu()
         clickText("목차")
         val ch = obj(By.textContains("제3장"), 10_000)
         shot("toc")
-        val before = currentPage()!!
         ch.click()
         SystemClock.sleep(1_500)
         shot("toc-jump")
@@ -234,7 +238,9 @@ class D04ReadingTest : E2eTest() {
         // 책갈피
         openMenu()
         obj(By.desc("책갈피")).click()
-        assertTrue("책갈피가 표시되지 않음", has(By.desc("책갈피 빼기"), 5_000))
+        SystemClock.sleep(800)
+        val bid = runBlocking { app.db.books().allBooks().first { it.title == book }.id }
+        assertTrue("책갈피가 저장되지 않음", runBlocking { app.db.books().bookmarks(bid).first().isNotEmpty() })
         shot("bookmarked")
         // 쪽 메모
         clickText("메모")

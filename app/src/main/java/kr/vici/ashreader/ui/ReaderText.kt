@@ -17,6 +17,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -68,7 +69,6 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kr.vici.ashreader.doc.NRect
 import kr.vici.ashreader.doc.ReaderDoc
 import kr.vici.ashreader.doc.TextGeo
 import kr.vici.ashreader.doc.TextPage
@@ -83,14 +83,6 @@ class Mark(val start: Int, val end: Int, val color: Int)
 
 /** 검색에서 고른 자리. */
 data class Hit(val page: Int, val start: Int, val end: Int, val snippet: String)
-
-/** 화면 안 한 쪽이 차지하는 칸(px). */
-data class PageSlot(val page: Int, val left: Float, val top: Float, val width: Float, val height: Float) {
-    fun content(tp: TextPage): NRect {
-        val c = TextGeo.contentRect(tp.aspect, width, height)
-        return NRect(left + c.l, top + c.t, left + c.r, top + c.b)
-    }
-}
 
 /** 고른 글자. [start]..[end] 끝 제외. */
 data class Selection(val slot: PageSlot, val tp: TextPage, val start: Int, val end: Int) {
@@ -135,8 +127,8 @@ fun copyText(context: Context, text: String) {
 }
 
 /**
- * S-28 글자 선택 층: 고른 글자 칠하기 + 양 끝 손잡이 + 복사·사전·형광펜·메모 띠.
- * 바깥(빈 곳)을 누르면 [onDismiss].
+ * S-28 글자 선택 층: 고른 글자 칠하기 + 양 끝 손잡이 + 복사·사전·검색·형광펜·메모 띠.
+ * 바깥(빈 곳)을 누르면 [onDismiss]. 쪽 칸([PageSlot])이 화면보다 커도(확대 화면, 7B) 띠는 화면 안에 둔다.
  */
 @Composable
 fun SelectionLayer(
@@ -148,6 +140,8 @@ fun SelectionLayer(
     onDict: () -> Unit,
     onHighlight: (color: Int) -> Unit,
     onMemo: () -> Unit,
+    /** 고른 글자로 본문 검색(7B). null 이면 띠에 없음. */
+    onSearch: (() -> Unit)? = null,
 ) {
     val density = LocalDensity.current
     val cur by rememberUpdatedState(sel)
@@ -157,11 +151,13 @@ fun SelectionLayer(
     var palette by remember { mutableStateOf(false) }
 
     fun toIndex(px: Float, py: Float): Int {
-        val s = cur; val b = s.slot.content(s.tp)
-        return TextGeo.charAt(s.tp, (px - b.l) / (b.r - b.l), (py - b.t) / (b.b - b.t), maxDist = 0.5f)
+        val s = cur
+        return SelectGeo.charAt(s.slot, s.tp, px, py, maxDist = 0.5f)
     }
 
-    Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGesturesCompat(onDismiss) }) {
+    BoxWithConstraints(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGesturesCompat(onDismiss) }) {
+        val screenW = constraints.maxWidth.toFloat()
+        val screenH = constraints.maxHeight.toFloat()
         ComposeCanvas(Modifier.fillMaxSize()) {
             val fill = Color(c.accent).copy(alpha = 0.28f)
             for (r in rects) {
@@ -183,14 +179,19 @@ fun SelectionLayer(
                 if (i >= 0) onChange(if (i + 1 > s.start) s.copy(end = i + 1) else s.copy(start = i, end = s.start + 1))
             }
 
-            // 띠: 고른 글자 위(공간이 없으면 아래)
+            // 띠: 고른 글자 위(공간이 없으면 아래). 화면 밖으로 나가지 않게(확대 화면).
             val barH = with(density) { 56.dp.toPx() }
+            val barW = with(density) { 300.dp.toPx() }.coerceAtMost(screenW)
             val top = box.t + first.t * bh
-            val y = if (top - barH - 8f > sel.slot.top + with(density) { 24.dp.toPx() }) top - barH - 8f else box.t + last.b * bh + with(density) { 28.dp.toPx() }
-            val xMid = sel.slot.left + sel.slot.width / 2f
+            val xMid = ((box.l + rects.minOf { it.l } * bw) + (box.l + rects.maxOf { it.r } * bw)) / 2f
+            val (bx, by) = SelectGeo.barPos(
+                centerX = xMid, selTop = top, selBottom = box.t + last.b * bh,
+                barW = barW, barH = barH, screenW = screenW, screenH = screenH,
+                topLimit = maxOf(sel.slot.top, 0f) + with(density) { 24.dp.toPx() }, below = with(density) { 28.dp.toPx() },
+            )
             Row(
                 Modifier
-                    .offset { IntOffset((xMid - with(density) { 150.dp.toPx() }).roundToInt().coerceAtLeast(0), y.roundToInt()) }
+                    .offset { IntOffset(bx.roundToInt(), by.roundToInt()) }
                     .widthIn(max = 300.dp)
                     .background(c.barC, RoundedCornerShape(14.dp))
                     .border(1.dp, c.lineC, RoundedCornerShape(14.dp))
@@ -200,6 +201,7 @@ fun SelectionLayer(
                 if (!palette) {
                     PopItem("복사", c, onCopy)
                     PopItem("사전", c, onDict)
+                    if (onSearch != null) PopItem("검색", c, onSearch)
                     PopItem("형광펜", c) { palette = true }
                     PopItem("메모", c, onMemo)
                 } else {
@@ -263,9 +265,11 @@ fun SearchPanel(
     doc: ReaderDoc,
     c: ReadingColors,
     onClose: () -> Unit,
+    /** 처음 넣어 둘 검색어(글자 선택 '검색', 7B). */
+    initialQuery: String = "",
     onPick: (Hit) -> Unit,
 ) {
-    var query by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf(initialQuery) }
     val results = remember { mutableStateListOf<Hit>() }
     var progress by remember { mutableStateOf("") }
     val focus = remember { FocusRequester() }

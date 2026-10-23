@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// :engine-hwp — HWP 5.0·HWPX 원본 보기. rhwp v0.8.7(1a76570) + resvg 를 cargo-ndk 로 libash_hwp.so 로 빌드한다.
+// :engine-hwp — HWP 5.0·HWPX 원본 보기. rhwp v0.8.7(1a76570, ASH 패치 patches/) + resvg 를 cargo-ndk 로 libash_hwp.so 로 빌드한다.
 // 기술 설계서 3.3 A안, 9장 실험 ①.
 import org.gradle.api.tasks.Exec
 
@@ -38,13 +38,14 @@ android {
     buildTypes { release { isMinifyEnabled = false } }
 }
 
+// rhwp 받기 + ASH 패치(patches/*.patch) 적용. 스크립트가 커밋·패치 해시 표지로 이미 받은 것을 건너뛰므로 매번 부른다.
+val rhwpPatches = file("patches")
 val fetchRhwp by tasks.registering(Exec::class) {
     group = "rust"
-    description = "rhwp v0.8.7 sparse checkout"
-    val marker = file("build/rhwp/.ash-1a76570e833917d15817415a53c09ad61ab3203f")
-    outputs.file(marker)
-    onlyIf { !marker.exists() }
-    commandLine("bash", file("scripts/fetch-rhwp.sh").absolutePath, file("build/rhwp").absolutePath)
+    description = "rhwp v0.8.7 sparse checkout + ASH 패치"
+    inputs.dir(rhwpPatches)
+    outputs.upToDateWhen { false }
+    commandLine("bash", file("scripts/fetch-rhwp.sh").absolutePath, file("build/rhwp").absolutePath, rhwpPatches.absolutePath)
 }
 
 // cargo-ndk: -P 26(minSdk), NDK r28 = 16KB 페이지 정렬 기본
@@ -52,7 +53,7 @@ val cargoNdk by tasks.registering(Exec::class) {
     group = "rust"
     description = "cargo ndk 로 libash_hwp.so 빌드"
     dependsOn(fetchRhwp)
-    inputs.dir(file("rust/src")); inputs.file(file("rust/Cargo.toml"))
+    inputs.dir(file("rust/src")); inputs.file(file("rust/Cargo.toml")); inputs.dir(rhwpPatches)
     outputs.dir(jniOut)
     workingDir = rustDir
     val args = mutableListOf("cargo", "ndk", "-P", "26", "-o", jniOut.absolutePath)
