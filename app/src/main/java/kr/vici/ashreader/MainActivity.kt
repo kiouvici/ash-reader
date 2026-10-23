@@ -78,7 +78,7 @@ import kr.vici.ashreader.ui.ReaderTarget
 import kr.vici.ashreader.ui.SeriesScreen
 import kr.vici.ashreader.ui.StatsScreen
 import kr.vici.ashreader.ui.VolumeKeys
-import kr.vici.ashreader.ui.weekStart
+import kr.vici.ashreader.ui.statsSince
 import kr.vici.ashreader.ui.ZipPickSheet
 
 internal sealed interface Screen {
@@ -504,9 +504,11 @@ private fun AshRoot(incoming: MutableStateFlow<List<Uri>>) {
                         onStoreEdit = { nav.screen = Screen.StoreEdit },
                         onExport = { b -> exportFor = b.id },
                         showStores = settings.showStores,
+                        sort = settings.libSort, sortDesc = settings.libSortDesc,
+                        onSort = { o, d -> change { it.copy(libSort = o, libSortDesc = d) } },
                     )
                     Screen.Stats -> {
-                        val since = remember { weekStart() }
+                        val since = remember { statsSince() }
                         val week by remember { dao.sessionsSince(since) }.collectAsState(initial = emptyList())
                         val days by remember { dao.sessionDays() }.collectAsState(initial = emptyList())
                         val times by remember { dao.timeByBook() }.collectAsState(initial = emptyList())

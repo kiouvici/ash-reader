@@ -192,6 +192,9 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("brightness", brightness.toDouble()).put("dim", dim)
             .put("ttsRate", ttsRate.toDouble()).put("ttsPitch", ttsPitch.toDouble()).put("ttsSleep", ttsSleep).put("showStores", showStores)
             .put("scrollView", scrollView).put("autoScrollSpeed", autoScrollSpeed).put("infoPerPage", infoPerPage)
+            .put("paraSpace", paraSpace).put("marginH", marginH).put("marginV", marginV).put("align", align)
+            .put("breakChar", breakChar).put("hyphen", hyphen).put("indent", indent).put("dialogIndent", dialogIndent)
+            .put("txtTocMask", txtTocMask).put("txtTocCustom", txtTocCustom).put("libSort", libSort).put("libSortDesc", libSortDesc)
 
         private fun settingsOf(o: JSONObject, base: Settings) = base.copy(
             font = BodyFont.entries.firstOrNull { it.name == o.optString("font") } ?: base.font,
@@ -235,6 +238,18 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             scrollView = o.optBoolean("scrollView", base.scrollView),
             autoScrollSpeed = o.optInt("autoScrollSpeed", base.autoScrollSpeed).coerceIn(1, 10),
             infoPerPage = o.optBoolean("infoPerPage", base.infoPerPage),
+            paraSpace = o.optInt("paraSpace", base.paraSpace).coerceIn(0, 15),
+            marginH = o.optInt("marginH", base.marginH).coerceIn(0, 40),
+            marginV = o.optInt("marginV", base.marginV).coerceIn(0, 40),
+            align = o.optInt("align", base.align).coerceIn(0, 1),
+            breakChar = o.optBoolean("breakChar", base.breakChar),
+            hyphen = o.optBoolean("hyphen", base.hyphen),
+            indent = o.optInt("indent", base.indent).coerceIn(0, 3),
+            dialogIndent = o.optInt("dialogIndent", base.dialogIndent).coerceIn(0, 1),
+            txtTocMask = o.optInt("txtTocMask", base.txtTocMask) and 15,
+            txtTocCustom = o.optString("txtTocCustom", base.txtTocCustom).take(200),
+            libSort = o.optInt("libSort", base.libSort).coerceAtLeast(0),
+            libSortDesc = o.optBoolean("libSortDesc", base.libSortDesc),
         )
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -40,6 +41,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,37 +91,18 @@ fun formatDuration(ms: Long): String {
     return if (m >= 60) "${m / 60}시간 ${m % 60}분" else "${m}분"
 }
 
-/** S-50 독서 기록. 기기에만 저장. */
+/** S-50 독서 기록(F-68). 기기에만 저장. [sessions] = [statsSince] 이후 기록(주간·월간 모두 여기서 센다). */
 @Composable
-fun StatsScreen(weekSessions: List<ReadingSession>, streak: Int, books: List<Book>, timeByBook: Map<String, Long>) {
+fun StatsScreen(sessions: List<ReadingSession>, streak: Int, books: List<Book>, timeByBook: Map<String, Long>) {
     val cs = MaterialTheme.colorScheme
-    val total = weekSessions.sumOf { it.durationMs }
-    val perDay = LongArray(7)
-    val cal = Calendar.getInstance()
-    for (s in weekSessions) {
-        cal.timeInMillis = s.startedAt
-        val idx = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7 // 월=0
-        perDay[idx] += s.durationMs
-    }
-    val max = (perDay.maxOrNull() ?: 0L).coerceAtLeast(1L)
-    val today = (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) + 5) % 7
-    val doneThisWeek = books.count { it.status == Book.DONE && it.lastOpenedAt >= weekStart() }
+    var monthly by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle("독서 기록")
-        Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatCard("이번 주", formatDuration(total), Modifier.weight(1.4f))
-            StatCard("다 읽은 책", "${doneThisWeek}권", Modifier.weight(1f))
-            StatCard("연속", "${streak}일", Modifier.weight(1f))
+        Row(Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Pill("주간", !monthly) { monthly = false }
+            Pill("월간", monthly) { monthly = true }
         }
-        Text("요일별 읽은 시간", fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 10.dp))
-        Row(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(150.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-            "월화수목금토일".forEachIndexed { i, d ->
-                Column(Modifier.weight(1f).fillMaxHeight().semantics { contentDescription = "${d}요일 ${formatDuration(perDay[i])}" }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
-                    Box(Modifier.width(22.dp).fillMaxHeight(0.85f * perDay[i] / max + 0.01f).clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)).background(if (i == today) cs.secondary else cs.primary))
-                    Text(d.toString(), fontSize = 12.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
-                }
-            }
-        }
+        if (!monthly) WeekStats(sessions, streak, books) else MonthStats(sessions, streak, books)
         Text("최근 읽은 책", fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 6.dp))
         books.filter { it.lastOpenedAt > 0 }.sortedByDescending { it.lastOpenedAt }.take(5).forEach { b ->
             val f = DocFormat.of(b.format)
@@ -135,6 +118,97 @@ fun StatsScreen(weekSessions: List<ReadingSession>, streak: Int, books: List<Boo
         Text("기록은 이 기기에만 저장돼요", fontSize = 12.sp, color = cs.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(24.dp))
     }
 }
+
+@Composable
+private fun WeekStats(sessions: List<ReadingSession>, streak: Int, books: List<Book>) {
+    val cs = MaterialTheme.colorScheme
+    val from = weekStart()
+    val week = sessions.filter { it.startedAt >= from }
+    val total = week.sumOf { it.durationMs }
+    val perDay = LongArray(7)
+    val cal = Calendar.getInstance()
+    for (s in week) {
+        cal.timeInMillis = s.startedAt
+        val idx = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7 // 월=0
+        perDay[idx] += s.durationMs
+    }
+    val today = (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) + 5) % 7
+    val doneThisWeek = books.count { it.status == Book.DONE && it.lastOpenedAt >= from }
+    Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        StatCard("이번 주", formatDuration(total), Modifier.weight(1.4f))
+        StatCard("다 읽은 책", "${doneThisWeek}권", Modifier.weight(1f))
+        StatCard("연속", "${streak}일", Modifier.weight(1f))
+    }
+    Text("요일별 읽은 시간", fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 10.dp))
+    Bars("월화수목금토일".map { it.toString() }, perDay, today, barWidth = 22, describe = { i -> "${"월화수목금토일"[i]}요일 ${formatDuration(perDay[i])}" })
+    if (total == 0L) Text("이번 주에는 아직 기록이 없어요.", fontSize = 13.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, top = 8.dp))
+}
+
+/** F-68 월간: 이번 달 합계·읽은 날·다 읽은 책, 날짜별 막대, 최근 6개월 막대. */
+@Composable
+private fun MonthStats(sessions: List<ReadingSession>, streak: Int, books: List<Book>) {
+    val cs = MaterialTheme.colorScheme
+    val now = Calendar.getInstance()
+    val monthFrom = monthStart(0)
+    val days = now.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val perDay = LongArray(days)
+    val cal = Calendar.getInstance()
+    for (s in sessions) if (s.startedAt >= monthFrom) {
+        cal.timeInMillis = s.startedAt
+        val d = cal.get(Calendar.DAY_OF_MONTH) - 1
+        if (d in 0 until days) perDay[d] += s.durationMs
+    }
+    val total = perDay.sum()
+    val readDays = perDay.count { it > 0 }
+    val doneThisMonth = books.count { it.status == Book.DONE && it.lastOpenedAt >= monthFrom }
+    val month = now.get(Calendar.MONTH) + 1
+    Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        StatCard("${month}월", formatDuration(total), Modifier.weight(1.4f))
+        StatCard("읽은 날", "${readDays}일", Modifier.weight(1f))
+        StatCard("다 읽은 책", "${doneThisMonth}권", Modifier.weight(1f))
+    }
+    Text("날짜별 읽은 시간", fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 10.dp))
+    val today = now.get(Calendar.DAY_OF_MONTH) - 1
+    Bars((1..days).map { d -> if (d == 1 || d % 5 == 0) "$d" else "" }, perDay, today, barWidth = 6,
+        describe = { i -> "${month}월 ${i + 1}일 ${formatDuration(perDay[i])}" })
+    // 최근 6개월
+    val months = LongArray(6)
+    val labels = ArrayList<String>(6)
+    for (k in 5 downTo 0) {
+        val from = monthStart(k); val to = monthStart(k - 1)
+        months[5 - k] = sessions.filter { it.startedAt in from until to }.sumOf { it.durationMs }
+        labels += "${Calendar.getInstance().apply { timeInMillis = from }.get(Calendar.MONTH) + 1}월"
+    }
+    Text("달별 읽은 시간 (최근 6개월)", fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 10.dp))
+    Bars(labels, months, 5, barWidth = 22, describe = { i -> "${labels[i]} ${formatDuration(months[i])}" })
+    Text("이번 달 하루 평균 ${formatDuration(if (readDays == 0) 0 else total / readDays)} (읽은 날 기준) · 연속 ${streak}일",
+        fontSize = 13.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, top = 10.dp, end = 20.dp))
+}
+
+/** 막대 그래프. [highlight] = 강조할 칸(오늘·이번 달). */
+@Composable
+private fun Bars(labels: List<String>, values: LongArray, highlight: Int, barWidth: Int, describe: (Int) -> String) {
+    val cs = MaterialTheme.colorScheme
+    val max = (values.maxOrNull() ?: 0L).coerceAtLeast(1L)
+    Row(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(150.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+        labels.forEachIndexed { i, d ->
+            Column(Modifier.weight(1f).fillMaxHeight().semantics { contentDescription = describe(i) }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+                Box(Modifier.width(barWidth.dp).fillMaxHeight(0.85f * values[i] / max + 0.01f).clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)).background(if (i == highlight) cs.secondary else cs.primary))
+                Text(d, fontSize = 12.sp, maxLines = 1, softWrap = false, color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp).wrapContentWidth(unbounded = true))
+            }
+        }
+    }
+}
+
+/** [monthsAgo] 달 전 1일 0시(0 = 이번 달, -1 = 다음 달). */
+fun monthStart(monthsAgo: Int): Long = Calendar.getInstance().apply {
+    set(Calendar.DAY_OF_MONTH, 1)
+    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    add(Calendar.MONTH, -monthsAgo)
+}.timeInMillis
+
+/** 독서 기록 화면이 읽어 둘 기록의 시작(주간·월간 모두 덮게: 이번 주 월요일과 5달 전 1일 중 이른 쪽). */
+fun statsSince(): Long = minOf(weekStart(), monthStart(5))
 
 fun weekStart(): Long = Calendar.getInstance().apply {
     firstDayOfWeek = Calendar.MONDAY

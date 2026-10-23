@@ -112,6 +112,26 @@ data class Settings(
     val autoScrollSpeed: Int = 4,
     /** F-45 태블릿 두 쪽 펼침에서 정보줄을 쪽마다(각 쪽 아래 쪽 번호). false = 전체 아래 한 줄. */
     val infoPerPage: Boolean = false,
+    // ── 6A 글자·문단 ──
+    /** F-20 내 글꼴(앱 글꼴 폴더 안 파일 이름). "" = 내장 글꼴([font]). */
+    val userFont: String = "",
+    /** F-19 문단 간격(글자 크기의 1/10 단위, 0~15), 여백 좌우·위아래(1/10 글자, 0~40), 정렬 0 = 양쪽 · 1 = 왼쪽. */
+    val paraSpace: Int = 0,
+    val marginH: Int = 15,
+    val marginV: Int = 14,
+    val align: Int = 0,
+    /** F-37 줄 바꿈 글자 단위(false = 띄어쓰기 단위, 기본). F-39 영문 하이픈(기본 끔). */
+    val breakChar: Boolean = false,
+    val hyphen: Boolean = false,
+    /** F-40 들여쓰기 0 = 원본 유지 · 1 = 1글자 · 2 = 2글자 · 3 = 없음. 대화문 0 = 같게 · 1 = 없음. */
+    val indent: Int = 0,
+    val dialogIndent: Int = 0,
+    /** F-33 TXT 목차: 찾을 제목 모양(TxtToc 비트)과 사용자 식(정규식, "" = 없음). */
+    val txtTocMask: Int = 15,
+    val txtTocCustom: String = "",
+    /** F-03 서재 정렬([kr.vici.ashreader.ui.LibSort] 순서)과 내림차순. */
+    val libSort: Int = 0,
+    val libSortDesc: Boolean = false,
 )
 
 /** F-44 자동 스크롤 속도 눈금(1~10) → 초당 이동 dp. */
@@ -166,6 +186,19 @@ class Prefs(private val context: Context) {
         val scrollView = booleanPreferencesKey("scroll_view")
         val autoScroll = intPreferencesKey("auto_scroll_speed")
         val infoPerPage = booleanPreferencesKey("info_per_page")
+        val userFont = stringPreferencesKey("user_font")
+        val paraSpace = intPreferencesKey("para_space")
+        val marginH = intPreferencesKey("margin_h")
+        val marginV = intPreferencesKey("margin_v")
+        val align = intPreferencesKey("align")
+        val breakChar = booleanPreferencesKey("break_char")
+        val hyphen = booleanPreferencesKey("hyphen")
+        val indent = intPreferencesKey("indent")
+        val dialogIndent = intPreferencesKey("dialog_indent")
+        val txtTocMask = intPreferencesKey("txt_toc_mask")
+        val txtTocCustom = stringPreferencesKey("txt_toc_custom")
+        val libSort = intPreferencesKey("lib_sort")
+        val libSortDesc = booleanPreferencesKey("lib_sort_desc")
     }
 
     val settings: Flow<Settings> = context.dataStore.data
@@ -217,6 +250,19 @@ class Prefs(private val context: Context) {
         scrollView = p[K.scrollView] ?: false,
         autoScrollSpeed = (p[K.autoScroll] ?: 4).coerceIn(1, 10),
         infoPerPage = p[K.infoPerPage] ?: false,
+        userFont = (p[K.userFont] ?: "").takeIf { it.isEmpty() || (!it.contains('/') && !it.contains("..")) } ?: "",
+        paraSpace = (p[K.paraSpace] ?: 0).coerceIn(0, 15),
+        marginH = (p[K.marginH] ?: 15).coerceIn(0, 40),
+        marginV = (p[K.marginV] ?: 14).coerceIn(0, 40),
+        align = (p[K.align] ?: 0).coerceIn(0, 1),
+        breakChar = p[K.breakChar] ?: false,
+        hyphen = p[K.hyphen] ?: false,
+        indent = (p[K.indent] ?: 0).coerceIn(0, 3),
+        dialogIndent = (p[K.dialogIndent] ?: 0).coerceIn(0, 1),
+        txtTocMask = (p[K.txtTocMask] ?: 15) and 15,
+        txtTocCustom = (p[K.txtTocCustom] ?: "").take(200),
+        libSort = (p[K.libSort] ?: 0).coerceAtLeast(0),
+        libSortDesc = p[K.libSortDesc] ?: false,
     )
 
     /**
@@ -270,6 +316,19 @@ class Prefs(private val context: Context) {
             p[K.scrollView] = s.scrollView
             p[K.autoScroll] = s.autoScrollSpeed
             p[K.infoPerPage] = s.infoPerPage
+            p[K.userFont] = s.userFont
+            p[K.paraSpace] = s.paraSpace
+            p[K.marginH] = s.marginH
+            p[K.marginV] = s.marginV
+            p[K.align] = s.align
+            p[K.breakChar] = s.breakChar
+            p[K.hyphen] = s.hyphen
+            p[K.indent] = s.indent
+            p[K.dialogIndent] = s.dialogIndent
+            p[K.txtTocMask] = s.txtTocMask
+            p[K.txtTocCustom] = s.txtTocCustom
+            p[K.libSort] = s.libSort
+            p[K.libSortDesc] = s.libSortDesc
         }
     }
 

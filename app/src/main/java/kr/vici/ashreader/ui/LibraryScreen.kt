@@ -84,6 +84,10 @@ fun LibraryScreen(
     onExport: (Book) -> Unit = {},
     /** F-36 '내 서점 앱' 줄 보이기(설정에서 끌 수 있음). */
     showStores: Boolean = true,
+    /** F-03 정렬([LibSort] 순서)·내림차순. 바꾸면 [onSort]. */
+    sort: Int = 0,
+    sortDesc: Boolean = false,
+    onSort: (Int, Boolean) -> Unit = { _, _ -> },
 ) {
     var shelf by rememberSaveable { mutableStateOf(Shelf.RECENT) }
     // -1 = 전체, 0~2 = 상태(F-71), FAVORITES = 즐겨찾기
@@ -92,12 +96,14 @@ fun LibraryScreen(
     var menuFor by remember { mutableStateOf<Book?>(null) }
     var listMode by rememberSaveable { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
+    var sortOpen by remember { mutableStateOf(false) }
+    val libSort = LibSort.of(sort)
 
     val cont = books.firstOrNull { it.status == Book.READING && it.lastOpenedAt > 0 }
     val filtered = books
         .filter { status < 0 || (status == FAVORITES && it.favorite) || it.status == status }
         .filter { q -> query.isNullOrBlank() || q.title.contains(query!!, ignoreCase = true) }
-        .let { l -> if (shelf == Shelf.ALL) l.sortedBy { it.title } else l }
+        .let { l -> if (shelf == Shelf.RECENT || shelf == Shelf.SERIES) l else sortBooks(l, libSort, sortDesc) }
 
     LazyVerticalGrid(
         columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(104.dp),
@@ -117,6 +123,7 @@ fun LibraryScreen(
                         DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
                             DropdownMenuItem(text = { Text("새로고침(폴더 다시 모으기)") }, onClick = { more = false; onRefresh() }, modifier = Modifier.heightIn(min = 48.dp))
                             DropdownMenuItem(text = { Text("모으는 폴더 관리") }, onClick = { more = false; onFolders() }, modifier = Modifier.heightIn(min = 48.dp))
+                            DropdownMenuItem(text = { Text("정렬: ${libSort.label} (${if (sortDesc) libSort.descLabel else libSort.ascLabel})") }, onClick = { more = false; sortOpen = true }, modifier = Modifier.heightIn(min = 48.dp))
                         }
                     }
                 }
@@ -182,6 +189,8 @@ fun LibraryScreen(
             }
         }
     }
+
+    if (sortOpen) LibrarySortDialog(libSort, sortDesc, onPick = { o, d -> onSort(o.ordinal, d) }, onDismiss = { sortOpen = false })
 
     menuFor?.let { b ->
         BookMenuSheet(
