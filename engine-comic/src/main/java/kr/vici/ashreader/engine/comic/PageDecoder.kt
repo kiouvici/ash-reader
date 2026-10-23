@@ -19,6 +19,18 @@ object PageDecoder {
 
     fun needsTiles(w: Int, h: Int) = maxOf(w, h) > TILE_LIMIT
 
+    /** 스트림에서 머리만 읽어 크기(전체를 읽지 않음). 모르면 null. */
+    fun bounds(stream: java.io.InputStream): Pair<Int, Int>? {
+        val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeStream(stream, null, o)
+        return if (o.outWidth > 0 && o.outHeight > 0) o.outWidth to o.outHeight else null
+    }
+
+    /** 영역 디코더(F-53 큰 그림 타일). 호출한 쪽이 recycle 한다. */
+    fun regionDecoder(bytes: ByteArray): BitmapRegionDecoder =
+        (if (Build.VERSION.SDK_INT >= 31) BitmapRegionDecoder.newInstance(bytes, 0, bytes.size)
+        else @Suppress("DEPRECATION") BitmapRegionDecoder.newInstance(bytes, 0, bytes.size, false)) ?: error("디코딩 실패")
+
     /** 목표 폭에 맞춰 inSampleSize 로 줄여 전체 쪽을 디코딩 (화면 표시·칸 인식용). */
     fun decodeFit(bytes: ByteArray, targetW: Int): Bitmap {
         val (w, _) = bounds(bytes)

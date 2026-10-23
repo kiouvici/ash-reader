@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.doc
 
+import android.app.ActivityManager
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
+import android.os.SystemClock
+import android.annotation.TargetApi
 import java.io.Closeable
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -18,7 +24,9 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -34,6 +42,8 @@ internal fun webpFormat(): Bitmap.CompressFormat =
  * - 지금 쪽 + 다음 1~2쪽을 차례로 처리하고, 쪽을 건너뛰면 대기 중인 작업은 취소한다(처리 중인 한 쪽은 끝까지).
  * - 이미 화면 해상도 이상인 쪽은 건너뛴다. GPU(Vulkan) 먼저, 실패하면 CPU.
  * - 절전 모드에서는 새 작업을 시작하지 않는다.
+ * - 기기가 뜨거우면(열 상태 SEVERE 이상, API 29+) 또는 배터리가 적으면(15% 이하, 충전 중 아님) 멈추고 알린다.
+ *   식거나(MODERATE 이하) 충전하면 다음 쪽 요청 때 다시 시작한다(S-33·S-36).
  * 원본은 바로 보여 주고, 처리된 쪽은 [ready] 에 들어온다(화면이 바꿔 낀다).
  */
 class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeable {
@@ -56,6 +66,56 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
     /** 지금 처리 중인 쪽. */
     val busy: StateFlow<Int?> = busyState
 
+    /** 잠시 멈춘 이유(발열·배터리). null = 동작 중. */
+    enum class Pause { HEAT, BATTERY }
+    private val pausedState = MutableStateFlow<Pause?>(null)
+    val paused: StateFlow<Pause?> = pausedState
+    private val noticeFlow = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    /** 화면에 띄울 안내(스낵바). */
+    val notices: SharedFlow<String> = noticeFlow
+    @Volatile private var hot = false
+    private var last: IntArray? = null
+    private val thermal: Closeable? = if (Build.VERSION.SDK_INT >= 29) runCatching { ThermalWatch(app) { onThermal(it) } }.getOrNull() else null
+
+    /** 열 상태가 바뀜(처리 스레드가 아닌 곳에서 불린다). */
+    private fun onThermal(severe: Boolean?) {
+        when (severe) {
+            true -> if (!hot) {
+                hot = true
+                scope.launch(kotlinx.coroutines.Dispatchers.Main) { cancelPending() }
+                pause(Pause.HEAT)
+            }
+            false -> if (hot) {
+                hot = false
+                if (pausedState.value == Pause.HEAT) pausedState.value = null
+                last?.let { l -> scope.launch(kotlinx.coroutines.Dispatchers.Main) { request(l[0], l[1], l[2]) } }
+            }
+            null -> {}
+        }
+    }
+
+    private fun pause(p: Pause) {
+        if (pausedState.value == p) return
+        pausedState.value = p
+        noticeFlow.tryEmit(
+            if (p == Pause.HEAT) "기기가 뜨거워져서 화질 향상을 잠시 멈췄어요."
+            else "배터리가 적어서 화질 향상을 잠시 멈췄어요. 충전하면 다시 시작해요.",
+        )
+    }
+
+    private fun cancelPending() {
+        jobs.values.forEach { it.cancel() }
+        jobs.clear()
+    }
+
+    /** 배터리 15% 이하이고 충전 중이 아님. */
+    private fun batteryLow(): Boolean = runCatching {
+        val i = app.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return false
+        val level = i.getIntExtra(BatteryManager.EXTRA_LEVEL, -1); val scale = i.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
+        val plugged = i.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
+        level >= 0 && scale > 0 && level * 100 / scale <= 15 && !plugged
+    }.getOrDefault(false)
+
     private fun file(i: Int) = File(dir, "$i.webp")
 
     private fun scan(): Set<Int> = dir.listFiles()?.mapNotNull { f ->
@@ -65,7 +125,11 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
     /** [current] 쪽을 먼저, 이어서 다음 1~2쪽. 범위 밖 대기 작업은 취소. 화면(메인) 스레드에서 부른다. */
     fun request(current: Int, screenW: Int, screenH: Int) {
         if (closed) return
-        val want = (current..current + 2).filter { it in 0 until doc.pageCount }
+        last = intArrayOf(current, screenW, screenH)
+        if (hot) { cancelPending(); return }
+        if (batteryLow()) { cancelPending(); pause(Pause.BATTERY); return }
+        if (pausedState.value == Pause.BATTERY) pausedState.value = null
+        val want = (current..current + 2).filter { it in 0 until doc.sourceCount }
         val iter = jobs.entries.iterator()
         while (iter.hasNext()) {
             val e = iter.next()
@@ -97,7 +161,8 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
     private suspend fun process(i: Int, sw: Int, sh: Int) {
         try {
             currentCoroutineContext().ensureActive()
-            if (closed || powerSave()) return
+            if (closed || powerSave() || hot) return
+            if (!doc.ready(i)) return // solid CBR 풀기 전 — 다음 요청 때 다시
             val (w, h) = doc.pageSize(i)
             if (w <= 0 || h <= 0 || !Upscaler.shouldUpscale(w, h, sw, sh) || w.toLong() * h > MAX_INPUT_PIXELS) { skipped += i; return }
             val src = doc.fullBitmap(i)
@@ -115,6 +180,8 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
             trim(app)
         } catch (e: CancellationException) {
             throw e
+        } catch (e: PageNotReady) {
+            // 다음 요청 때 다시
         } catch (t: Throwable) {
             skipped += i
         } finally {
@@ -146,6 +213,7 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
     override fun close() {
         if (closed) return
         closed = true
+        runCatching { thermal?.close() }
         jobs.values.forEach { it.cancel() }
         jobs.clear()
         scope.cancel()
@@ -160,6 +228,10 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
         @Volatile var limitBytes: Long = 1L shl 30
 
         fun root(c: Context) = File(c.cacheDir, "upscale")
+
+        /** 이 문서에서 2배 결과가 저장된 쪽 수. */
+        fun doneCount(c: Context, key: String): Int =
+            File(root(c), key).listFiles()?.count { it.name.endsWith(".webp") && it.length() > 0 } ?: 0
 
         /** 오래 안 쓴 파일부터 지워 [limit] 이하로. */
         @Synchronized
@@ -181,5 +253,76 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
 
         /** 문서 하나의 캐시(한 번만 보기 문서를 닫을 때). */
         fun deleteFor(c: Context, key: String) { if (key.isNotEmpty()) File(root(c), key).deleteRecursively() }
+    }
+}
+
+/** 기기 열 상태 감시(API 29+). SEVERE 이상 = true, LIGHT 이하 = false(식음), 그 사이 = null(그대로). */
+@TargetApi(29)
+private class ThermalWatch(context: Context, private val onChange: (Boolean?) -> Unit) : Closeable {
+    private val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    private val listener = PowerManager.OnThermalStatusChangedListener { st -> onChange(classify(st)) }
+
+    init {
+        pm.addThermalStatusListener(Executors.newSingleThreadExecutor { r -> Thread(r, "ash-thermal").apply { isDaemon = true } }, listener)
+        onChange(classify(pm.currentThermalStatus))
+    }
+
+    private fun classify(st: Int): Boolean? = when {
+        st >= PowerManager.THERMAL_STATUS_SEVERE -> true
+        st <= PowerManager.THERMAL_STATUS_LIGHT -> false
+        else -> null
+    }
+
+    override fun close() { runCatching { pm.removeThermalStatusListener(listener) } }
+}
+
+/**
+ * AI 화질 향상을 이 기기에서 쓸 수 있나(S-33 [화질] 탭 표). 결과는 기기에 기억한다(앱을 다시 깔면 다시 잰다).
+ * - 메모리 3GB 미만 → 숨김
+ * - 시험 그림(200×200)을 2배로 키워 보고, 보통 저해상도 쪽(약 0.9MP)에 걸릴 시간을 어림한다. 15초 넘으면 숨김.
+ * - 그래픽 처리(Vulkan) 없이 CPU 로만 돌면 '쪽마다 약 ○초' 안내.
+ */
+object AiCapability {
+    enum class Verdict { OK, LOW_MEMORY, TOO_SLOW }
+    data class Result(val verdict: Verdict, val gpu: Boolean, val secPerPage: Int)
+
+    private const val PREF = "ai_capability"
+    private const val KEY = "v1"
+    /** 3GB 기기는 보고하는 총 메모리가 3GB 보다 조금 적다(커널 예약). */
+    private const val MIN_RAM = 2_500_000_000L
+    private const val TEST_PX = 200 * 200
+    private const val PAGE_PX = 920_000
+    const val MAX_SEC = 15
+
+    fun cached(c: Context): Result? {
+        val s = c.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString(KEY, null) ?: return null
+        val p = s.split(',')
+        val v = Verdict.entries.firstOrNull { it.name == p.getOrNull(0) } ?: return null
+        return Result(v, p.getOrNull(1) == "1", p.getOrNull(2)?.toIntOrNull() ?: 0)
+    }
+
+    /** 무거움(약 10초). 백그라운드에서. */
+    fun measure(c: Context): Result {
+        val app = c.applicationContext
+        val mi = ActivityManager.MemoryInfo()
+        (app.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(mi)
+        val r = if (mi.totalMem in 1 until MIN_RAM) Result(Verdict.LOW_MEMORY, false, 0) else runCatching {
+            val test = Bitmap.createBitmap(200, 200, Bitmap.Config.ARGB_8888).apply {
+                val px = IntArray(TEST_PX) { i -> if ((i / 7 + i / 1400) % 2 == 0) -0x1 else -0x1000000 }
+                setPixels(px, 0, 200, 0, 0, 200, 200)
+            }
+            val e = try { Upscaler(app.assets, preferGpu = true) } catch (t: Throwable) { Upscaler(app.assets, preferGpu = false) }
+            try {
+                e.upscale(test).bitmap.recycle() // 첫 실행(준비 시간)은 빼고
+                val t0 = SystemClock.elapsedRealtime()
+                e.upscale(test).bitmap.recycle()
+                val ms = (SystemClock.elapsedRealtime() - t0).coerceAtLeast(1)
+                val sec = ((ms * (PAGE_PX.toLong() / TEST_PX)) / 1000L).toInt().coerceAtLeast(1)
+                Result(if (sec > MAX_SEC) Verdict.TOO_SLOW else Verdict.OK, e.isGpu, sec)
+            } finally { e.close(); test.recycle() }
+        }.getOrElse { Result(Verdict.TOO_SLOW, false, 0) }
+        app.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
+            .putString(KEY, "${r.verdict.name},${if (r.gpu) 1 else 0},${r.secPerPage}").apply()
+        return r
     }
 }
