@@ -72,7 +72,8 @@ object MetafileRaster {
 
     private fun text(c: Canvas, t: Metafile.Op.Text) {
         if (t.text.isBlank() || t.size <= 0f) return
-        val base = if (t.face != null && GOTHIC.containsMatchIn(t.face)) Typeface.SANS_SERIF else Typeface.SERIF
+        val face = t.face
+        val base = if (face != null && GOTHIC.containsMatchIn(face)) Typeface.SANS_SERIF else Typeface.SERIF
         val style = when { t.bold && t.italic -> Typeface.BOLD_ITALIC; t.bold -> Typeface.BOLD; t.italic -> Typeface.ITALIC; else -> Typeface.NORMAL }
         val p = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
             typeface = Typeface.create(base, style)
