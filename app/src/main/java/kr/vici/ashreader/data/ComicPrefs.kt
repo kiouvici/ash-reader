@@ -97,4 +97,27 @@ class ComicPrefsStore(context: Context) {
     fun saveDefaults(p: ComicBookPrefs) { sp.edit().putString("default", p.copy(webtoonAsked = false).toJson().toString()).apply() }
 
     fun forget(bookId: String) { sp.edit().remove("b:$bookId").apply() }
+
+    /** 백업(S-53): 저장된 값 전부("default"·"b:<책 id>" → JSON). */
+    fun exportAll(): JSONObject {
+        val o = JSONObject()
+        for ((k, v) in sp.all) if (v is String && (k == "default" || k.startsWith("b:"))) {
+            runCatching { o.put(k, JSONObject(v)) }
+        }
+        return o
+    }
+
+    /** 백업 가져오기: 알맞은 키만, 값은 [ComicBookPrefs]로 한 번 걸러서 쓴다. [keepBook] = 이 기기 서재에 있는 책만. */
+    fun importAll(o: JSONObject, keepBook: (String) -> Boolean): Int {
+        val e = sp.edit()
+        var n = 0
+        for (k in o.keys()) {
+            val ok = k == "default" || (k.startsWith("b:") && k.length in 3..80 && keepBook(k.substring(2)))
+            val v = o.optJSONObject(k) ?: continue
+            if (!ok) continue
+            e.putString(k, ComicBookPrefs.fromJson(v).toJson().toString()); n++
+        }
+        e.apply()
+        return n
+    }
 }

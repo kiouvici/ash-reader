@@ -52,6 +52,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("sessions", JSONArray().apply { ses.forEach { put(it.toJson()) } })
             .put("storeApps", JSONArray().apply { dao.allStoreApps().forEach { put(JSONObject().put("pkg", it.pkg).put("label", it.label).put("ord", it.ord)) } })
             .put("settings", s.toJson())
+            .put("comicPrefs", ComicPrefsStore(context).exportAll())
         val out = context.contentResolver.openOutputStream(uri, "wt") ?: throw BadBackup("파일을 만들 수 없어요.")
         out.use { it.write(root.toString(1).toByteArray(Charsets.UTF_8)) }
         ExportResult(books.size, bms.size, notes.size, hls.size, ses.size)
@@ -120,6 +121,11 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
                 dao.upsertStoreApps(apps)
             }
         }
+        // 만화 책마다 설정(S-33): 이 기기 서재에 있는 책과 '모든 만화 기본값'만
+        root.optJSONObject("comicPrefs")?.let { cp ->
+            val ids = dao.allBooks().map { it.id }.toHashSet()
+            ComicPrefsStore(context).importAll(cp) { it in ids }
+        }
         // 설정은 백업 값으로 바꾼다(한 사람이 쓰는 앱이라 합칠 대상이 없음).
         val so = root.optJSONObject("settings")
         if (so != null) {
@@ -178,6 +184,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("infoItems", infoItems).put("infoTop", infoTop).put("tapLayout", tapLayout.name).put("tapCustom", tapCustom)
             .put("leftHanded", leftHanded).put("edgeBrightness", edgeBrightness).put("screenTimeout", screenTimeout.name)
             .put("rotation", rotation.name).put("nightKeepImages", nightKeepImages)
+            .put("brightness", brightness.toDouble()).put("dim", dim)
             .put("ttsRate", ttsRate.toDouble()).put("ttsPitch", ttsPitch.toDouble()).put("ttsSleep", ttsSleep).put("showStores", showStores)
 
         private fun settingsOf(o: JSONObject, base: Settings) = base.copy(
@@ -213,6 +220,8 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             screenTimeout = ScreenTimeout.entries.firstOrNull { it.name == o.optString("screenTimeout") } ?: base.screenTimeout,
             rotation = Rotation.entries.firstOrNull { it.name == o.optString("rotation") } ?: base.rotation,
             nightKeepImages = o.optBoolean("nightKeepImages", base.nightKeepImages),
+            brightness = o.optDouble("brightness", base.brightness.toDouble()).toFloat().let { if (it.isNaN() || it < 0f) -1f else it.coerceIn(0.01f, 1f) },
+            dim = o.optInt("dim", base.dim).coerceIn(0, 60),
             ttsRate = o.optDouble("ttsRate", base.ttsRate.toDouble()).toFloat().coerceIn(0.5f, 3f),
             ttsPitch = o.optDouble("ttsPitch", base.ttsPitch.toDouble()).toFloat().coerceIn(0.5f, 2f),
             ttsSleep = o.optInt("ttsSleep", base.ttsSleep),
