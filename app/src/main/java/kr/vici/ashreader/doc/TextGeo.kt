@@ -41,6 +41,38 @@ object TextGeo {
         return if (bestD <= maxDist) best else -1
     }
 
+    /**
+     * 길게 누른 곳에서 고를 글자(7G). 빈칸·줄바꿈은 고르지 않고, 가까운 낱말 글자로 붙는다.
+     * 가로 [rx]·세로 [ry](정규화, 보통 24dp) 안에 글자가 없으면 -1(아무것도 고르지 않음). 세로 허용은 그 쪽의
+     * 보통 줄 높이(글자 상자 높이 중앙값)보다 작지 않게 넓힌다 — 줄과 줄 사이를 눌러도 위아래 줄 낱말로 붙게.
+     * 같은 줄(세로 거리 0)을 먼저, 문장 부호는 낱말 글자보다 뒤로 본다.
+     */
+    fun wordCharNear(p: TextPage, x: Float, y: Float, rx: Float, ry: Float): Int {
+        if (rx <= 0f || ry <= 0f) return -1
+        val hs = ArrayList<Float>()
+        for (i in p.text.indices) if (p.hasBox(i) && !p.text[i].isWhitespace()) hs += p.b(i) - p.t(i)
+        if (hs.isEmpty()) return -1
+        hs.sort()
+        val ty = maxOf(ry, hs[hs.size / 2])
+        var best = -1; var bestD = Float.MAX_VALUE
+        for (i in p.text.indices) {
+            val c = p.text[i]
+            if (c.isWhitespace() || !p.hasBox(i)) continue
+            val dx = when { x < p.l(i) -> p.l(i) - x; x > p.r(i) -> x - p.r(i); else -> 0f }
+            val dy = when { y < p.t(i) -> p.t(i) - y; y > p.b(i) -> y - p.b(i); else -> 0f }
+            if (dx > rx || dy > ty) continue
+            val d = dx / rx + 3f * dy / ty + (if (isWordChar(c)) 0f else 0.25f)
+            if (d < bestD) { bestD = d; best = i }
+        }
+        return best
+    }
+
+    /** 고른 범위가 빈칸뿐인가(형광펜·메모·복사를 막는다, 7G). */
+    fun blank(text: String, start: Int, end: Int): Boolean {
+        val s = start.coerceIn(0, text.length); val e = end.coerceIn(s, text.length)
+        return text.substring(s, e).isBlank()
+    }
+
     private fun isWordChar(c: Char) = !c.isWhitespace() && c !in ".,!?;:\"'“”‘’()[]{}<>「」『』《》〈〉·…—–-/、。，" && c !in "：；！？（）［］｛｝｢｣〔〕【】＜＞～※☏○●◎□■△▲▷▶◇◆*"
 
     /** [i] 글자가 든 낱말 범위(끝 제외). 낱말 글자가 아니면 그 글자 하나. */
