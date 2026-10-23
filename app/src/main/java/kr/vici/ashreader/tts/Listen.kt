@@ -162,6 +162,11 @@ object Listen {
         }
     }
 
+    /** 읽기 화면을 떠남(회전 아님): 이 문서를 듣는 중이면 끝내고 서비스·알림을 내린다. */
+    fun leave(bookId: String) {
+        scope.launch { if (_state.value.active && _state.value.bookId == bookId) finish(null) }
+    }
+
     fun toggle() = scope.launch { if (_state.value.playing) pauseInternal() else play() }
     fun pause() = scope.launch { pauseInternal() }
     fun resume() = scope.launch { play() }

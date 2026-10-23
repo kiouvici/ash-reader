@@ -60,9 +60,10 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
 
     suspend fun import(uri: Uri): ImportResult = withContext(Dispatchers.IO) {
         val text = context.contentResolver.openInputStream(uri)?.use { i ->
-            val bytes = i.readBytes()
-            if (bytes.size > MAX_BYTES) throw BadBackup("백업 파일이 너무 커요.")
-            String(bytes, Charsets.UTF_8)
+            // 끝까지 읽기 전에 상한에서 멈춘다(큰 파일을 통째로 메모리에 올리지 않음)
+            val out = java.io.ByteArrayOutputStream()
+            if (kr.vici.ashreader.engine.comic.ComicFormat.copyBounded(i, out, MAX_BYTES.toLong()) < 0) throw BadBackup("백업 파일이 너무 커요.")
+            String(out.toByteArray(), Charsets.UTF_8)
         } ?: throw BadBackup("파일을 읽을 수 없어요.")
         val root = try { JSONObject(text) } catch (e: Exception) { throw BadBackup("ASH Reader 백업 파일이 아니에요.") }
         if (root.optString("format") != FORMAT) throw BadBackup("ASH Reader 백업 파일이 아니에요.")
@@ -82,7 +83,10 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
                     if (safe != null && safe.isFile) { dao.upsert(inc.copy(path = safe.path)); updated++ } else missing++
                 } else if (inc.lastOpenedAt > cur.lastOpenedAt) {
                     dao.upsert(cur.copy(lastPage = inc.lastPage, pageCount = inc.pageCount, status = inc.status, lastOpenedAt = inc.lastOpenedAt, viewMode = inc.viewMode,
-                        favorite = inc.favorite || cur.favorite, textEncoding = inc.textEncoding.ifEmpty { cur.textEncoding }))
+                        favorite = inc.favorite || cur.favorite, textEncoding = inc.textEncoding.ifEmpty { cur.textEncoding }).let { c ->
+                            // 직접 묶기·풀기(F-62)는 백업 쪽이 정한 것을 따른다
+                            if (inc.seriesManual != Book.SERIES_AUTO) c.copy(seriesKey = inc.seriesKey, seriesManual = inc.seriesManual) else c
+                        })
                     updated++
                 } else if (inc.favorite && !cur.favorite) {
                     dao.setFavorite(id, true)
@@ -152,7 +156,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("id", id).put("title", title).put("format", format).put("path", path).put("folder", folder)
             .put("sizeBytes", sizeBytes).put("pageCount", pageCount).put("lastPage", lastPage).put("addedAt", addedAt)
             .put("lastOpenedAt", lastOpenedAt).put("status", status).put("seriesKey", seriesKey).put("volume", volume).put("viewMode", viewMode)
-            .put("favorite", favorite).put("textEncoding", textEncoding)
+            .put("favorite", favorite).put("textEncoding", textEncoding).put("seriesManual", seriesManual)
 
         private fun bookOf(o: JSONObject) = Book(
             id = o.optString("id"), title = o.optString("title"), format = o.optString("format"), path = o.optString("path"),
@@ -161,6 +165,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             lastOpenedAt = o.optLong("lastOpenedAt"), status = o.optInt("status"), seriesKey = o.optString("seriesKey"),
             volume = o.optInt("volume"), viewMode = o.optInt("viewMode"),
             favorite = o.optBoolean("favorite", false), textEncoding = o.optString("textEncoding"),
+            seriesManual = o.optInt("seriesManual", Book.SERIES_AUTO).coerceIn(Book.SERIES_AUTO, Book.SERIES_EXCLUDED),
         )
 
         private fun Bookmark.toJson() = JSONObject().put("bookId", bookId).put("page", page).put("label", label).put("createdAt", createdAt).put("frac", frac.toDouble())
@@ -187,6 +192,9 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("brightness", brightness.toDouble()).put("dim", dim)
             .put("ttsRate", ttsRate.toDouble()).put("ttsPitch", ttsPitch.toDouble()).put("ttsSleep", ttsSleep).put("showStores", showStores)
             .put("scrollView", scrollView).put("autoScrollSpeed", autoScrollSpeed).put("infoPerPage", infoPerPage)
+            .put("paraSpace", paraSpace).put("marginH", marginH).put("marginV", marginV).put("align", align)
+            .put("breakChar", breakChar).put("hyphen", hyphen).put("indent", indent).put("dialogIndent", dialogIndent)
+            .put("txtTocMask", txtTocMask).put("txtTocCustom", txtTocCustom).put("libSort", libSort).put("libSortDesc", libSortDesc)
 
         private fun settingsOf(o: JSONObject, base: Settings) = base.copy(
             font = BodyFont.entries.firstOrNull { it.name == o.optString("font") } ?: base.font,
@@ -230,6 +238,18 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             scrollView = o.optBoolean("scrollView", base.scrollView),
             autoScrollSpeed = o.optInt("autoScrollSpeed", base.autoScrollSpeed).coerceIn(1, 10),
             infoPerPage = o.optBoolean("infoPerPage", base.infoPerPage),
+            paraSpace = o.optInt("paraSpace", base.paraSpace).coerceIn(0, 15),
+            marginH = o.optInt("marginH", base.marginH).coerceIn(0, 40),
+            marginV = o.optInt("marginV", base.marginV).coerceIn(0, 40),
+            align = o.optInt("align", base.align).coerceIn(0, 1),
+            breakChar = o.optBoolean("breakChar", base.breakChar),
+            hyphen = o.optBoolean("hyphen", base.hyphen),
+            indent = o.optInt("indent", base.indent).coerceIn(0, 3),
+            dialogIndent = o.optInt("dialogIndent", base.dialogIndent).coerceIn(0, 1),
+            txtTocMask = o.optInt("txtTocMask", base.txtTocMask) and 15,
+            txtTocCustom = o.optString("txtTocCustom", base.txtTocCustom).take(200),
+            libSort = o.optInt("libSort", base.libSort).coerceAtLeast(0),
+            libSortDesc = o.optBoolean("libSortDesc", base.libSortDesc),
         )
     }
 }

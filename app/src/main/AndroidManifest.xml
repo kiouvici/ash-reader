@@ -95,13 +95,27 @@
                 <data android:mimeType="image/x-djvu" />
                 <data android:mimeType="application/vnd.ms-htmlhelp" />
                 <data android:mimeType="application/x-chm" />
+                <data android:mimeType="text/html" />
+                <data android:mimeType="application/xhtml+xml" />
+                <data android:mimeType="text/x-fb2+xml" />
+                <data android:mimeType="application/x-fb2" />
+                <data android:mimeType="application/x-rar-compressed" />
+                <data android:mimeType="application/vnd.rar" />
+                <data android:mimeType="application/x-zip-compressed" />
                 <data android:mimeType="application/zip" />
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
+            <!-- F-05 공유하기: 한 개(SEND)·여러 개(SEND_MULTIPLE). 문서·만화는 application/*, TXT·HTML·RTF 는 text/*,
+                 DjVu 는 image/vnd.djvu·image/x-djvu. 사진(image/*) 전체는 받지 않는다(만화 쪽 그림 공유와 헷갈림 방지).
+                 여러 개는 서재에 넣는다. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/*" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="image/vnd.djvu" />
+                <data android:mimeType="image/x-djvu" />
             </intent-filter>
         </activity>
         <!-- F-13 듣기(S-27): 미디어 재생 포그라운드 서비스. 밖에 공개하지 않는다. -->

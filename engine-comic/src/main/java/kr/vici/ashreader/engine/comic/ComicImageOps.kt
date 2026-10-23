@@ -170,11 +170,15 @@ object SpreadLayout {
         wide: WideMode,
         rtl: Boolean,
         coverAlone: Boolean,
+        /** 짝 한 쪽 밀기(F-50): 두 쪽 모드에서 표지 다음(표지 단독이 아니면 맨 앞)에 빈 자리 하나를 넣어 짝을 한 쪽 민다. */
+        shift: Boolean = false,
     ): List<PageSlot> {
         val out = ArrayList<PageSlot>(sizes.size + 8)
         val halves = if (rtl) listOf(SlotPart.RIGHT, SlotPart.LEFT) else listOf(SlotPart.LEFT, SlotPart.RIGHT)
         val firstParity = if (coverAlone) 1 else 0
+        val shiftAt = if (spread && shift) (if (coverAlone) 1 else 0) else -1
         sizes.forEachIndexed { i, sz ->
+            if (i == shiftAt) out += PageSlot(-1, SlotPart.BLANK)
             val isWide = sz != null && isWide(sz.first, sz.second)
             when {
                 !isWide -> out += PageSlot(i, SlotPart.WHOLE)

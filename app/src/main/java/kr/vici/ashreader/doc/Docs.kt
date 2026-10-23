@@ -175,24 +175,49 @@ object DocOpener {
                     tmp?.deleteRecursively(); throw e
                 }
             }
-            DocFormat.Engine.NONE -> throw OpenFailed("이 형식은 아직 열 수 없어요.")
+            DocFormat.Engine.NONE -> throw OpenFailed(if (format == DocFormat.XPS) "이 형식은 아직 읽을 수 없어요 (알아낸 형식: XPS)" else "이 형식은 아직 열 수 없어요.")
         }
     }
 
     fun css(context: Context, s: Settings): String {
-        val font = BundledFonts.file(context, s.font).absolutePath
-        val bold = BundledFonts.boldFile(context, s.font)?.absolutePath
+        val user = UserFonts.file(context, s.userFont)
+        val font = (user ?: BundledFonts.file(context, s.font)).absolutePath
+        val bold = if (user != null) null else BundledFonts.boldFile(context, s.font)?.absolutePath
         val boldFace = if (bold != null) "@font-face { font-family: ashbody; font-weight: bold; src: url(\"$bold\"); }" else ""
-        return """
+        fun em(tenths: Int) = "%.2fem".format(java.util.Locale.ROOT, tenths / 10f)
+        val sb = StringBuilder()
+        sb.append(
+            """
             @font-face { font-family: ashbody; src: url("$font"); }
             $boldFace
             @page { margin: 0; }
             body { font-family: ashbody, serif; line-height: ${"%.2f".format(java.util.Locale.ROOT, s.lineHeight)};
-                   margin: 1.4em 1.5em 2.2em 1.5em; text-align: justify; word-break: keep-all; color: #000; background: #fff; }
+                   text-align: justify; word-break: keep-all; color: #000; background: #fff; }
             p { margin: 0; text-indent: 1em; }
             h1, h2, h3 { line-height: 1.4; text-indent: 0; }
             img { max-width: 100%; }
-        """.trimIndent()
+            p.ash-e { text-indent: 0; }
+            """.trimIndent(),
+        )
+        // F-19 여백(위·아래는 정보줄 몫 0.8em 을 더함)
+        sb.append("\nbody { margin: ${em(s.marginV)} ${em(s.marginH)} ${em(s.marginV + 8)} ${em(s.marginH)} !important; }")
+        // F-19 정렬: 왼쪽을 고르면 본문 문단을 왼쪽으로(양쪽은 문서 원래 정렬을 존중하는 기본값)
+        if (s.align == 1) sb.append("\nbody, p, li, blockquote, dd { text-align: left !important; }")
+        // F-19 문단 간격
+        if (s.paraSpace > 0) sb.append("\np { margin-top: 0 !important; margin-bottom: ${em(s.paraSpace)} !important; } p.ash-e { margin-bottom: 0 !important; }")
+        // F-37 글자 단위 줄 바꿈(기본은 띄어쓰기 단위 keep-all)
+        if (s.breakChar) sb.append("\nbody, p, div, li, td, span, blockquote, h1, h2, h3, h4, h5, h6 { word-break: normal !important; }")
+        // F-39 하이픈(영문 낱말만 — MuPDF 는 문서 언어(lang)에 맞는 하이픈 표가 있을 때만 끊고 한국어 표는 없다)
+        sb.append(if (s.hyphen) "\nbody, p, div, li, blockquote { hyphens: auto !important; }" else "\nbody { hyphens: manual; }")
+        // F-40 들여쓰기(원본 유지 = 문서 스타일 그대로)
+        when (s.indent) {
+            1 -> sb.append("\np { text-indent: 1em !important; }")
+            2 -> sb.append("\np { text-indent: 2em !important; }")
+            3 -> sb.append("\np { text-indent: 0 !important; }")
+        }
+        if (s.indent != 0) sb.append("\np.ash-e { text-indent: 0 !important; }")
+        if (s.dialogIndent == 1) sb.append("\np.ash-dlg { text-indent: 0 !important; }")
+        return sb.toString()
     }
 }
 
@@ -252,8 +277,11 @@ class MupdfReaderDoc(
     private val onClose: (() -> Unit)? = null,
     /** 암호 PDF 암호(필수 7). 저장하지 않는다. */
     password: String? = null,
-) : ReaderDoc {
+) : ReaderDoc, MarginCroppable {
     private val lock = Any()
+    /** F-24 여백 자르기(고정 쪽만). 렌더 전에 정한다. */
+    @Volatile override var cropMargins: Boolean = false
+    private val cropper = MarginCrop()
     private val doc: MupdfDoc = try {
         MupdfDoc.open(
             file.absolutePath,
@@ -269,18 +297,41 @@ class MupdfReaderDoc(
     override val pageCount: Int = synchronized(lock) { doc.pageCount() }
 
     override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap {
+        val box = cropBox(index)
+        if (box != null) {
+            // 잘린 상자가 [w]×[h] 에 맞을 만큼 크게 그린 뒤 상자만 잘라 맞춘다
+            val a = MarginCrop.aspect(rawAspect(index) ?: 1.414f, box)
+            val dw = minOf(w.toFloat(), h / a)
+            val rawW = (dw / (box.r - box.l)).toInt().coerceIn(1, 4096)
+            val full = synchronized(lock) { doc.renderPage(index, rawW) }
+            val keep = if (colors.keepImages && themeFilter(colors) != null) MarginCrop.mapRects(keepRects(index), box) else null
+            return fitInto(MarginCrop.cut(full, box), w, h, colors, applyTheme = true, keep = keep)
+        }
         val raw = synchronized(lock) { doc.renderPage(index, w) }
         val keep = if ((reflow || colors.keepImages) && themeFilter(colors) != null) keepRects(index) else null
         return fitInto(raw, w, h, colors, applyTheme = true, keep = keep)
+    }
+
+    /** 여백 자르기 상자. 끔·이북식·자를 것 없음이면 null. */
+    private fun cropBox(index: Int): NRect? {
+        if (!cropMargins || reflow) return null
+        val b = cropper.box(index) { synchronized(lock) { if (closed) null else doc.renderPage(index, MarginCrop.PROBE_W) } }
+        return if (MarginCrop.isFull(b)) null else b
     }
 
     private val imageCache = object : android.util.LruCache<Int, FloatArray>(64) {}
     private val layoutAspect = pageHdp / pageWdp.coerceAtLeast(1f)
     private val aspectCache = java.util.concurrent.ConcurrentHashMap<Int, Float>()
 
-    override fun pageAspect(index: Int): Float? = if (reflow) layoutAspect else aspectCache[index] ?: synchronized(lock) {
+    private fun rawAspect(index: Int): Float? = aspectCache[index] ?: synchronized(lock) {
         if (closed) null else runCatching { doc.pageAspect(index) }.getOrNull()
     }?.also { aspectCache[index] = it }
+
+    override fun pageAspect(index: Int): Float? = if (reflow) layoutAspect else {
+        val raw = rawAspect(index)
+        val box = if (raw != null) cropBox(index) else null
+        if (raw != null && box != null) MarginCrop.aspect(raw, box) else raw
+    }
 
     /** Word 원본 보기 등 바깥에서 만든 목차(합성 PDF 에 목차가 없을 때). */
     @Volatile var tocOverride: List<TocEntry>? = null
@@ -322,7 +373,9 @@ class MupdfReaderDoc(
     override fun pageText(index: Int): TextPage? {
         textCache.get(index)?.let { return it }
         val t = synchronized(lock) { runCatching { doc.pageText(index) }.getOrNull() } ?: return null
-        return TextPage(t.text, t.boxes, t.aspect).also { textCache.put(index, it) }
+        val tp = TextPage(t.text, t.boxes, t.aspect)
+        val box = cropBox(index)
+        return (if (box != null) MarginCrop.mapText(tp, box) else tp).also { textCache.put(index, it) }
     }
 
     override fun toc(): List<TocEntry> = tocOverride ?: synchronized(lock) {
@@ -345,8 +398,11 @@ class MupdfReaderDoc(
 }
 
 /** DjVu(F-26 고정 쪽, DjVuLibre). 쪽 그림 + 목차 + 숨은 글자층 줄 글자(듣기·검색). 글자 위치는 쓰지 않는다. */
-class DjvuReaderDoc(file: File) : ReaderDoc {
+class DjvuReaderDoc(file: File) : ReaderDoc, MarginCroppable {
     override val format: DocFormat = DocFormat.DJVU
+    /** F-24 여백 자르기. 렌더 전에 정한다. */
+    @Volatile override var cropMargins: Boolean = false
+    private val cropper = MarginCrop()
     private val doc: DjvuDoc = try { DjvuDoc.open(file.absolutePath) } catch (e: Exception) {
         throw OpenFailed(e.message?.takeIf { it.contains("기기") } ?: "DjVu 파일을 열 수 없어요. 손상되었을 수 있어요.")
     }
@@ -354,9 +410,22 @@ class DjvuReaderDoc(file: File) : ReaderDoc {
 
     override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap {
         val sz = doc.pageSize(index)
+        val box = cropBox(index)
+        if (box != null) {
+            val a = MarginCrop.aspect(sz.height.toFloat() / sz.width.coerceAtLeast(1), box)
+            val dw = minOf(w.toFloat(), h / a)
+            val rawW = (dw / (box.r - box.l)).toInt().coerceIn(1, 4096)
+            return fitInto(MarginCrop.cut(doc.renderPage(index, rawW), box), w, h, colors, applyTheme = true)
+        }
         // 쪽 맞춤: 화면 안에 들어가는 폭으로 그린다(세로로 긴 쪽은 높이에 맞춤)
         val fitW = minOf(w.toFloat(), h.toFloat() * sz.width / sz.height).toInt().coerceAtLeast(1)
         return fitInto(doc.renderPage(index, fitW), w, h, colors, applyTheme = true)
+    }
+
+    private fun cropBox(index: Int): NRect? {
+        if (!cropMargins) return null
+        val b = cropper.box(index) { runCatching { doc.renderPage(index, MarginCrop.PROBE_W) }.getOrNull() }
+        return if (MarginCrop.isFull(b)) null else b
     }
 
     override fun pageLines(index: Int): List<String> = runCatching { doc.pageLines(index) }.getOrDefault(emptyList())
@@ -369,13 +438,18 @@ class DjvuReaderDoc(file: File) : ReaderDoc {
         val words = runCatching { doc.pageWords(index) }.getOrDefault(emptyList())
         if (words.isEmpty()) return null
         val sz = runCatching { doc.pageSize(index) }.getOrNull() ?: return null
-        return djvuTextPage(words.map { DjvuWord(it.l, it.t, it.r, it.b, it.text, it.lineEnd) }, sz.height.toFloat() / sz.width)
-            .also { textCache.put(index, it) }
+        val tp = djvuTextPage(words.map { DjvuWord(it.l, it.t, it.r, it.b, it.text, it.lineEnd) }, sz.height.toFloat() / sz.width)
+        val box = cropBox(index)
+        return (if (box != null) MarginCrop.mapText(tp, box) else tp).also { textCache.put(index, it) }
     }
 
     override fun toc(): List<TocEntry> = runCatching { doc.outline().map { TocEntry(it.title, it.depth, it.page) } }.getOrDefault(emptyList())
 
-    override fun pageAspect(index: Int): Float? = runCatching { doc.pageSize(index) }.getOrNull()?.let { if (it.width > 0) it.height.toFloat() / it.width else null }
+    override fun pageAspect(index: Int): Float? {
+        val raw = runCatching { doc.pageSize(index) }.getOrNull()?.let { if (it.width > 0) it.height.toFloat() / it.width else null } ?: return null
+        val box = cropBox(index)
+        return if (box != null) MarginCrop.aspect(raw, box) else raw
+    }
 
     override fun close() = doc.close()
 }
@@ -434,14 +508,17 @@ object TxtUtf8 {
             TextEncoding.detect(head)
         }
         val dir = File(context.cacheDir, "txt/$key").apply { mkdirs() }
-        // F-41 TXT 정리: 설정이 다르면 다른 파일(원본은 그대로)
-        val tag = TxtClean.tag(s.txtBlank, s.txtJoin, s.txtTrim)
-        dir.listFiles()?.forEach { f -> if (f.name.startsWith(kind.name + "-") && f.name != "${kind.name}-$tag.txt") f.delete() }
-        val out = File(dir, "${kind.name}-$tag.txt")
+        // F-41 TXT 정리·F-33 목차·F-39 하이픈: 설정이 다르면 다른 파일(원본은 그대로)
+        val tag = TxtClean.tag(s.txtBlank, s.txtJoin, s.txtTrim) + "-c${s.txtTocMask}" +
+            (if (s.txtTocCustom.isBlank()) "" else "u" + Integer.toHexString(s.txtTocCustom.hashCode())) + (if (s.hyphen) "h" else "")
+        val outName = "${kind.name}-$tag.xhtml"
+        dir.listFiles()?.forEach { f -> if (f.name.startsWith(kind.name + "-") && f.name != outName) f.delete() }
+        val out = File(dir, outName)
         if (!out.isFile || out.length() == 0L || out.lastModified() < file.lastModified()) {
             val text = TxtClean.clean(TextEncoding.decode(file.readBytes(), kind), s.txtBlank, s.txtJoin, s.txtTrim)
+            val xhtml = TxtXhtml.convert(text.replace("\r\n", "\n").replace('\r', '\n'), file.nameWithoutExtension, s.txtTocMask, s.txtTocCustom, s.hyphen)
             val tmp = File(dir, kind.name + ".tmp")
-            tmp.writeText(text, Charsets.UTF_8)
+            tmp.writeText(xhtml, Charsets.UTF_8)
             if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
         }
         return Out(out, kind)
@@ -497,6 +574,8 @@ class HwpReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
  */
 object HwpDiag {
     fun check(file: File, afterFailure: Boolean = false) {
+        // 요구사항서 2장: HWP 3.0/97(및 그 이전) 은 지원하지 않는다 — 엔진에 넣기 전에 알맞은 안내
+        if (isLegacyHwp(file)) throw OpenFailed(LEGACY_MSG)
         val props = CfbFile.hwpProperties(file)
         if (props != null) {
             if (props and 0x2 != 0) throw OpenFailed("암호가 걸린 한글 문서예요. 한컴오피스 한글에서 문서 암호를 해제한 뒤 다시 열어 주세요.")
@@ -512,6 +591,21 @@ object HwpDiag {
             }
         }.getOrDefault(false)
         if (encrypted) throw OpenFailed("암호가 걸린 한글 문서(HWPX)예요. 한컴오피스 한글에서 문서 암호를 해제한 뒤 다시 열어 주세요.")
+    }
+
+    const val LEGACY_MSG = "HWP 3.0은 지원하지 않아요. 한컴오피스 한글에서 HWP(2002 이후) 또는 HWPX 형식으로 다시 저장한 뒤 열어 주세요."
+
+    /** "HWP Document File V1~V3"(HWP 3.0/97 이전) 머리. */
+    fun isLegacyHwp(file: File): Boolean = runCatching {
+        val head = kr.vici.ashreader.engine.comic.ComicFormat.readHead(file.inputStream(), 32)
+        isLegacyHwpHead(head)
+    }.getOrDefault(false)
+
+    fun isLegacyHwpHead(head: ByteArray): Boolean {
+        val sig = "HWP Document File V"
+        if (head.size < sig.length + 1) return false
+        if (String(head, 0, sig.length, Charsets.ISO_8859_1) != sig) return false
+        return (head[sig.length].toInt().toChar()) in '1'..'3'
     }
 }
 
@@ -553,10 +647,12 @@ object HwpXhtml {
     /** [key] = 문서 식별 해시(DocHash). 같은 문서를 다시 열면 재사용한다. */
     fun convert(context: Context, file: File, key: String = DocCaches.keyOf(file)): File {
         val dir = File(context.cacheDir, "hwp-ebook/$key")
-        val out = File(dir, "doc.xhtml")
+        // doc-d = 대화문 표시(F-40)를 붙인 판
+        val out = File(dir, "doc-d.xhtml")
         if (out.exists() && out.length() > 0) return out
+        File(dir, "doc.xhtml").delete()
         val xhtml = try {
-            HwpDoc.open(file.absolutePath).use { it.toXhtml(dir, file.nameWithoutExtension) }
+            Dialogue.mark(HwpDoc.open(file.absolutePath).use { it.toXhtml(dir, file.nameWithoutExtension) })
         } catch (e: Exception) {
             HwpDiag.check(file, afterFailure = true)
             throw OpenFailed("한글 문서를 이북식으로 바꾸지 못했어요. 원본 보기로 읽어 주세요.")
@@ -610,6 +706,6 @@ object OfficeXhtml {
             temp?.deleteRecursively()
             throw OpenFailed("Word 문서를 열 수 없어요. 손상되었거나 지원하지 않는 형식일 수 있어요.")
         }
-        return Converted(File(dir, "doc.xhtml").apply { writeText(xhtml) }, temp)
+        return Converted(File(dir, "doc.xhtml").apply { writeText(runCatching { Dialogue.mark(xhtml) }.getOrDefault(xhtml)) }, temp)
     }
 }

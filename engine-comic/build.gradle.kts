@@ -95,5 +95,7 @@ tasks.matching {
 tasks.matching { it.name.startsWith("configureCMake") || it.name.startsWith("buildCMake") }.configureEach { dependsOn(buildNcnn) }
 
 dependencies {
+    // RAR 항목 이름 CP949 판별에 TXT 인코딩 판별기(TextEncoding)를 함께 쓴다
+    implementation(project(":engine-convert"))
     testImplementation(libs.junit)
 }

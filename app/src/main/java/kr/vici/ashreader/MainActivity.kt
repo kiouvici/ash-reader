@@ -21,6 +21,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,6 +52,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kr.vici.ashreader.data.Book
+import kr.vici.ashreader.data.SeriesGroups
 import kr.vici.ashreader.data.Bookmark
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.LibraryRepo
@@ -76,7 +78,7 @@ import kr.vici.ashreader.ui.ReaderTarget
 import kr.vici.ashreader.ui.SeriesScreen
 import kr.vici.ashreader.ui.StatsScreen
 import kr.vici.ashreader.ui.VolumeKeys
-import kr.vici.ashreader.ui.weekStart
+import kr.vici.ashreader.ui.statsSince
 import kr.vici.ashreader.ui.ZipPickSheet
 
 internal sealed interface Screen {
@@ -169,13 +171,13 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
 
 class MainActivity : ComponentActivity() {
     /** 외부에서 받은 문서(VIEW·SEND). */
-    private val incoming = MutableStateFlow<Uri?>(null)
+    private val incoming = MutableStateFlow<List<Uri>>(emptyList())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (savedInstanceState == null) {
-            incoming.value = uriOf(intent)
+            incoming.value = urisOf(intent)
             // 필수 5: 앱 시작 때 쓸기 — 서재에 없는 문서의 변환 캐시 + (설정이 켜져 있으면) 한 번만 보기 사본.
             // 회전·복원(savedInstanceState 있음)일 때는 열린 한 번만 보기 문서를 지우지 않도록 건너뛴다.
             val app = ash
@@ -186,14 +188,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        uriOf(intent)?.let { incoming.value = it }
+        urisOf(intent).takeIf { it.isNotEmpty() }?.let { incoming.value = it }
     }
 
-    private fun uriOf(i: Intent?): Uri? = when (i?.action) {
-        Intent.ACTION_VIEW -> i.data
-        Intent.ACTION_SEND -> streamOf(i)
-        else -> null
-    }?.takeIf { safeIncoming(it) }
+    /** VIEW·SEND 는 한 개, SEND_MULTIPLE(여러 파일 공유)은 여러 개(F-05). */
+    private fun urisOf(i: Intent?): List<Uri> = when (i?.action) {
+        Intent.ACTION_VIEW -> listOfNotNull(i.data)
+        Intent.ACTION_SEND -> listOfNotNull(streamOf(i))
+        Intent.ACTION_SEND_MULTIPLE -> streamsOf(i)
+        else -> emptyList()
+    }.filter { safeIncoming(it) }
 
     /**
      * 받은 URI 검사(권장): content:// 만 받고, 이 앱 자신의 provider·앱 전용 폴더를 가리키는 것은 거부한다
@@ -207,6 +211,11 @@ class MainActivity : ComponentActivity() {
         val priv = listOfNotNull(dataDir?.path, filesDir.path, cacheDir.path, "/data/data/$packageName", "/data/user/0/$packageName")
         return priv.none { p.contains(it) }
     }
+
+    @Suppress("DEPRECATION")
+    private fun streamsOf(i: Intent): List<Uri> =
+        (if (Build.VERSION.SDK_INT >= 33) i.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        else i.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM))?.filterNotNull().orEmpty()
 
     @Suppress("DEPRECATION")
     private fun streamOf(i: Intent): Uri? =
@@ -238,7 +247,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
+private fun AshRoot(incoming: MutableStateFlow<List<Uri>>) {
     val context = LocalContext.current
     val app = context.ash
     val dao = app.db.books()
@@ -342,8 +351,18 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
 
     // 외부 인텐트 → 한 번만 보기 (서재에 이미 있으면 그 책으로 연다)
     LaunchedEffect(pending) {
-        val uri = pending ?: return@LaunchedEffect
-        incoming.value = null
+        val all = pending
+        if (all.isEmpty()) return@LaunchedEffect
+        incoming.value = emptyList()
+        if (all.size > 1) {
+            // 여러 파일 공유(SEND_MULTIPLE): 서재에 넣고 알린다
+            var ok = 0
+            for (u in all) runCatching { app.library.import(u) }.onSuccess { ok++ }
+            nav.screen = nav.tab
+            snack.showSnackbar(if (ok == all.size) "${ok}권을 서재에 넣었어요." else "${all.size - ok}개 파일은 넣지 못했어요.")
+            return@LaunchedEffect
+        }
+        val uri = all[0]
         runCatching { app.library.openOnce(uri) }.onSuccess { o ->
             if (o.format == DocFormat.ZIP) {
                 // 서재에 같은 압축 파일이 있으면 그 기록으로(안 문서의 읽은 위치가 이어짐)
@@ -352,9 +371,14 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                 return@onSuccess
             }
             val existing = dao.get(o.id)?.takeIf { it.hidden == 0 }
-            // 서재에 같은 문서가 있으면 그 기록으로 이어 읽는다(F-06). 파일은 방금 받은 사본으로 연다(서재 쪽 파일이 없어도 열리게).
+            // 서재에 같은 문서가 있으면 그 기록으로 이어 읽는다(F-06). 서재 쪽 파일을 열 수 있으면 받은 사본은 바로 지우고,
+            // 없으면 받은 사본으로 열고 닫을 때 지운다(사본이 캐시에 쌓이지 않게).
+            // (SAF 로 모은 문서는 다시 복사하지 않도록 받은 사본으로 연다)
+            val libPath = existing?.takeIf { it.origin != Book.ORIGIN_SAF }?.let { e -> runCatching { app.library.localPath(e) }.getOrNull() }
+            if (existing != null && libPath != null) app.library.discardOnce(o)
             nav.screen = if (existing != null) Screen.Reader(
-                ReaderTarget(existing.id, existing.title, o.file.absolutePath, DocFormat.of(existing.format), existing.lastPage, false, existing.viewMode, existing.pageCount, existing.textEncoding), null,
+                ReaderTarget(existing.id, existing.title, libPath ?: o.file.absolutePath, DocFormat.of(existing.format), existing.lastPage, false, existing.viewMode, existing.pageCount, existing.textEncoding),
+                if (libPath == null) o else null,
             )
             else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true), o)
         }.onFailure { snack.showSnackbar("파일을 열 수 없어요. ${it.message.orEmpty()}") }
@@ -380,7 +404,9 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                 onDispose {
                     if (activity?.isChangingConfigurations != true) {
                         nav.passwords.remove(bookId)
-                        if (o != null) app.appScope.launch { runCatching { app.library.closeOnce(o, clearCopy) } }
+                        // 서재에 있는 문서를 받은 사본으로 연 경우(once=false)는 사본을 늘 지운다
+                        val drop = clearCopy || !sc.target.once
+                        if (o != null) app.appScope.launch { runCatching { app.library.closeOnce(o, drop) } }
                     }
                 }
             }
@@ -407,8 +433,9 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                 },
                 onFinished = {
                     if (!sc.target.once) scope.launch {
-                        val b = dao.get(bookId)?.takeIf { it.seriesKey.isNotBlank() } ?: return@launch
-                        dao.volume(b.seriesKey, b.volume + 1)?.let { nextVol = b to it }
+                        // F-61: 같은 폴더(같은 묶음)의 파일명 숫자 순서로 다음 권, 없으면 같은 시리즈의 다음 권 번호
+                        val b = dao.get(bookId) ?: return@launch
+                        SeriesGroups.next(b, dao.visibleBooks())?.let { nextVol = b to it }
                     }
                 },
                 onSession = { start, dur, pages ->
@@ -477,9 +504,11 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                         onStoreEdit = { nav.screen = Screen.StoreEdit },
                         onExport = { b -> exportFor = b.id },
                         showStores = settings.showStores,
+                        sort = settings.libSort, sortDesc = settings.libSortDesc,
+                        onSort = { o, d -> change { it.copy(libSort = o, libSortDesc = d) } },
                     )
                     Screen.Stats -> {
-                        val since = remember { weekStart() }
+                        val since = remember { statsSince() }
                         val week by remember { dao.sessionsSince(since) }.collectAsState(initial = emptyList())
                         val days by remember { dao.sessionDays() }.collectAsState(initial = emptyList())
                         val times by remember { dao.timeByBook() }.collectAsState(initial = emptyList())
@@ -512,8 +541,34 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                     }
                     is Screen.Series -> {
                         BackHandler { nav.screen = Screen.Library }
-                        val vols by remember(sc.key) { dao.series(sc.key) }.collectAsState(initial = emptyList())
-                        SeriesScreen(sc.key, vols, onBack = { nav.screen = Screen.Library }, onOpen = ::open)
+                        val vols = remember(sc.key, books) { SeriesGroups.volumes(sc.key, books) }
+                        SeriesScreen(
+                            SeriesGroups.nameOf(sc.key), vols, all = books, onBack = { nav.screen = Screen.Library }, onOpen = ::open,
+                            onUngroup = {
+                                // F-62 묶기 풀기: 묶음만 풀고 파일은 그대로. 스낵바 [되돌리기]
+                                val before = vols.map { Triple(it.id, it.seriesKey, it.seriesManual) }
+                                nav.screen = Screen.Library
+                                scope.launch {
+                                    before.forEach { (id, key, _) -> dao.setSeries(id, key, Book.SERIES_EXCLUDED) }
+                                    val r = snack.showSnackbar("'${SeriesGroups.nameOf(sc.key)}' 묶음을 풀었어요. 파일은 그대로예요.", actionLabel = "되돌리기", withDismissAction = true)
+                                    if (r == SnackbarResult.ActionPerformed) before.forEach { (id, key, mode) -> dao.setSeries(id, key, mode) }
+                                }
+                            },
+                            onRename = { name ->
+                                if (vols.isNotEmpty()) scope.launch {
+                                    vols.forEach { dao.setSeries(it.id, name, Book.SERIES_MANUAL) }
+                                    nav.screen = Screen.Series(SeriesGroups.keyOf(vols.first().copy(seriesKey = name, seriesManual = Book.SERIES_MANUAL))!!)
+                                }
+                            },
+                            onAdd = { picked ->
+                                scope.launch {
+                                    val name = SeriesGroups.nameOf(sc.key)
+                                    // 직접 묶기: 지금 권들도 직접 묶음으로 바꿔 폴더가 달라도 한 묶음이 되게
+                                    (vols + picked).forEach { dao.setSeries(it.id, name, Book.SERIES_MANUAL) }
+                                    nav.screen = Screen.Series(SeriesGroups.keyOf(Book(id = "", title = "", format = "", path = "", seriesKey = name, seriesManual = Book.SERIES_MANUAL))!!)
+                                }
+                            },
+                        )
                     }
                     is Screen.Reader -> Unit
                 }

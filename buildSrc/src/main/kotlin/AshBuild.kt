@@ -123,6 +123,18 @@ object AshSigning {
 fun Project.ashVersionCode(): Int =
     1000 + (providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 0)
 
+/**
+ * 사용자에게 보이는 판 이름. CI 는 1.0.0-rc.<실행 번호>, 로컬은 1.0.0-dev.
+ * 정식 배포 때는 -Pash.versionName=1.0.0 으로 덮는다.
+ */
+fun Project.ashVersionName(): String {
+    providers.gradleProperty("ash.versionName").orNull?.takeIf { it.isNotBlank() }?.let { return it }
+    val run = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull()
+    return if (run != null) "$ASH_VERSION_BASE-rc.$run" else "$ASH_VERSION_BASE-dev"
+}
+
+const val ASH_VERSION_BASE = "1.0.0"
+
 /** 빌드 커밋 (CI의 GITHUB_SHA, 로컬은 "local"). */
 fun Project.ashGitSha(): String =
     providers.environmentVariable("GITHUB_SHA").orNull?.takeIf { it.isNotBlank() } ?: "local"

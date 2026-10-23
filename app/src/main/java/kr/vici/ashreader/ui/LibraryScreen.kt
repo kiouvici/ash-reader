@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.DocFormat
+import kr.vici.ashreader.data.SeriesGroups
 import kr.vici.ashreader.data.StoreApp
 import kr.vici.ashreader.data.progress
 import kr.vici.ashreader.doc.Covers
@@ -83,6 +84,10 @@ fun LibraryScreen(
     onExport: (Book) -> Unit = {},
     /** F-36 '내 서점 앱' 줄 보이기(설정에서 끌 수 있음). */
     showStores: Boolean = true,
+    /** F-03 정렬([LibSort] 순서)·내림차순. 바꾸면 [onSort]. */
+    sort: Int = 0,
+    sortDesc: Boolean = false,
+    onSort: (Int, Boolean) -> Unit = { _, _ -> },
 ) {
     var shelf by rememberSaveable { mutableStateOf(Shelf.RECENT) }
     // -1 = 전체, 0~2 = 상태(F-71), FAVORITES = 즐겨찾기
@@ -91,12 +96,14 @@ fun LibraryScreen(
     var menuFor by remember { mutableStateOf<Book?>(null) }
     var listMode by rememberSaveable { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
+    var sortOpen by remember { mutableStateOf(false) }
+    val libSort = LibSort.of(sort)
 
     val cont = books.firstOrNull { it.status == Book.READING && it.lastOpenedAt > 0 }
     val filtered = books
         .filter { status < 0 || (status == FAVORITES && it.favorite) || it.status == status }
         .filter { q -> query.isNullOrBlank() || q.title.contains(query!!, ignoreCase = true) }
-        .let { l -> if (shelf == Shelf.ALL) l.sortedBy { it.title } else l }
+        .let { l -> if (shelf == Shelf.RECENT || shelf == Shelf.SERIES) l else sortBooks(l, libSort, sortDesc) }
 
     LazyVerticalGrid(
         columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(104.dp),
@@ -116,6 +123,7 @@ fun LibraryScreen(
                         DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
                             DropdownMenuItem(text = { Text("새로고침(폴더 다시 모으기)") }, onClick = { more = false; onRefresh() }, modifier = Modifier.heightIn(min = 48.dp))
                             DropdownMenuItem(text = { Text("모으는 폴더 관리") }, onClick = { more = false; onFolders() }, modifier = Modifier.heightIn(min = 48.dp))
+                            DropdownMenuItem(text = { Text("정렬: ${libSort.label} (${if (sortDesc) libSort.descLabel else libSort.ascLabel})") }, onClick = { more = false; sortOpen = true }, modifier = Modifier.heightIn(min = 48.dp))
                         }
                     }
                 }
@@ -161,16 +169,19 @@ fun LibraryScreen(
                 }
             }
             Shelf.SERIES -> {
-                val series = filtered.filter { it.seriesKey.isNotBlank() }.groupBy { it.seriesKey }
+                // F-62: 같은 폴더에서 숫자·권·화를 뺀 이름이 같은 2권 이상(자동) + 직접 묶음. 거른 책이 하나라도 든 묶음만
+                val shown = filtered.map { it.id }.toSet()
+                val series = SeriesGroups.groups(books).filterValues { v -> v.any { it.id in shown } }
                 if (series.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text("제목 끝에 권·화 번호가 있는 책을 시리즈로 묶어 보여 줘요.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                    Text("같은 폴더에서 제목 끝 권·화 번호만 다른 책을 시리즈로 묶어 보여 줘요. 책을 길게 눌러 직접 묶을 수도 있어요.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                 }
                 series.forEach { (key, vols) ->
                     item(key = "s-$key") {
-                        val first = vols.minBy { it.volume }
-                        Column(Modifier.clickable { onSeries(key) }.semantics { contentDescription = "$key 시리즈, ${vols.size}권" }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        val first = vols.first()
+                        val name = SeriesGroups.nameOf(key)
+                        Column(Modifier.clickable { onSeries(key) }.semantics { contentDescription = "$name 시리즈, ${vols.size}권" }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Cover(first, Modifier.fillMaxWidth())
-                            Text(key, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(name, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Text("${vols.size}권 · ${vols.count { it.status == Book.DONE }}권 읽음", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -178,6 +189,8 @@ fun LibraryScreen(
             }
         }
     }
+
+    if (sortOpen) LibrarySortDialog(libSort, sortDesc, onPick = { o, d -> onSort(o.ordinal, d) }, onDismiss = { sortOpen = false })
 
     menuFor?.let { b ->
         BookMenuSheet(
