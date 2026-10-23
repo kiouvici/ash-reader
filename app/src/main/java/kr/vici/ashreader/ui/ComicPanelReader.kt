@@ -7,7 +7,14 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.animation.core.snap
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,6 +64,7 @@ import kr.vici.ashreader.engine.comic.ReadingDirection
  * S-34 칸 단위 보기 (F-72, D-007). 눌러서 확대(기본) / 자동 순서.
  * 탭 규칙(화면 설계서 4.3): 위 12% 띠 = 메뉴, 좌우 15% = 이전/다음 칸, 칸 위 = 확대 ↔ 쪽 전체.
  * 두 번 탭 = 누른 곳 중심 2배 확대 ↔ 원래대로(M-12). 확대 중에는 끌어서 옮긴다. 쪽·칸이 바뀌면 풀린다.
+ * 옆으로 밀기(I-717) = 다음/이전 칸(쪽 끝이면 다음/이전 쪽, 오른쪽→왼쪽 만화는 반대). 밀기가 탭으로 잡혀 칸이 확대되던 문제를 고침.
  * [upscale] = AI 화질 개선(켜져 있을 때). 원본을 먼저 보여 주고 2배 결과가 나오면 바꿔 낀다.
  */
 @Composable
@@ -170,12 +178,39 @@ fun ComicPanelReader(
             ux = ux.coerceIn(wPx - wPx * uz, 0f)
             uy = uy.coerceIn(hPx - hPx * uz, 0f)
         }
-        val auz by animateFloatAsState(uz, tween(200), label = "uz")
-        val aux by animateFloatAsState(ux, tween(200), label = "ux")
-        val auy by animateFloatAsState(uy, tween(200), label = "uy")
+        // 두 손가락 확대 중에는 손가락을 바로 따라간다(애니메이션 없이)
+        var pinching by remember { mutableStateOf(false) }
+        val auz by animateFloatAsState(uz, if (pinching) snap() else tween(200), label = "uz")
+        val aux by animateFloatAsState(ux, if (pinching) snap() else tween(200), label = "ux")
+        val auy by animateFloatAsState(uy, if (pinching) snap() else tween(200), label = "uy")
 
         Box(
             Modifier.fillMaxSize()
+                .pointerInput(wPx, hPx) {
+                    // I-717: 두 손가락 = 확대(누른 가운데를 고정). 확대는 두 번 탭과 두 손가락으로만.
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            if (ev.changes.none { it.pressed }) break
+                            if (ev.changes.count { it.pressed } >= 2) {
+                                val zoom = ev.calculateZoom()
+                                val c = ev.calculateCentroid(useCurrent = true)
+                                val pan = ev.calculatePan()
+                                pinching = true
+                                val nz = (uz * zoom).coerceIn(1f, 5f)
+                                ux = c.x - nz * (c.x - ux) / uz + pan.x
+                                uy = c.y - nz * (c.y - uy) / uz + pan.y
+                                uz = nz
+                                clampPan()
+                                zoomTick++
+                                ev.changes.forEach { it.consume() }
+                            }
+                        }
+                        pinching = false
+                        if (uz < 1.02f) { uz = 1f; ux = 0f; uy = 0f }
+                    }
+                }
                 .pointerInput(rects, sel, auto, page, doc.rtl) {
                     detectTapGestures(
                         onDoubleTap = { p: Offset ->
@@ -205,7 +240,16 @@ fun ComicPanelReader(
                 .then(
                     if (uz > 1f) Modifier.pointerInput(uz) {
                         detectDragGestures { change, d -> change.consume(); ux += d.x; uy += d.y; clampPan() }
-                    } else Modifier,
+                    } else Modifier.pointerInput(rects, sel, auto, page, doc.rtl) {
+                        // I-717: 옆으로 밀면 칸 넘김. 끌기를 소비하므로 탭(칸 확대)으로 잡히지 않는다.
+                        var acc = 0f
+                        val minSwipe = 40.dp.toPx()
+                        detectHorizontalDragGestures(
+                            onDragStart = { acc = 0f },
+                            onDragEnd = { swipeTurn(acc, minSwipe, doc.rtl)?.let { go(it) } },
+                            onDragCancel = { acc = 0f },
+                        ) { change, d -> change.consume(); acc += d }
+                    },
                 )
                 .graphicsLayer { transformOrigin = TransformOrigin(0f, 0f); scaleX = auz; scaleY = auz; translationX = aux; translationY = auy },
         ) {
@@ -259,4 +303,14 @@ fun UpscaleChip(up: ComicUpscale, page: Int, modifier: Modifier = Modifier) {
         text, fontSize = 12.sp, color = Color.White,
         modifier = modifier.background(Color(0x80000000), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
     )
+}
+
+/**
+ * 칸 단위 보기 밀기(I-717): 가로로 [dx]px 민 결과. true = 다음, false = 이전, null = 너무 짧음(무시).
+ * 왼쪽으로 밀면 다음(왼→오 책). 오른쪽→왼쪽 만화([rtl])는 오른쪽으로 밀면 다음.
+ */
+internal fun swipeTurn(dx: Float, minSwipe: Float, rtl: Boolean): Boolean? {
+    if (kotlin.math.abs(dx) < minSwipe) return null
+    val leftSwipe = dx < 0f
+    return if (rtl) !leftSwipe else leftSwipe
 }
