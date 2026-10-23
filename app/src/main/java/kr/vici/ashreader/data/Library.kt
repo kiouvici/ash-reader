@@ -39,6 +39,8 @@ enum class DocFormat(val badge: String, val group: FormatGroup, val engine: Engi
     DOCX("DOCX", FormatGroup.WORD, Engine.OFFICE),
     DOC("DOC", FormatGroup.WORD, Engine.OFFICE),
     RTF("RTF", FormatGroup.WORD, Engine.OFFICE),
+    /** 문서가 든 압축 파일(S-46 압축 파일 안 고르기). 읽기 화면으로 바로 열지 않고 안의 문서를 고른다. */
+    ZIP("ZIP", FormatGroup.ZIP, Engine.NONE),
     UNKNOWN("?", FormatGroup.TEXT, Engine.NONE);
 
     /** CONVERT = 합성 EPUB 으로 바꿔 MuPDF 로(MOBI·AZW3·CHM, :engine-convert), DJVU = :engine-djvu. */
@@ -127,7 +129,15 @@ object FormatDetector {
         mime == "application/hwp+zip" || "Contents/section0.xml" in names -> DocFormat.HWPX
         names.any { it.endsWith(".fdseq") } -> DocFormat.XPS
         names.isNotEmpty() && names.count { IMAGE.matches(it) } * 2 >= names.count { !it.endsWith("/") } && names.any { IMAGE.matches(it) } -> DocFormat.CBZ
+        names.any { isInnerDoc(it) } -> DocFormat.ZIP
         else -> null
+    }
+
+    /** 압축 안 항목이 열 수 있는 문서인가(S-46). 맥 압축 찌꺼기·숨은 파일·안의 ZIP 은 뺀다. */
+    fun isInnerDoc(name: String): Boolean {
+        if (name.endsWith("/") || name.startsWith("__MACOSX/") || name.substringAfterLast('/').startsWith(".")) return false
+        val ext = name.substringAfterLast('.', "").lowercase()
+        return ext != "zip" && ext in EXTENSIONS
     }
 
     fun byExtension(ext: String): DocFormat = when (ext) {
@@ -287,6 +297,17 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
      * SAF 로 모은 문서는 캐시(saf/<id>.<확장자>)로 복사해 연다(크기가 같으면 다시 쓰지 않음). 원본은 읽기만 한다.
      */
     suspend fun localPath(b: Book): String = withContext(Dispatchers.IO) {
+        if (b.origin == Book.ORIGIN_ZIP) {
+            if (File(b.path).isFile) return@withContext b.path
+            // 캐시가 지워졌으면 압축 파일에서 다시 푼다
+            val zipId = b.sourceUri.substringBefore('\n')
+            val entry = b.sourceUri.substringAfter('\n', "")
+            val zipBook = dao.get(zipId) ?: throw java.io.FileNotFoundException("압축 파일이 서재에 없어요.")
+            val zipPath = localPath(zipBook)
+            val f = extractEntry(File(zipPath), zipId, entry)
+            dao.upsert(b.copy(path = f.path))
+            return@withContext f.path
+        }
         if (b.origin != Book.ORIGIN_SAF) {
             if (!File(b.path).isFile) throw java.io.FileNotFoundException("파일이 없어졌어요. 옮겨졌거나 지워졌을 수 있어요.")
             return@withContext b.path
@@ -320,6 +341,75 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
     }
 
     val safDir: File get() = File(context.cacheDir, "saf").apply { mkdirs() }
+
+    // ───────── S-46 압축 파일 안 고르기 ─────────
+
+    /** 압축 안 문서 한 개. [format] 은 확장자로 본 것(열 때 시그니처로 다시 본다). */
+    data class ZipItem(val name: String, val size: Long, val format: DocFormat) {
+        val title: String get() = name.substringAfterLast('/').substringBeforeLast('.')
+    }
+
+    /** 압축 안의 열 수 있는 문서 목록(이름 자연 순서). 이름이 UTF-8 이 아니면 CP949 로 다시 읽는다. */
+    suspend fun zipItems(zip: File): List<ZipItem> = withContext(Dispatchers.IO) {
+        openZip(zip).use { z ->
+            z.entries().asSequence()
+                .filter { !it.isDirectory && FormatDetector.isInnerDoc(it.name) && it.size != 0L }
+                .map { ZipItem(it.name, it.size, FormatDetector.byExtension(it.name.substringAfterLast('.', "").lowercase())) }
+                .filter { it.format != DocFormat.UNKNOWN }
+                .sortedWith(compareBy(kr.vici.ashreader.engine.comic.ComicFormat.naturalOrder) { it.name })
+                .toList()
+        }
+    }
+
+    private fun openZip(zip: File): ZipFile {
+        val z = ZipFile(zip)
+        return try {
+            z.entries().asSequence().forEach { it.name } // UTF-8 이 아닌 이름이면 여기서 IllegalArgumentException
+            z
+        } catch (e: IllegalArgumentException) {
+            z.close()
+            ZipFile(zip, java.nio.charset.Charset.forName("EUC-KR"))
+        }
+    }
+
+    /** 항목을 캐시(zipx/<압축 id>/)에 푼다. 파일 이름은 항목 이름 해시(경로 넘김 방지). */
+    private fun extractEntry(zip: File, zipId: String, entry: String): File {
+        val dir = File(context.cacheDir, "zipx/$zipId").apply { mkdirs() }
+        val md = MessageDigest.getInstance("SHA-1").digest(entry.toByteArray()).take(10).joinToString("") { "%02x".format(it) }
+        val ext = entry.substringAfterLast('.', "bin").lowercase().filter { it.isLetterOrDigit() }.take(8).ifEmpty { "bin" }
+        val out = File(dir, "$md.$ext")
+        if (out.isFile && out.length() > 0) return out
+        openZip(zip).use { z ->
+            val e = z.getEntry(entry) ?: throw java.io.FileNotFoundException("압축 파일 안에서 문서를 찾지 못했어요.")
+            if (e.size > (1L shl 30)) throw java.io.IOException("압축 안 문서가 너무 커요(1GB 넘음).")
+            val tmp = File(dir, "tmp-" + System.nanoTime())
+            z.getInputStream(e).use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
+            if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
+        }
+        return out
+    }
+
+    /**
+     * 압축 안 문서를 연다. [zipId] = 압축 파일 식별값. [once] 가 아니면 서재 기록(숨김, [Book.ORIGIN_ZIP])을 만들어
+     * 읽은 위치·책갈피를 남긴다. 같은 문서가 이미 서재에 따로 있으면 그 기록으로 이어 읽는다.
+     */
+    suspend fun openInner(zip: File, zipId: String, item: ZipItem, once: Boolean): Pair<Opened, Book?> = withContext(Dispatchers.IO) {
+        val f = extractEntry(zip, zipId, item.name)
+        val fmt = FormatDetector.detect(f, item.name.substringAfterLast('/'))
+        val id = DocHash.of(f)
+        val o = Opened(f, item.title, fmt, id)
+        if (once) return@withContext o to dao.get(id)?.takeIf { it.hidden == 0 }
+        val cur = dao.get(id)
+        val b = when {
+            cur == null -> Book(
+                id = id, title = item.title, format = fmt.name, path = f.path, folder = "", sizeBytes = f.length(),
+                origin = Book.ORIGIN_ZIP, sourceUri = zipId + "\n" + item.name, hidden = Book.HIDDEN_INNER,
+            ).also { dao.upsert(it) }
+            cur.origin == Book.ORIGIN_ZIP -> cur.copy(path = f.path, sourceUri = zipId + "\n" + item.name).also { dao.upsert(it) }
+            else -> cur
+        }
+        o to b
+    }
 
     /**
      * 서재에서 빼기(S-14): 기록만 지우고 기기의 파일은 지우지 않는다.

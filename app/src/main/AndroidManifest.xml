@@ -14,6 +14,12 @@
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
 
+    <!-- F-13 듣기: 화면이 꺼져도 계속 읽는 미디어 포그라운드 서비스와 그 알림(Android 13+ 알림 권한은 처음 들을 때 묻는다).
+         TTS 는 기기에 깔린 엔진을 쓰며 인터넷 권한은 여전히 없다(N-05). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- F-36·F-66: 패키지 조회는 필요한 것만 선언(QUERY_ALL_PACKAGES 금지).
          서점 앱 고르기는 런처 앱(MAIN/LAUNCHER) 조회, Play 스토어 유무는 market:// 조회. -->
     <queries>
@@ -30,6 +36,10 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="market" />
+        </intent>
+        <!-- F-13: 기기 TTS 엔진 찾기(Android 11+ 패키지 공개 범위) -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
     </queries>
 
@@ -94,5 +104,10 @@
                 <data android:mimeType="application/*" />
             </intent-filter>
         </activity>
+        <!-- F-13 듣기(S-27): 미디어 재생 포그라운드 서비스. 밖에 공개하지 않는다. -->
+        <service
+            android:name=".tts.ListenService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
     </application>
 </manifest>

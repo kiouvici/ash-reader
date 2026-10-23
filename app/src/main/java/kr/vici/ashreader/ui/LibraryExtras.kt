@@ -176,6 +176,14 @@ fun FoldersScreen(intro: Boolean, onBack: () -> Unit, onAccess: () -> Unit, onSc
     }
     val pickInclude = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { added(it, true) }
     val pickExclude = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { added(it, false) }
+    /** 경로로 고르기(모든 파일 접근이 있을 때): true = 모으는 폴더, false = 빼는 폴더. */
+    var pathPick by remember { mutableStateOf<Boolean?>(null) }
+    fun addPath(f: java.io.File, include: Boolean) {
+        scope.launch {
+            app.db.books().upsertScanFolder(ScanFolder(f.path, include, StorageAccess.labelOf(f.path)))
+            onScan()
+        }
+    }
     val cs = MaterialTheme.colorScheme
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle(if (intro) "폴더 고르기" else "모으는 폴더", onBack = onBack)
@@ -204,13 +212,13 @@ fun FoldersScreen(intro: Boolean, onBack: () -> Unit, onAccess: () -> Unit, onSc
                 onScan()
             }
         }
-        Button(onClick = { pickInclude.launch(StorageAccess.downloadInitialUri()) }, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth().heightIn(min = 48.dp)) {
+        Button(onClick = { if (hasAccess) pathPick = true else pickInclude.launch(StorageAccess.downloadInitialUri()) }, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth().heightIn(min = 48.dp)) {
             Text("+ 폴더 고르기")
         }
         FolderGroup("빼는 폴더", folders.filter { !it.include }, empty = "모으는 폴더 안에서 빼고 싶은 폴더를 고를 수 있어요.") { f ->
             scope.launch { app.db.books().deleteScanFolder(f.path); onScan() }
         }
-        OutlinedButton(onClick = { pickExclude.launch(StorageAccess.downloadInitialUri()) }, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth().heightIn(min = 48.dp)) {
+        OutlinedButton(onClick = { if (hasAccess) pathPick = false else pickExclude.launch(StorageAccess.downloadInitialUri()) }, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth().heightIn(min = 48.dp)) {
             Text("+ 빼는 폴더 고르기")
         }
         if (!intro) OutlinedButton(onClick = { onScan(); msg = "폴더를 다시 훑고 있어요." }, enabled = !busy,
@@ -219,6 +227,16 @@ fun FoldersScreen(intro: Boolean, onBack: () -> Unit, onAccess: () -> Unit, onSc
         Spacer(Modifier.height(24.dp))
     }
     msg?.let { AlertDialog(onDismissRequest = { msg = null }, text = { Text(it) }, confirmButton = { TextButton(onClick = { msg = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text("확인") } }) }
+    pathPick?.let { include ->
+        // 빼는 폴더는 모으는 폴더 안에서 고른다. 모으는 폴더는 내장 저장소에서.
+        @Suppress("DEPRECATION")
+        val storage = android.os.Environment.getExternalStorageDirectory()
+        val roots = if (include) listOf(storage) else folders.filter { it.include }
+            .mapNotNull { f -> if (f.path.startsWith("/")) f.path else StorageAccess.pathOfTree(Uri.parse(f.path)) }
+            .map { java.io.File(it) }.filter { it.isDirectory }.ifEmpty { listOf(storage) }
+        PathFolderDialog(if (include) "모을 폴더 고르기" else "뺄 폴더 고르기", roots,
+            onPick = { f -> pathPick = null; addPath(f, include) }, onDismiss = { pathPick = null })
+    }
 }
 
 @Composable
@@ -542,6 +560,16 @@ fun ExportSheet(bookId: String?, onDismiss: () -> Unit) {
         }
     }
     msg?.let { AlertDialog(onDismissRequest = { msg = null }, text = { Text(it) }, confirmButton = { TextButton(onClick = { msg = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text("확인") } }) }
+    pathPick?.let { include ->
+        // 빼는 폴더는 모으는 폴더 안에서 고른다. 모으는 폴더는 내장 저장소에서.
+        @Suppress("DEPRECATION")
+        val storage = android.os.Environment.getExternalStorageDirectory()
+        val roots = if (include) listOf(storage) else folders.filter { it.include }
+            .mapNotNull { f -> if (f.path.startsWith("/")) f.path else StorageAccess.pathOfTree(Uri.parse(f.path)) }
+            .map { java.io.File(it) }.filter { it.isDirectory }.ifEmpty { listOf(storage) }
+        PathFolderDialog(if (include) "모을 폴더 고르기" else "뺄 폴더 고르기", roots,
+            onPick = { f -> pathPick = null; addPath(f, include) }, onDismiss = { pathPick = null })
+    }
 }
 
 private fun save(context: android.content.Context, uri: Uri, text: String?, done: (String) -> Unit) {
@@ -550,4 +578,86 @@ private fun save(context: android.content.Context, uri: Uri, text: String?, done
         context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray(Charsets.UTF_8)) } ?: error("열 수 없음")
     }.isSuccess
     done(if (ok) "저장했어요." else "저장하지 못했어요.")
+}
+
+// ───────────────────────────── S-46 압축 파일 안 고르기 ─────────────────────────────
+
+/** 바텀시트: "압축 파일 안에 읽을 수 있는 파일이 N개 있어요" + 목록(배지 + 이름) → 누르면 열기. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ZipPickSheet(title: String, entries: List<kr.vici.ashreader.data.LibraryRepo.ZipItem>, onPick: (kr.vici.ashreader.data.LibraryRepo.ZipItem) -> Unit, onDismiss: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(bottom = 24.dp)) {
+            Text(title, fontSize = 13.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 20.dp))
+            Text("압축 파일 안에 읽을 수 있는 파일이 ${entries.size}개 있어요", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+            LazyColumn(Modifier.heightIn(max = 480.dp)) {
+                items(entries, key = { it.name }) { it2 ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onPick(it2) }.heightIn(min = 56.dp).padding(horizontal = 20.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Badge(it2.format)
+                        Column(Modifier.weight(1f)) {
+                            Text(it2.name.substringAfterLast('/'), fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            val folder = it2.name.substringBeforeLast('/', "")
+                            if (folder.isNotEmpty()) Text(folder, fontSize = 12.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text(sizeLabel(it2.size), fontSize = 12.sp, color = cs.onSurfaceVariant)
+                    }
+                    HorizontalDivider(color = cs.outlineVariant, modifier = Modifier.padding(horizontal = 20.dp))
+                }
+            }
+        }
+    }
+}
+
+private fun sizeLabel(b: Long): String = when {
+    b < 0 -> ""
+    b < (1L shl 20) -> "${(b + 1023) / 1024}KB"
+    else -> "%.1fMB".format(java.util.Locale.ROOT, b / 1048576.0)
+}
+
+// ───────────────────────────── 경로로 폴더 고르기(모든 파일 접근이 있을 때) ─────────────────────────────
+
+/**
+ * 기기 폴더를 경로로 훑어 고르기(4A 남은 일: 빼는 폴더를 경로로). '모든 파일 접근'이 있을 때만 쓴다.
+ * [roots] = 처음 보일 곳(모으는 폴더들, 없으면 내장 저장소). 숨은 폴더·Android 폴더는 보이지 않는다.
+ */
+@Composable
+fun PathFolderDialog(title: String, roots: List<java.io.File>, onPick: (java.io.File) -> Unit, onDismiss: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    var cur by remember { mutableStateOf<java.io.File?>(if (roots.size == 1) roots[0] else null) }
+    val subs by produceState<List<java.io.File>>(emptyList(), cur) {
+        val c = cur
+        value = if (c == null) roots else withContext(Dispatchers.IO) {
+            c.listFiles()?.filter { it.isDirectory && !it.name.startsWith(".") && it.name != "Android" }?.sortedBy { it.name.lowercase() } ?: emptyList()
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                Text(cur?.let { StorageAccess.labelOf(it.path) } ?: "어디서 고를까요?", fontSize = 13.sp, color = cs.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    val c = cur
+                    if (c != null && (roots.size > 1 || roots.none { it.path == c.path })) item {
+                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { cur = if (roots.any { it.path == c.path }) null else c.parentFile }, verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Up, null, Modifier.size(20.dp)); Text("  위로", fontSize = 15.sp)
+                        }
+                    }
+                    items(subs, key = { it.path }) { d ->
+                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { cur = d }, verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Folder, null, Modifier.size(20.dp), tint = cs.onSurfaceVariant)
+                            Text("  " + (if (cur == null) StorageAccess.labelOf(d.path) else d.name), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    if (cur != null && subs.isEmpty()) item { Text("안에 폴더가 없어요.", fontSize = 14.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(vertical = 12.dp)) }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { cur?.let(onPick) }, enabled = cur != null, modifier = Modifier.heightIn(min = 48.dp)) { Text("이 폴더 고르기") } },
+        dismissButton = { TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("취소") } },
+    )
 }

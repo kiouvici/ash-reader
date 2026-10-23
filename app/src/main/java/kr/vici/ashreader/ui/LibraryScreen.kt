@@ -81,6 +81,8 @@ fun LibraryScreen(
     onFolders: () -> Unit = {},
     onStoreEdit: () -> Unit = {},
     onExport: (Book) -> Unit = {},
+    /** F-36 '내 서점 앱' 줄 보이기(설정에서 끌 수 있음). */
+    showStores: Boolean = true,
 ) {
     var shelf by rememberSaveable { mutableStateOf(Shelf.RECENT) }
     // -1 = 전체, 0~2 = 상태(F-71), FAVORITES = 즐겨찾기
@@ -124,7 +126,7 @@ fun LibraryScreen(
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Shelf.entries.forEach { s -> Pill(s.label, s == shelf) { shelf = s } }
                 }
-                StoreRow(stores, onEdit = onStoreEdit, onAddBook = onAdd)
+                if (showStores) StoreRow(stores, onEdit = onStoreEdit, onAddBook = onAdd)
                 if (cont != null && shelf == Shelf.RECENT) ContinueCard(cont) { onOpen(cont) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 12.dp)) {
                     listOf(Book.READING to "읽는 중", Book.TO_READ to "읽을 책", Book.DONE to "다 읽음", FAVORITES to "★ 즐겨찾기").forEach { (st, label) ->

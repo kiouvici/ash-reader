@@ -77,6 +77,7 @@ import kr.vici.ashreader.ui.SeriesScreen
 import kr.vici.ashreader.ui.StatsScreen
 import kr.vici.ashreader.ui.VolumeKeys
 import kr.vici.ashreader.ui.weekStart
+import kr.vici.ashreader.ui.ZipPickSheet
 
 internal sealed interface Screen {
     data object Library : Screen
@@ -295,11 +296,41 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
 
     var exportFor by remember { mutableStateOf<String?>(null) }
     var exportAll by remember { mutableStateOf(false) }
+    /** S-46 압축 파일 안 고르기: 압축 파일·식별값·한 번만 보기 여부·안의 문서들. */
+    var zipPick by remember { mutableStateOf<ZipPick?>(null) }
+    var zipEmpty by remember { mutableStateOf(false) }
+
+    /** 압축 안 문서를 연다(서재 기록이 있으면 그 기록으로 이어 읽기). */
+    fun openInner(z: ZipPick, item: LibraryRepo.ZipItem) {
+        zipPick = null
+        scope.launch {
+            runCatching { app.library.openInner(z.file, z.zipId, item, z.once) }.onSuccess { (o, b) ->
+                nav.screen = if (b != null) Screen.Reader(
+                    ReaderTarget(b.id, b.title, o.file.absolutePath, DocFormat.of(b.format), b.lastPage, false, b.viewMode, b.pageCount, b.textEncoding), null,
+                ) else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true), o)
+            }.onFailure { e -> snack.showSnackbar(e.message ?: "압축 안 문서를 열 수 없어요.") }
+        }
+    }
+
+    /** 문서가 든 ZIP(S-46): 1개면 바로 열고, 여럿이면 고르기, 없으면 안내. */
+    fun openZip(file: File, zipId: String, title: String, once: Boolean) {
+        scope.launch {
+            runCatching { app.library.zipItems(file) }.onSuccess { items ->
+                val z = ZipPick(file, zipId, title, once, items)
+                when (items.size) {
+                    0 -> zipEmpty = true
+                    1 -> openInner(z, items[0])
+                    else -> zipPick = z
+                }
+            }.onFailure { snack.showSnackbar("압축 파일을 열 수 없어요. 손상되었을 수 있어요.") }
+        }
+    }
 
     fun openTarget(b: Book) {
         scope.launch {
             runCatching { app.library.localPath(b) }.onSuccess { p ->
                 val f = DocFormat.of(b.format)
+                if (f == DocFormat.ZIP) { dao.touch(b.id); openZip(File(p), b.id, b.title, once = false); return@onSuccess }
                 nav.screen = Screen.Reader(
                     ReaderTarget(b.id, b.title, p, f, b.lastPage, once = false, viewMode = b.viewMode, startCount = b.pageCount, textEncoding = b.textEncoding), null,
                 )
@@ -314,6 +345,12 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
         val uri = pending ?: return@LaunchedEffect
         incoming.value = null
         runCatching { app.library.openOnce(uri) }.onSuccess { o ->
+            if (o.format == DocFormat.ZIP) {
+                // 서재에 같은 압축 파일이 있으면 그 기록으로(안 문서의 읽은 위치가 이어짐)
+                val inLib = dao.get(o.id)?.takeIf { it.hidden == 0 }
+                openZip(o.file, o.id, o.title, once = inLib == null)
+                return@onSuccess
+            }
             val existing = dao.get(o.id)?.takeIf { it.hidden == 0 }
             // 서재에 같은 문서가 있으면 그 기록으로 이어 읽는다(F-06). 파일은 방금 받은 사본으로 연다(서재 쪽 파일이 없어도 열리게).
             nav.screen = if (existing != null) Screen.Reader(
@@ -439,6 +476,7 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
                         onFolders = { nav.screen = Screen.Folders(intro = false) },
                         onStoreEdit = { nav.screen = Screen.StoreEdit },
                         onExport = { b -> exportFor = b.id },
+                        showStores = settings.showStores,
                     )
                     Screen.Stats -> {
                         val since = remember { weekStart() }
@@ -484,7 +522,16 @@ private fun AshRoot(incoming: MutableStateFlow<Uri?>) {
             if (exportAll) ExportSheet(bookId = null) { exportAll = false }
         }
     }
+    zipPick?.let { z -> ZipPickSheet(z.title, z.items, onPick = { openInner(z, it) }, onDismiss = { zipPick = null }) }
+    if (zipEmpty) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { zipEmpty = false },
+        text = { Text("이 압축 파일 안에는 읽을 수 있는 파일이 없어요.") },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { zipEmpty = false }) { Text("확인") } },
+    )
 }
+
+/** S-46 고르기 상태. */
+internal data class ZipPick(val file: File, val zipId: String, val title: String, val once: Boolean, val items: List<LibraryRepo.ZipItem>)
 
 /** 오늘(또는 어제)부터 거꾸로 이어진 날 수. [days] = epoch 일(UTC) 내림차순. */
 private fun streakOf(days: List<Long>): Int {

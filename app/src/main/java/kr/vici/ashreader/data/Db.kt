@@ -61,8 +61,12 @@ data class Book(
         const val ORIGIN_COPY = 0
         const val ORIGIN_FILE = 1
         const val ORIGIN_SAF = 2
+        /** 압축 파일 안 문서(S-46). [sourceUri] = "압축 책 id\n항목 이름", [path] = 풀어 둔 캐시(zipx/). */
+        const val ORIGIN_ZIP = 3
         const val HIDDEN_MISSING = 1
         const val HIDDEN_REMOVED = 2
+        /** 압축 파일 안 문서: 서재에는 압축 파일 한 권으로만 보이고, 읽은 위치·책갈피는 이 기록에 둔다. */
+        const val HIDDEN_INNER = 3
     }
 }
 
@@ -173,6 +177,10 @@ interface BookDao {
 
     @Query("UPDATE book SET lastPage = :page, pageCount = :count, lastOpenedAt = :now, status = :status WHERE id = :id")
     suspend fun progress(id: String, page: Int, count: Int, status: Int, now: Long = System.currentTimeMillis())
+
+    /** 연 시각만 고친다(압축 파일 S-46 — 안 문서의 기록은 따로). */
+    @Query("UPDATE book SET lastOpenedAt = :now WHERE id = :id")
+    suspend fun touch(id: String, now: Long = System.currentTimeMillis())
 
     @Query("UPDATE book SET viewMode = :mode WHERE id = :id")
     suspend fun setViewMode(id: String, mode: Int)
