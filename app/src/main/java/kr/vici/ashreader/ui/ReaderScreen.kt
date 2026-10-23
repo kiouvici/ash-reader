@@ -815,7 +815,8 @@ fun ReaderScreen(
                     } else if (scrollMode && da == null) {
                         CircularProgressIndicator(color = colors.accentC, modifier = Modifier.align(Alignment.Center))
                     } else if (scrollMode && da != null) {
-                        // F-22 스크롤 보기(+ F-44 자동 스크롤)
+                        // F-22 스크롤 보기(+ F-44 자동 스크롤). EPUB 그림 AI(D-021)는 새로 그리는 쪽부터 바뀐다.
+                        EpubUpscaleHook(doc, s.epubAiUpscale, null) {}
                         ScrollReader(
                             source = source,
                             aspectOf = { i -> if (reflow) da else guarded(doc, null) { doc.pageAspect(i) } },
