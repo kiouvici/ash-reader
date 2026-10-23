@@ -14,6 +14,9 @@ import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteOpenHelper
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 
 /**
  * DB 이전 시험: 1판(첫 배포 스키마)을 손으로 만들고 데이터를 넣은 뒤 지금 판으로 연다.
@@ -76,6 +79,48 @@ class AshDbMigrationTest {
                 assertEquals(1, room.books().allNotes().size)
                 assertEquals(0, room.books().allHighlights().size)
                 assertEquals(0, room.books().allStoreApps().size)
+            }
+        } finally {
+            room.close()
+        }
+    }
+
+    /**
+     * 5 → 6(S-17): 판 5 DB(1판 표 + 이전 1~4)에 서재 폴더를 넣어 두고 지금 판으로 연다.
+     * 기존 폴더는 '하위 폴더도 포함'(subfolders = 1)이어야 한다(지금까지와 같게 모음).
+     */
+    @Test
+    fun migrate5To6_scanFolderKeepsSubfolders() {
+        val cfg = SupportSQLiteOpenHelper.Configuration.builder(ctx).name(name).callback(object : SupportSQLiteOpenHelper.Callback(5) {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `book` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `format` TEXT NOT NULL, `path` TEXT NOT NULL, " +
+                        "`folder` TEXT NOT NULL, `sizeBytes` INTEGER NOT NULL, `pageCount` INTEGER NOT NULL, `lastPage` INTEGER NOT NULL, " +
+                        "`addedAt` INTEGER NOT NULL, `lastOpenedAt` INTEGER NOT NULL, `status` INTEGER NOT NULL, `seriesKey` TEXT NOT NULL, " +
+                        "`volume` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+                )
+                db.execSQL("CREATE TABLE IF NOT EXISTS `bookmark` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `bookId` TEXT NOT NULL, `page` INTEGER NOT NULL, `label` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_bookmark_bookId` ON `bookmark` (`bookId`)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `note` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `bookId` TEXT NOT NULL, `page` INTEGER NOT NULL, `text` TEXT NOT NULL, `color` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_bookId` ON `note` (`bookId`)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `session` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `bookId` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `durationMs` INTEGER NOT NULL, `pagesTurned` INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_session_startedAt` ON `session` (`startedAt`)")
+                AshDb.M1_2.migrate(db); AshDb.M2_3.migrate(db); AshDb.M3_4.migrate(db); AshDb.M4_5.migrate(db)
+                db.execSQL("INSERT INTO scan_folder (path, include, label, addedAt) VALUES ('/storage/emulated/0/Download', 1, 'Download', 7)")
+            }
+            override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+        }).build()
+        FrameworkSQLiteOpenHelperFactory().create(cfg).use { it.writableDatabase.version }
+
+        val room = Room.databaseBuilder(ctx, AshDb::class.java, name).addMigrations(*AshDb.MIGRATIONS).build()
+        try {
+            runBlocking {
+                val f = room.books().allScanFolders()
+                assertEquals(1, f.size)
+                assertEquals(true, f[0].subfolders)
+                assertEquals("Download", f[0].label)
+                room.books().setSubfolders(f[0].path, false)
+                assertEquals(false, room.books().scanFolder(f[0].path)!!.subfolders)
             }
         } finally {
             room.close()

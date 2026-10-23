@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>AI 화질 전후 비교</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&amp;display=swap">
+<style>body{margin:0} button{font-family:inherit;cursor:pointer}</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; font-family: 'Noto Sans KR', sans-serif; background: #111214; color: #E3E3E3">
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 56px; background: rgba(46,74,107,0.92); display: flex; align-items: center; padding: 0 16px; font-size: 15px; font-weight: 500">{{title}}</div>
+<div style="position: absolute; left: 20px; right: 20px; top: 80px; height: 560px; background: #F7F5F0; overflow: hidden">
+<div style="position: absolute; inset: 0; filter: {{beforeFilter}}">
+<div style="position: absolute; left: 24px; top: 30px; width: 302px; height: 230px; border: 3px solid #1F1F1F; background: repeating-linear-gradient(135deg, #E9E3D6 0 8px, #F7F5F0 8px 16px)"></div>
+<div style="position: absolute; left: 70px; top: 90px; font-size: 64px; font-weight: 900; color: #B3261E; transform: rotate(-8deg)">쾅!</div>
+<div style="position: absolute; left: 24px; top: 290px; width: 140px; height: 240px; border: 3px solid #1F1F1F; background: #DCE4EE"></div>
+<div style="position: absolute; left: 180px; top: 290px; width: 146px; height: 240px; border: 3px solid #1F1F1F; background: #EFE6D8"></div>
+<div style="position: absolute; left: 196px; top: 310px; width: 110px; padding: 10px; border-radius: 40px; background: #FFFFFF; border: 2px solid #1F1F1F; font-size: 14px; color: #1F1F1F; text-align: center">어디 가는 거야?</div>
+</div>
+<div style="position: absolute; top: 0; bottom: 0; left: 0; width: {{splitW}}; overflow: hidden; display: {{splitShow}}">
+<div style="position: absolute; left: 0; top: 0; width: 350px; height: 560px; filter: blur(1.6px) contrast(0.85)">
+<div style="position: absolute; left: 24px; top: 30px; width: 302px; height: 230px; border: 3px solid #1F1F1F; background: repeating-linear-gradient(135deg, #E9E3D6 0 8px, #F7F5F0 8px 16px)"></div>
+<div style="position: absolute; left: 70px; top: 90px; font-size: 64px; font-weight: 900; color: #B3261E; transform: rotate(-8deg)">쾅!</div>
+<div style="position: absolute; left: 24px; top: 290px; width: 140px; height: 240px; border: 3px solid #1F1F1F; background: #DCE4EE"></div>
+<div style="position: absolute; left: 180px; top: 290px; width: 146px; height: 240px; border: 3px solid #1F1F1F; background: #EFE6D8"></div>
+<div style="position: absolute; left: 196px; top: 310px; width: 110px; padding: 10px; border-radius: 40px; background: #FFFFFF; border: 2px solid #1F1F1F; font-size: 14px; color: #1F1F1F; text-align: center">어디 가는 거야?</div>
+</div>
+</div>
+<div style="display: {{splitShow}}; position: absolute; top: 0; bottom: 0; left: {{splitW}}; width: 3px; margin-left: -1px; background: #F0C674"></div>
+<div style="display: {{splitShow}}; position: absolute; top: 260px; left: {{splitW}}; margin-left: -22px; width: 44px; height: 44px; border-radius: 22px; background: #F0C674; color: #1F1F1F; font-size: 16px; font-weight: 700; display: {{splitShow}}; align-items: center; justify-content: center">⇔</div>
+<div style="display: {{splitShow}}; position: absolute; left: 8px; top: 8px; padding: 4px 10px; border-radius: 12px; background: rgba(0,0,0,0.7); color: #FFFFFF; font-size: 12px">원본</div>
+<div style="display: {{splitShow}}; position: absolute; right: 8px; top: 8px; padding: 4px 10px; border-radius: 12px; background: rgba(0,0,0,0.7); color: #FFFFFF; font-size: 12px">AI 개선</div>
+</div>
+<div style="position: absolute; left: 20px; right: 20px; top: 652px; display: {{sliderShow}}; gap: 8px">
+<button onClick="{{left}}" style="flex: 1; height: 40px; border-radius: 20px; border: 1px solid #3A3D42; background: #1C1D20; color: #E3E3E3; font-size: 13px">◀ 원본 더 보기</button>
+<button onClick="{{right}}" style="flex: 1; height: 40px; border-radius: 20px; border: 1px solid #3A3D42; background: #1C1D20; color: #E3E3E3; font-size: 13px">AI 더 보기 ▶</button>
+</div>
+<div style="position: absolute; left: 16px; right: 16px; bottom: 96px; font-size: 13px; color: #BFC3C7; text-align: center">{{hint}}</div>
+<div style="position: absolute; left: 16px; right: 16px; bottom: 28px; height: 52px; border-radius: 26px; background: #1C1D20; display: flex; padding: 4px; box-sizing: border-box">
+<sc-for list="{{modes}}" as="m" hint-placeholder-count="3">
+<button onClick="{{m.pick}}" style="flex: 1; border: none; border-radius: 22px; background: {{m.bg}}; color: {{m.fg}}; font-size: 14px; font-weight: 700">{{m.name}}</button>
+</sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+constructor(p) { super(p); this.state = { m: 2, split: 50 }; }
+renderVals() {
+const s = this.state;
+const names = ['원본', 'AI 개선', '전후 비교'];
+const hints = ['AI 화질 개선 꺼짐 · 원래 그림', 'AI 화질 개선 켜짐 · 기기 안에서 처리', '노란 선을 좌우로 끌어서 비교 · 왼쪽 원본 / 오른쪽 AI'];
+return {
+title: s.m === 2 ? '전후 비교 · 12 / 186쪽' : '12 / 186쪽',
+beforeFilter: s.m === 0 ? 'blur(1.6px) contrast(0.85)' : 'none',
+splitShow: s.m === 2 ? 'flex' : 'none',
+sliderShow: s.m === 2 ? 'flex' : 'none',
+splitW: (350 * s.split / 100) + 'px',
+left: () => this.setState({ split: Math.min(90, s.split + 15) }),
+right: () => this.setState({ split: Math.max(10, s.split - 15) }),
+hint: hints[s.m],
+modes: names.map((n, i) => ({ name: n, bg: i === s.m ? '#A8C5EA' : 'transparent', fg: i === s.m ? '#0E2238' : '#E3E3E3', pick: () => this.setState({ m: i }) }))
+};
+}
+}
+</script>
+</body>
+</html>

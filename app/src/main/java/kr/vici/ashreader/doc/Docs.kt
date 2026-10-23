@@ -16,6 +16,7 @@ import java.util.zip.ZipFile
 import kr.vici.ashreader.R
 import kr.vici.ashreader.data.BodyFont
 import kr.vici.ashreader.data.DocFormat
+import kr.vici.ashreader.data.FormatGroup
 import kr.vici.ashreader.data.Settings
 import kr.vici.ashreader.engine.convert.ChmEpub
 import kr.vici.ashreader.engine.convert.ConvertResult
@@ -308,8 +309,29 @@ class MupdfReaderDoc(
             return fitInto(MarginCrop.cut(full, box), w, h, colors, applyTheme = true, keep = keep)
         }
         val raw = synchronized(lock) { doc.renderPage(index, w) }
+        // F-73 확장(D-021): 처리된 EPUB 그림을 바꿔 그린다(엔진 잠금 밖). 테마 색 변환 전이라 그림 영역은 원래 색으로 남는다.
+        imageUpscale?.let { up -> runCatching { up.decorate(index, raw) } }
         val keep = if ((reflow || colors.keepImages) && themeFilter(colors) != null) keepRects(index) else null
         return fitInto(raw, w, h, colors, applyTheme = true, keep = keep)
+    }
+
+    /** 원본 파일(변환한 이북은 합성 EPUB). EPUB 그림 AI 화질 향상이 그림 파일 종류를 볼 때 쓴다. */
+    val sourceFile: File = file
+
+    /** EPUB 그림 AI 화질 향상 대상 문서인가(이북류를 다시 배치해 보는 중 — 한글·Word 이북식·TXT 는 아님). */
+    val ebookImages: Boolean get() = reflow && format.group == FormatGroup.EBOOK
+
+    /** EPUB 그림 AI 화질 향상(붙어 있을 때만). 읽기 화면이 붙이고 뗀다. */
+    @Volatile var imageUpscale: EpubImageUpscale? = null
+
+    /** 쪽 안 그림들(EPUB 그림 AI). 닫혔으면 빈 목록. */
+    fun imageBlocks(index: Int): List<MupdfDoc.ImageBlock> = synchronized(lock) {
+        if (closed) emptyList() else runCatching { doc.imageBlocks(index) }.getOrDefault(emptyList())
+    }
+
+    /** 쪽 [index] 의 [k] 번째 그림 원래 크기(EPUB 그림 AI 입력). */
+    fun imageBitmap(index: Int, k: Int): Bitmap? = synchronized(lock) {
+        if (closed) null else runCatching { doc.imageBitmap(index, k) }.getOrNull()
     }
 
     /** 여백 자르기 상자. 끔·이북식·자를 것 없음이면 null. */

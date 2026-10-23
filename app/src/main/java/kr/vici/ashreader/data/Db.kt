@@ -83,15 +83,17 @@ data class StoreApp(
     val ord: Int,
 )
 
-/** 서재가 모으는 폴더·빼는 폴더(F-01). [path] = 절대 경로 또는 SAF 폴더 content:// 주소. */
+/** 서재 폴더(F-01, S-17)·빼는 폴더(옛 판). [path] = 절대 경로 또는 SAF 폴더 content:// 주소. */
 @Entity(tableName = "scan_folder")
 data class ScanFolder(
     @PrimaryKey val path: String,
-    /** true = 모으는 폴더, false = 빼는 폴더 */
+    /** true = 서재 폴더(모으는 폴더), false = 빼는 폴더(옛 판에서 고른 것 — 지금도 지킨다) */
     val include: Boolean,
     /** 화면에 보일 이름(예: "Download/소설") */
     val label: String,
     val addedAt: Long = System.currentTimeMillis(),
+    /** '하위 폴더도 포함'(S-17). 끄면 그 폴더 바로 안의 파일만 모은다. 판 6. */
+    @ColumnInfo(defaultValue = "1") val subfolders: Boolean = true,
 )
 
 /**
@@ -246,6 +248,12 @@ interface BookDao {
     @Query("DELETE FROM scan_folder WHERE path = :path")
     suspend fun deleteScanFolder(path: String)
 
+    @Query("SELECT * FROM scan_folder WHERE path = :path")
+    suspend fun scanFolder(path: String): ScanFolder?
+
+    @Query("UPDATE scan_folder SET subfolders = :on WHERE path = :path")
+    suspend fun setSubfolders(path: String, on: Boolean)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addBookmark(b: Bookmark)
 
@@ -291,9 +299,18 @@ interface BookDao {
     @Query("SELECT * FROM note") suspend fun allNotes(): List<Note>
     @Query("SELECT * FROM highlight") suspend fun allHighlights(): List<Highlight>
     @Query("SELECT * FROM session") suspend fun allSessions(): List<ReadingSession>
+
+    // ---- 백업 가져오기 '모두 바꾸기'(S-53): 지금 기록을 지운 뒤 백업 내용으로
+    @Query("DELETE FROM bookmark") suspend fun clearBookmarks()
+    @Query("DELETE FROM note") suspend fun clearNotes()
+    @Query("DELETE FROM highlight") suspend fun clearHighlights()
+    @Query("DELETE FROM session") suspend fun clearSessions()
+    /** 읽은 위치·상태·즐겨찾기·시리즈 직접 묶기를 처음으로(책 목록·파일 위치는 그대로). */
+    @Query("UPDATE book SET lastPage = 0, status = 0, lastOpenedAt = 0, favorite = 0, seriesManual = 0 WHERE seriesManual != 0 OR lastPage != 0 OR status != 0 OR lastOpenedAt != 0 OR favorite != 0")
+    suspend fun resetReading()
 }
 
-@Database(entities = [Book::class, Bookmark::class, Note::class, ReadingSession::class, Highlight::class, StoreApp::class, ScanFolder::class], version = 5, exportSchema = true)
+@Database(entities = [Book::class, Bookmark::class, Note::class, ReadingSession::class, Highlight::class, StoreApp::class, ScanFolder::class], version = 6, exportSchema = true)
 abstract class AshDb : RoomDatabase() {
     abstract fun books(): BookDao
 
@@ -345,8 +362,15 @@ abstract class AshDb : RoomDatabase() {
             }
         }
 
+        /** 5 → 6: 서재 폴더마다 '하위 폴더도 포함'(S-17). 기존 폴더는 모두 포함(지금까지와 같게). */
+        val M5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `scan_folder` ADD COLUMN `subfolders` INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         /** 앱이 쓰는 모든 이전(이전 시험 AshDbMigrationTest 도 이 목록을 쓴다). */
-        val MIGRATIONS = arrayOf(M1_2, M2_3, M3_4, M4_5)
+        val MIGRATIONS = arrayOf(M1_2, M2_3, M3_4, M4_5, M5_6)
 
         @Volatile private var inst: AshDb? = null
         fun get(context: Context): AshDb = inst ?: synchronized(this) {

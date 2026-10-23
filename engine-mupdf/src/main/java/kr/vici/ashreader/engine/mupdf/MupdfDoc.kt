@@ -231,6 +231,94 @@ class MupdfDoc private constructor(private val doc: Document) : Closeable {
         }
     }
 
+    /**
+     * 쪽 안 그림 한 장(EPUB 그림 AI 화질 향상, F-73 확장). 위치는 쪽 크기 기준 0..1, [w]·[h] = 그림 원래 화소 크기,
+     * [orientation] = 그림 회전(EXIF, 0·1 = 그대로).
+     */
+    class ImageBlock(val l: Float, val t: Float, val r: Float, val b: Float, val w: Int, val h: Int, val orientation: Int)
+
+    /** 쪽 [i] 의 그림들(나오는 차례). 그림 차례 번호는 [imageBitmap] 에 그대로 쓴다. */
+    fun imageBlocks(i: Int): List<ImageBlock> {
+        val page = doc.loadPage(i)
+        try {
+            val pb = page.bounds
+            val pw = (pb.x1 - pb.x0).takeIf { it > 0f } ?: 1f
+            val ph = (pb.y1 - pb.y0).takeIf { it > 0f } ?: 1f
+            val out = ArrayList<ImageBlock>()
+            val st = page.toStructuredText("preserve-images")
+            try {
+                st.walk(object : StructuredTextWalker {
+                    override fun onImageBlock(bbox: Rect?, transform: Matrix?, image: Image?) {
+                        val r = bbox ?: return
+                        out += ImageBlock(
+                            ((r.x0 - pb.x0) / pw).coerceIn(0f, 1f), ((r.y0 - pb.y0) / ph).coerceIn(0f, 1f),
+                            ((r.x1 - pb.x0) / pw).coerceIn(0f, 1f), ((r.y1 - pb.y0) / ph).coerceIn(0f, 1f),
+                            image?.width ?: 0, image?.height ?: 0, runCatching { image?.orientation ?: 0 }.getOrDefault(0),
+                        )
+                    }
+                    override fun beginTextBlock(bbox: Rect?, flags: Int) {}
+                    override fun endTextBlock() {}
+                    override fun beginLine(bbox: Rect?, wmode: Int, dir: Point?) {}
+                    override fun endLine() {}
+                    override fun onChar(c: Int, origin: Point?, font: Font?, size: Float, q: Quad?, argb: Int, flags: Int, bidi: Int) {}
+                    override fun beginStruct(standard: String?, raw: String?, index: Int) {}
+                    override fun endStruct() {}
+                    override fun onVector(bbox: Rect?, info: StructuredTextWalker.VectorInfo?, argb: Int) {}
+                })
+            } finally {
+                st.destroy()
+            }
+            return out
+        } finally {
+            page.destroy()
+        }
+    }
+
+    /**
+     * 쪽 [i] 의 [k] 번째 그림을 원래 화소 크기로 그린다(흰 바탕). 화소가 [maxPixels] 를 넘거나 없으면 null.
+     * AI 입력용 — 쪽 렌더와 달리 화면 배율로 줄이거나 키우지 않는다.
+     */
+    fun imageBitmap(i: Int, k: Int, maxPixels: Long = 4_000_000L): Bitmap? {
+        val page = doc.loadPage(i)
+        try {
+            var n = 0
+            var result: Bitmap? = null
+            val st = page.toStructuredText("preserve-images")
+            try {
+                st.walk(object : StructuredTextWalker {
+                    override fun onImageBlock(bbox: Rect?, transform: Matrix?, image: Image?) {
+                        if (n++ != k || image == null) return
+                        val w = image.width; val h = image.height
+                        if (w <= 0 || h <= 0 || w.toLong() * h > maxPixels) return
+                        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                        bmp.eraseColor(android.graphics.Color.WHITE)
+                        val dev = AndroidDrawDevice(bmp, 0, 0, 0, 0, w, h)
+                        try {
+                            dev.fillImage(image, Matrix(w.toFloat(), 0f, 0f, h.toFloat(), 0f, 0f), 1f, 0)
+                            dev.close()
+                        } finally {
+                            dev.destroy()
+                        }
+                        result = bmp
+                    }
+                    override fun beginTextBlock(bbox: Rect?, flags: Int) {}
+                    override fun endTextBlock() {}
+                    override fun beginLine(bbox: Rect?, wmode: Int, dir: Point?) {}
+                    override fun endLine() {}
+                    override fun onChar(c: Int, origin: Point?, font: Font?, size: Float, q: Quad?, argb: Int, flags: Int, bidi: Int) {}
+                    override fun beginStruct(standard: String?, raw: String?, index: Int) {}
+                    override fun endStruct() {}
+                    override fun onVector(bbox: Rect?, info: StructuredTextWalker.VectorInfo?, argb: Int) {}
+                })
+            } finally {
+                st.destroy()
+            }
+            return result
+        } finally {
+            page.destroy()
+        }
+    }
+
     /** 쪽 링크 하나. 위치는 쪽 크기 기준 0..1. [external] = 웹 주소 등 문서 밖. */
     class LinkBox(val l: Float, val t: Float, val r: Float, val b: Float, val uri: String, val external: Boolean)
 

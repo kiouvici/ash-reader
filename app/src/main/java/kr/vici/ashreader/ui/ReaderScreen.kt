@@ -122,6 +122,7 @@ import kr.vici.ashreader.tts.Sentence
 import kr.vici.ashreader.tts.Sentences
 import kr.vici.ashreader.doc.ComicReaderDoc
 import kr.vici.ashreader.doc.ComicUpscale
+import kr.vici.ashreader.doc.EpubUpscaleHook
 import kr.vici.ashreader.doc.DocOpener
 import kr.vici.ashreader.doc.DrmProtected
 import kr.vici.ashreader.engine.convert.TextEncoding
@@ -667,7 +668,17 @@ fun ReaderScreen(
                     comic, autoSpread = spread, landscape = wDp > hDp, plainPages = panelMode || webtoon || fitMode, upscale = upscale,
                     onRelayout = { f -> page = f(page) }, onNotice = { stub(it) },
                 )
-                if (comic != null && showAa) ComicSettingsSheet(comic, s.panelMode, s.aiUpscale, upscale, s.upscaleCacheMb, onDismiss = { showAa = false }, side = spread)
+                // F-73 전후 비교(S-33 [화질]): 도구 막대 자리를 차지하는 비교 화면. 끝내면 보던 쪽으로.
+                var compareOpen by remember(doc) { mutableStateOf(false) }
+                if (comic != null && showAa) ComicSettingsSheet(
+                    comic, s.panelMode, s.aiUpscale, upscale, s.upscaleCacheMb, onDismiss = { showAa = false }, side = spread,
+                    onCompare = { showAa = false; menu = false; compareOpen = true },
+                )
+                if (compareOpen && comic != null) AiCompareScreen(
+                    comic.doc, upscale, comic.doc.sourceOf(page),
+                    onExit = { src -> compareOpen = false; if (src != comic.doc.sourceOf(page)) jumpReq = comic.doc.indexOf(src) },
+                    onMode = { m -> if (m == 0) comic.update { it.copy(ai = 0) }; compareOpen = false },
+                )
                 // F-58 미리 풀기 상한: 기기 RAM 의 1/8
                 LaunchedEffect(comicDoc) {
                     val cd = comicDoc ?: return@LaunchedEffect
@@ -975,6 +986,8 @@ fun ReaderScreen(
                         val visSrc = (if (spreadNow) listOf(page, page + 1) else listOf(page)).filter { it < count }.map { doc.sourceOf(it) }
                         ComicExtractOverlay(doc, visSrc, colors, menuVisible = menu) { curlView?.let { v -> v.tag = source; v.setPageSource(source, page) } }
                     }
+                    // F-73 확장(D-021): EPUB 그림 AI 화질 향상 — 처리된 그림이 생기면 지금 쪽을 다시 그린다. 넘김 중에는 쉰다.
+                    EpubUpscaleHook(doc, s.epubAiUpscale, curlView) { curlView?.let { v -> v.tag = source; v.setPageSource(source, page) } }
                     if (upscale != null && doc is ComicReaderDoc) {
                         val readySet by upscale.ready.collectAsState()
                         LaunchedEffect(upscale, page, pxW, pxH, comic?.layoutVersion) { upscale.request(doc.sourceOf(page), pxW.toInt(), pxH.toInt()) }

@@ -328,7 +328,7 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
             context.contentResolver.openInputStream(Uri.parse(b.sourceUri))?.use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
                 ?: throw java.io.FileNotFoundException("파일을 읽을 수 없어요. 폴더 접근 권한을 다시 확인해 주세요.")
         } catch (e: SecurityException) {
-            tmp.delete(); throw java.io.FileNotFoundException("폴더 접근 권한이 없어졌어요. 설정 > 서재 > 모으는 폴더에서 다시 골라 주세요.")
+            tmp.delete(); throw java.io.FileNotFoundException("폴더 접근 권한이 없어졌어요. 설정 > 서재 > 서재 폴더에서 다시 골라 주세요.")
         } catch (e: java.io.IOException) {
             tmp.delete(); throw e
         }
