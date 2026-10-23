@@ -370,7 +370,7 @@ MuPDF Android.mk, engine-comic·engine-convert·engine-djvu 받기 스크립트,
     Kornel Lesiński, James Forster
     원문: [a0b4b62bc161]
 - rhwp 0.8.7 — MIT
-    HWP·HWPX 파서·조판(v0.8.7, 1a76570)
+    HWP·HWPX 파서·조판(v0.8.7, 1a76570). 칸 안 종이 기준 표 배치 패치를 더해 빌드(engine-hwp/patches)
     원문: [dc502f912ad0]
 - rhwp-contracts 0.1.0 — MIT
     rhwp 저장소의 LICENSE 를 따름
