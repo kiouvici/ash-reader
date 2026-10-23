@@ -3,7 +3,10 @@ package kr.vici.ashreader.engine.comic
 
 import java.io.File
 import java.io.InputStream
-import java.nio.charset.Charset
+import kr.vici.ashreader.engine.convert.TextEncoding
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
 import java.util.zip.ZipFile
 
 /** 넘김 방향 (F-48). */
@@ -91,11 +94,46 @@ object ComicFormat {
         }
     }
 
-    /** ZIP 파일명 인코딩: UTF-8 엄격 디코드 실패 시 CP949 (기술 설계서 6장). */
-    fun openZip(file: File): ZipFile = try {
-        ZipFile(file, Charsets.UTF_8).also { z -> z.entries().asSequence().forEach { it.name } }
-    } catch (e: Exception) { // IllegalArgumentException 또는 ZipException(잘못된 이름)
-        ZipFile(file, Charset.forName("x-windows-949"))
+    /** 풀기 상한(N-09). */
+    const val MAX_EXTRACT = 500L shl 20
+
+    /** ZIP 파일명 인코딩: UTF-8 엄격 디코드 실패 시 CP949 (기술 설계서 6장). 실패한 첫 ZipFile 은 닫는다. */
+    fun openZip(file: File): ZipFile {
+        var z: ZipFile? = null
+        return try {
+            ZipFile(file, Charsets.UTF_8).also { z = it; it.entries().asSequence().forEach { e -> e.name } }
+        } catch (e: Exception) { // IllegalArgumentException 또는 ZipException(잘못된 이름)
+            runCatching { z?.close() }
+            ZipFile(file, TextEncoding.cp949())
+        }
+    }
+
+    /** RAR 항목 이름 바이트: UTF-8 엄격 → 안 되면 CP949(TXT 인코딩 판별기와 같은 CP949 Charset). */
+    fun decodeName(b: ByteArray): String {
+        if (b.isEmpty()) return ""
+        val dec = Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
+        return try { dec.decode(ByteBuffer.wrap(b)).toString() } catch (e: CharacterCodingException) {
+            TextEncoding.decode(b, TextEncoding.Kind.CP949)
+        }
+    }
+
+    /** 최대 [max] 바이트까지 읽는다. 넘으면 IOException. */
+    fun readBounded(input: InputStream, max: Long): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        if (copyBounded(input, out, max) < 0) throw java.io.IOException("항목이 너무 큼")
+        return out.toByteArray()
+    }
+
+    /** [max] 바이트까지 복사해 복사한 바이트 수를, 넘으면 -1 을 돌려준다. */
+    fun copyBounded(input: InputStream, out: java.io.OutputStream, max: Long): Long {
+        val buf = ByteArray(64 * 1024)
+        var total = 0L
+        while (true) {
+            val n = input.read(buf)
+            if (n < 0) return total
+            if (total + n > max) return -1
+            out.write(buf, 0, n); total += n
+        }
     }
 
     /** 앞 [n]바이트(파일이 짧으면 그만큼). InputStream.readNBytes 는 API 33 이라 직접 읽는다(minSdk 26). */

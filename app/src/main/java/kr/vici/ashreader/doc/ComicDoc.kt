@@ -574,13 +574,19 @@ class ComicReaderDoc(
     // ---- 웹툰 띠(F-53) ----
     private val regionLock = Any()
     private val decoders = LinkedHashMap<Int, BitmapRegionDecoder>(4, 0.75f, true)
+    /** 닫힌 뒤에는 영역 디코더를 새로 만들지 않는다(닫는 중 만든 디코더가 남는 누수 방지). */
+    @Volatile private var regionClosed = false
+
+    /** 쓰는 중(synchronized(d))인 디코더는 끝난 뒤 버린다. */
+    private fun recycleDecoder(d: BitmapRegionDecoder) { synchronized(d) { d.recycle() } }
 
     private fun decoder(p: Int): BitmapRegionDecoder? = synchronized(regionLock) {
+        if (regionClosed) return null
         decoders[p]?.let { return it }
         val bytes = src.bytes(p) ?: return null
         val d = PageDecoder.regionDecoder(bytes)
         decoders[p] = d
-        while (decoders.size > 3) { val e = decoders.entries.iterator().next(); decoders.remove(e.key); e.value.recycle() }
+        while (decoders.size > 3) { val e = decoders.entries.iterator().next(); decoders.remove(e.key); recycleDecoder(e.value) }
         d
     }
 
@@ -606,7 +612,7 @@ class ComicReaderDoc(
                 inSampleSize = Webtoon.sampleFor(cr - cl, displayW)
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }
-            synchronized(d) { d.decodeRegion(Rect(cl, y0.coerceIn(0, ph), cr, y1.coerceIn(0, ph)), o) }
+            synchronized(d) { if (d.isRecycled) null else d.decodeRegion(Rect(cl, y0.coerceIn(0, ph), cr, y1.coerceIn(0, ph)), o) }
         } else {
             // PDF: 쪽 전체를 화면 폭으로 그려 띠만 잘라 낸다
             val full = src.bitmap(p, displayW)
@@ -624,6 +630,7 @@ class ComicReaderDoc(
         val u = upscale ?: return null
         if (p !in u.ready.value) return null
         synchronized(regionLock) {
+            if (regionClosed) return null
             upDecoders[p]?.let { return it to 2 }
             val f = u.file(p)
             val bytes = runCatching { f.readBytes() }.getOrNull() ?: return null
@@ -631,7 +638,7 @@ class ComicReaderDoc(
             val (pw, _) = pageSize(p)
             if (pw <= 0 || d.width != pw * 2) { d.recycle(); return null }
             upDecoders[p] = d
-            while (upDecoders.size > 3) { val e = upDecoders.entries.iterator().next(); upDecoders.remove(e.key); e.value.recycle() }
+            while (upDecoders.size > 3) { val e = upDecoders.entries.iterator().next(); upDecoders.remove(e.key); recycleDecoder(e.value) }
             return d to 2
         }
     }
@@ -676,10 +683,11 @@ class ComicReaderDoc(
     override fun toc(): List<TocEntry> = src.toc().map { if (slots == null) it else it.copy(page = if (it.page >= 0) indexOf(it.page) else it.page) }
 
     override fun close() {
-        synchronized(regionLock) {
-            decoders.values.forEach { it.recycle() }; decoders.clear()
-            upDecoders.values.forEach { it.recycle() }; upDecoders.clear()
+        val olds = synchronized(regionLock) {
+            regionClosed = true
+            (decoders.values + upDecoders.values).also { decoders.clear(); upDecoders.clear() }
         }
+        olds.forEach { recycleDecoder(it) }
         clearAhead()
         src.close()
     }

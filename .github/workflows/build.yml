@@ -364,6 +364,44 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # GPL §3·AGPL §6 대응 소스: 빌드에 쓴 서드파티 소스(받아 온 그대로 + ASH 패치 적용본)를 따로 묶는다.
+      # source.zip(저장소)에는 서드파티가 없으므로 이 묶음과 함께 주면 '대응 소스 전체'가 된다(docs/01-기술설계서.md 라이선스 절).
+      - name: Package third-party sources
+        shell: bash
+        run: |
+          VC=$((1000 + GITHUB_RUN_NUMBER)); SHA="${GITHUB_SHA::7}"
+          T="third-party-src"; rm -rf "$T" dist-3p && mkdir -p "$T" dist-3p
+          add() { [ -e "$1" ] && { mkdir -p "$T/$2"; cp -a "$1/." "$T/$2/"; } || echo "::warning title=서드파티 소스 없음::$1"; }
+          add engine-mupdf/build/mupdf-src mupdf
+          add engine-hwp/build/rhwp rhwp
+          add engine-comic/build/third_party/libarchive libarchive
+          add engine-comic/build/third_party/dl comic-downloads
+          add /home/runner/ncnn-cache/src-20261020 ncnn
+          add engine-convert/build/third_party/libmobi libmobi
+          add engine-convert/build/third_party/libmspack libmspack
+          add engine-djvu/build/third_party/djvulibre djvulibre
+          # rhwp·resvg 등 Rust 의존 크레이트 소스(Cargo.lock 고정판)
+          mkdir -p "$T/cargo-vendor"
+          (cd engine-hwp/rust && cargo vendor --locked "$GITHUB_WORKSPACE/$T/cargo-vendor" > /dev/null) || echo "::warning title=cargo vendor 실패::Rust 크레이트 소스를 넣지 못했습니다"
+          # 받은 압축본(모델·프리빌드)은 소스가 아니므로 뺀다
+          find "$T" -name .git -prune -exec rm -rf {} + || true
+          find "$T/comic-downloads" -type f ! -iname '*LICENSE*' ! -iname '*.tar.*' -delete 2>/dev/null || true
+          {
+            echo "ASH Reader ${VC} (${GITHUB_SHA}) 서드파티 대응 소스"
+            echo "앱 소스: ash-reader-${VC}-${SHA}-source.zip (같은 실행의 ash-reader-${{ github.run_number }} 산출물)"
+            echo "각 폴더는 빌드 스크립트(engine-*/scripts)가 받아 SHA 를 확인한 그대로이며, mupdf 는 engine-mupdf/patches 를 적용한 상태입니다."
+          } > "$T/README.txt"
+          tar -czf "dist-3p/ash-reader-${VC}-${SHA}-third-party-sources.tar.gz" "$T"
+          echo "::notice title=서드파티 소스::$(stat -c%s dist-3p/*.tar.gz) B"
+
+      - name: Upload third-party sources
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: third-party-sources-${{ github.run_number }}
+          path: dist-3p/*
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload bench APKs and source
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -380,6 +418,7 @@ jobs:
           path: |
             app/build/reports/
             app/build/outputs/logs/
+            app/schemas/
             engine-office/build/reports/
             engine-office/build/test-results/
             bench/build/reports/
@@ -512,7 +551,7 @@ jobs:
 
       - name: Build test APKs
         shell: bash
-        run: .github/scripts/gradle-annotate.sh :bench:assembleDebug :bench:assembleDebugAndroidTest
+        run: .github/scripts/gradle-annotate.sh :bench:assembleDebug :bench:assembleDebugAndroidTest :app:assembleDebug :app:assembleDebugAndroidTest
 
       - name: Emulator smoke test
         id: smoke1
@@ -527,7 +566,7 @@ jobs:
           force-avd-creation: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
           disable-animations: true
-          script: ./gradlew --console=plain :bench:connectedDebugAndroidTest
+          script: ./gradlew --console=plain :bench:connectedDebugAndroidTest :app:connectedDebugAndroidTest
 
       # 러너(2코어)에서 에뮬레이터 부팅이 가끔 시간 초과 → 1회만 재시도
       - name: Emulator smoke test (retry)
@@ -542,13 +581,15 @@ jobs:
           force-avd-creation: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
           disable-animations: true
-          script: ./gradlew --console=plain :bench:connectedDebugAndroidTest
+          script: ./gradlew --console=plain :bench:connectedDebugAndroidTest :app:connectedDebugAndroidTest
 
       - name: Upload smoke test report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pagecurl-smoke-${{ github.run_number }}
-          path: bench/build/reports/androidTests/
+          path: |
+            bench/build/reports/androidTests/
+            app/build/reports/androidTests/
           if-no-files-found: ignore
           retention-days: 14

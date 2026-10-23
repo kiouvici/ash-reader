@@ -30,6 +30,15 @@ object AgileDecryptor {
     fun isEncryptedOoxml(file: ByteArray): Boolean =
         Cfb.isCfb(file) && runCatching { Cfb.open(file).let { it.hasStream("EncryptionInfo") && it.hasStream("EncryptedPackage") } }.getOrDefault(false)
 
+    /** 반복 횟수 상한(기본값 100000 의 100배) — 조작한 파일로 멈춘 듯 보이는 일을 막는다. */
+    private const val MAX_SPIN = 10_000_000
+
+    /** 0 바이트(UTF-16)를 빼고 "<!DOCTYPE" 가 있는지. */
+    internal fun hasDoctype(xml: ByteArray): Boolean {
+        val s = String(xml.filter { it.toInt() != 0 }.toByteArray(), Charsets.ISO_8859_1)
+        return s.contains("<!DOCTYPE", ignoreCase = true) || s.contains("<!ENTITY", ignoreCase = true)
+    }
+
     fun decrypt(file: ByteArray, password: String): Result {
         val cfb = Cfb.open(file)
         val info = cfb.read("EncryptionInfo") ?: return Result.Unsupported("EncryptionInfo 없음")
@@ -39,8 +48,16 @@ object AgileDecryptor {
         if (vMinor == 2 && vMajor in 2..4) return StandardDecryptor.decrypt(info, pkg, password)
         if (!(vMajor == 4 && vMinor == 4)) return Result.Unsupported("암호화 버전 $vMajor.$vMinor")
         val xml = info.copyOfRange(8, info.size)
-        val doc = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
-            .newDocumentBuilder().parse(xml.inputStream())
+        // XXE·엔티티 폭탄 차단: DOCTYPE 이 있으면 읽지 않는다(안드로이드 파서는 disallow-doctype-decl 기능을 모를 수 있어 직접 본다)
+        if (hasDoctype(xml)) return Result.Unsupported("DOCTYPE 거부")
+        val dbf = DocumentBuilderFactory.newInstance().apply {
+            isNamespaceAware = true
+            isExpandEntityReferences = false
+            runCatching { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
+            runCatching { setFeature("http://xml.org/sax/features/external-general-entities", false) }
+            runCatching { setFeature("http://xml.org/sax/features/external-parameter-entities", false) }
+        }
+        val doc = dbf.newDocumentBuilder().parse(xml.inputStream())
         val keyData = doc.getElementsByTagNameNS("*", "keyData").item(0) as Element
         val ek = doc.getElementsByTagNameNS("*", "encryptedKey").item(0) as? Element
             ?: return Result.Unsupported("암호 키 항목 없음(인증서 방식)")
@@ -51,6 +68,7 @@ object AgileDecryptor {
 
         val hashAlg = javaHash(ek.getAttribute("hashAlgorithm")) ?: return Result.Unsupported("해시 ${ek.getAttribute("hashAlgorithm")}")
         val spin = ek.getAttribute("spinCount").toInt()
+        if (spin !in 0..MAX_SPIN) return Result.Unsupported("spinCount $spin")
         val salt = b64(ek.getAttribute("saltValue"))
         val keyBytes = ek.getAttribute("keyBits").toInt() / 8
         val blockSize = ek.getAttribute("blockSize").toInt()

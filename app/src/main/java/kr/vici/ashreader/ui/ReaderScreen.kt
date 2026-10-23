@@ -359,6 +359,10 @@ fun ReaderScreen(
     val listen by Listen.state.collectAsState()
     val listening = listen.active && listen.bookId == target.id
     val activity = context as? Activity
+    // F-13: 읽기 화면을 떠나면(회전 제외) 듣기를 끝내고 알림을 내린다 — 닫힌 문서를 알림에서 재생하지 않게
+    DisposableEffect(target.id) {
+        onDispose { if (activity?.isChangingConfigurations != true) Listen.leave(target.id) }
+    }
     val fmt = target.format
     /** TXT 인코딩(F-32): "" = 자동. 바꾸면 문서를 다시 연다. */
     var txtEnc by rememberSaveable(target.id) { mutableStateOf(target.textEncoding) }
@@ -626,6 +630,12 @@ fun ReaderScreen(
                     }
                 }
                 val comicDoc = doc as? ComicReaderDoc
+                // F-60 쪽 미리보기(슬라이더)·만화 쪽 목록 그리드
+                val thumbs = remember(doc) { ThumbCache() }
+                var gridOpen by remember(doc) { mutableStateOf(false) }
+                val tocForPreview by produceState<List<kr.vici.ashreader.doc.TocEntry>?>(null, doc, reflow) {
+                    value = if (reflow) withContext(Dispatchers.IO) { guarded(doc, emptyList()) { doc.toc() } } else emptyList()
+                }
                 // F-54 맞춤 방식(화면 외): 쪽마다 한 자리로 보고 쪽 안을 밀어 본다
                 val fitMode = comic != null && !panelMode && !webtoon && comic.prefs.fit != ComicBookPrefs.FIT_SCREEN
                 val scrollMode = scrollView && comicDoc == null
@@ -1037,6 +1047,21 @@ fun ReaderScreen(
                         modifier = Modifier.align(Alignment.TopCenter))
                     BottomMenu(
                         page, count, colors, Modifier.align(Alignment.BottomCenter),
+                        preview = { i, f ->
+                            SliderPreview(
+                                i, f, colors, fixedPage = !reflow, cache = thumbs,
+                                aspect = 1.414f,
+                                thumb = { idx, w ->
+                                    withContext(Dispatchers.IO) {
+                                        val a = guarded(doc, null) { doc.pageAspect(idx) } ?: 1.414f
+                                        guarded(doc, null) { doc.render(idx, w, (w * a).toInt().coerceIn(1, w * 4), colors) }
+                                    }
+                                },
+                                chapter = { idx -> tocForPreview?.let { chapterOf(it, idx) } },
+                                notReady = { idx -> comicDoc != null && !comicDoc.ready(comicDoc.sourceOf(idx)) },
+                            )
+                        },
+                        onGrid = if (comicDoc != null) ({ menu = false; gridOpen = true }) else null,
                         onSeek = { p -> jumpReq = p },
                         onToc = { showToc = true },
                         onAa = { showAa = true },
@@ -1044,6 +1069,18 @@ fun ReaderScreen(
                         onListen = { onListen() },
                         onLight = { showLight = true },
                         onMemo = { memoOpen = true },
+                    )
+                }
+
+                // F-60 만화 쪽 목록 그리드(전체 화면). 원본 쪽 기준, 고르면 그 쪽이 처음 나오는 자리로
+                if (gridOpen && comicDoc != null) {
+                    val bmSrc = remember(bookmarks, count) { bookmarks.map { comicDoc.sourceOf(locatorPage(it.page, it.frac, count)) }.toSet() }
+                    ComicPageGrid(
+                        count = comicDoc.sourceCount, current = comicDoc.sourceOf(page), bookmarked = bmSrc, rtl = doc.rtl, colors = colors, cache = thumbs,
+                        thumb = { p, w -> withContext(Dispatchers.IO) { guarded(doc, null) { comicDoc.pageBitmap(p, w) } } },
+                        ready = { p -> comicDoc.ready(p) },
+                        onPick = { p -> gridOpen = false; jumpReq = comicDoc.indexOf(p) },
+                        onClose = { gridOpen = false },
                     )
                 }
 
@@ -1287,14 +1324,21 @@ private fun TopBar(
 private fun BottomMenu(
     page: Int, count: Int, c: ReadingColors, modifier: Modifier,
     onSeek: (Int) -> Unit, onToc: () -> Unit, onAa: () -> Unit, onTurn: () -> Unit, onListen: () -> Unit, onLight: () -> Unit, onMemo: () -> Unit,
+    /** F-60 슬라이더를 끄는 동안 띄울 미리보기(쪽, 0..1 위치). */
+    preview: (@Composable (Int, Float) -> Unit)? = null,
+    /** F-60 만화 쪽 목록 그리드 열기(만화일 때만, '듣기' 자리). */
+    onGrid: (() -> Unit)? = null,
 ) {
     var drag by remember(page) { mutableFloatStateOf(page.toFloat()) }
-    Column(modifier.fillMaxWidth().background(c.barC).navigationBarsPadding()) {
+    var dragging by remember { mutableStateOf(false) }
+    Column(modifier.fillMaxWidth()) {
+    if (dragging && preview != null && count > 1) Box(Modifier.padding(bottom = 8.dp)) { preview(drag.toInt().coerceIn(0, count - 1), drag / (count - 1)) }
+    Column(Modifier.fillMaxWidth().background(c.barC).navigationBarsPadding()) {
         HorizontalDivider(color = c.lineC)
         Row(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("1", fontSize = 12.sp, color = c.subC)
             Slider(
-                value = drag, onValueChange = { drag = it }, onValueChangeFinished = { onSeek(drag.toInt()) },
+                value = drag, onValueChange = { drag = it; dragging = true }, onValueChangeFinished = { dragging = false; onSeek(drag.toInt()) },
                 valueRange = 0f..(count - 1).coerceAtLeast(1).toFloat(),
                 colors = SliderDefaults.colors(thumbColor = c.accentC, activeTrackColor = c.accentC, inactiveTrackColor = c.lineC),
                 modifier = Modifier.weight(1f).semantics { contentDescription = "쪽 이동" },
@@ -1305,10 +1349,12 @@ private fun BottomMenu(
             MenuButton("목차", c, Modifier.weight(1f), onToc) { Icon(Icons.Toc, null, Modifier.size(20.dp), tint = c.fgC) }
             MenuButton("보기", c, Modifier.weight(1f), onAa) { Text("Aa", fontFamily = Myeongjo, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = c.fgC) }
             MenuButton("넘김", c, Modifier.weight(1f), onTurn) { Icon(Icons.Turn, null, Modifier.size(20.dp), tint = c.fgC) }
-            MenuButton("듣기", c, Modifier.weight(1f), onListen) { Icon(Icons.Speaker, null, Modifier.size(20.dp), tint = c.fgC) }
+            if (onGrid != null) MenuButton("쪽 목록", c, Modifier.weight(1f), onGrid) { Icon(Icons.Grid, null, Modifier.size(20.dp), tint = c.fgC) }
+            else MenuButton("듣기", c, Modifier.weight(1f), onListen) { Icon(Icons.Speaker, null, Modifier.size(20.dp), tint = c.fgC) }
             MenuButton("밝기", c, Modifier.weight(1f), onLight) { Icon(Icons.Sun, null, Modifier.size(20.dp), tint = c.fgC) }
             MenuButton("메모", c, Modifier.weight(1f), onMemo) { Icon(Icons.Pen, null, Modifier.size(20.dp), tint = c.fgC) }
         }
+    }
     }
 }
 

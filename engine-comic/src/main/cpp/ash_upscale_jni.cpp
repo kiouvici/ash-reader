@@ -81,9 +81,14 @@ Java_kr_vici_ashreader_engine_comic_NativeComic_upscalerRun(JNIEnv* env, jclass,
     if (AndroidBitmap_getInfo(env, src, &si) < 0 || AndroidBitmap_getInfo(env, dst, &di) < 0 ||
         si.format != ANDROID_BITMAP_FORMAT_RGBA_8888 || di.format != ANDROID_BITMAP_FORMAT_RGBA_8888 ||
         di.width != si.width * 2 || di.height != si.height * 2) { throwIo(env, "비트맵 형식·크기 오류"); return; }
-    void* sp; void* dp;
-    AndroidBitmap_lockPixels(env, src, &sp);
-    AndroidBitmap_lockPixels(env, dst, &dp);
+    if (!u) { throwIo(env, "화질 향상기가 닫혔음"); return; }
+    void* sp = nullptr; void* dp = nullptr;
+    if (AndroidBitmap_lockPixels(env, src, &sp) < 0 || !sp) { throwIo(env, "비트맵 잠금 실패"); return; }
+    if (AndroidBitmap_lockPixels(env, dst, &dp) < 0 || !dp) {
+        AndroidBitmap_unlockPixels(env, src);
+        throwIo(env, "비트맵 잠금 실패");
+        return;
+    }
     const int w = (int)si.width, hgt = (int)si.height, T = u->tile, pre = u->prepadding;
     const unsigned char* px = static_cast<const unsigned char*>(sp);
     bool ok = true;

@@ -175,7 +175,7 @@ object DocOpener {
                     tmp?.deleteRecursively(); throw e
                 }
             }
-            DocFormat.Engine.NONE -> throw OpenFailed("이 형식은 아직 열 수 없어요.")
+            DocFormat.Engine.NONE -> throw OpenFailed(if (format == DocFormat.XPS) "이 형식은 아직 읽을 수 없어요 (알아낸 형식: XPS)" else "이 형식은 아직 열 수 없어요.")
         }
     }
 
@@ -497,6 +497,8 @@ class HwpReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
  */
 object HwpDiag {
     fun check(file: File, afterFailure: Boolean = false) {
+        // 요구사항서 2장: HWP 3.0/97(및 그 이전) 은 지원하지 않는다 — 엔진에 넣기 전에 알맞은 안내
+        if (isLegacyHwp(file)) throw OpenFailed(LEGACY_MSG)
         val props = CfbFile.hwpProperties(file)
         if (props != null) {
             if (props and 0x2 != 0) throw OpenFailed("암호가 걸린 한글 문서예요. 한컴오피스 한글에서 문서 암호를 해제한 뒤 다시 열어 주세요.")
@@ -512,6 +514,21 @@ object HwpDiag {
             }
         }.getOrDefault(false)
         if (encrypted) throw OpenFailed("암호가 걸린 한글 문서(HWPX)예요. 한컴오피스 한글에서 문서 암호를 해제한 뒤 다시 열어 주세요.")
+    }
+
+    const val LEGACY_MSG = "HWP 3.0은 지원하지 않아요. 한컴오피스 한글에서 HWP(2002 이후) 또는 HWPX 형식으로 다시 저장한 뒤 열어 주세요."
+
+    /** "HWP Document File V1~V3"(HWP 3.0/97 이전) 머리. */
+    fun isLegacyHwp(file: File): Boolean = runCatching {
+        val head = kr.vici.ashreader.engine.comic.ComicFormat.readHead(file.inputStream(), 32)
+        isLegacyHwpHead(head)
+    }.getOrDefault(false)
+
+    fun isLegacyHwpHead(head: ByteArray): Boolean {
+        val sig = "HWP Document File V"
+        if (head.size < sig.length + 1) return false
+        if (String(head, 0, sig.length, Charsets.ISO_8859_1) != sig) return false
+        return (head[sig.length].toInt().toChar()) in '1'..'3'
     }
 }
 

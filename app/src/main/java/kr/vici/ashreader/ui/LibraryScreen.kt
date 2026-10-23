@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.DocFormat
+import kr.vici.ashreader.data.SeriesGroups
 import kr.vici.ashreader.data.StoreApp
 import kr.vici.ashreader.data.progress
 import kr.vici.ashreader.doc.Covers
@@ -161,16 +162,19 @@ fun LibraryScreen(
                 }
             }
             Shelf.SERIES -> {
-                val series = filtered.filter { it.seriesKey.isNotBlank() }.groupBy { it.seriesKey }
+                // F-62: 같은 폴더에서 숫자·권·화를 뺀 이름이 같은 2권 이상(자동) + 직접 묶음. 거른 책이 하나라도 든 묶음만
+                val shown = filtered.map { it.id }.toSet()
+                val series = SeriesGroups.groups(books).filterValues { v -> v.any { it.id in shown } }
                 if (series.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text("제목 끝에 권·화 번호가 있는 책을 시리즈로 묶어 보여 줘요.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                    Text("같은 폴더에서 제목 끝 권·화 번호만 다른 책을 시리즈로 묶어 보여 줘요. 책을 길게 눌러 직접 묶을 수도 있어요.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                 }
                 series.forEach { (key, vols) ->
                     item(key = "s-$key") {
-                        val first = vols.minBy { it.volume }
-                        Column(Modifier.clickable { onSeries(key) }.semantics { contentDescription = "$key 시리즈, ${vols.size}권" }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        val first = vols.first()
+                        val name = SeriesGroups.nameOf(key)
+                        Column(Modifier.clickable { onSeries(key) }.semantics { contentDescription = "$name 시리즈, ${vols.size}권" }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Cover(first, Modifier.fillMaxWidth())
-                            Text(key, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(name, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Text("${vols.size}권 · ${vols.count { it.status == Book.DONE }}권 읽음", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }

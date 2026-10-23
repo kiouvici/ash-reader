@@ -15,6 +15,8 @@ data class ComicBookPrefs(
     val spread: Int = 0,
     /** 첫 쪽 단독(F-50). */
     val coverAlone: Boolean = true,
+    /** 짝 한 쪽 밀기(F-50): 두 쪽 보기에서 짝을 한 쪽 민다(펼침 그림 짝이 어긋난 책). */
+    val shift: Boolean = false,
     /** 가로로 긴 쪽(F-51, 한 쪽 모드): 0 반으로 나눔 · 1 회전 · 2 그대로. */
     val wide: Int = 0,
     /** 칸 단위 보기(F-72): -1 앱 설정 따름 · 0 끔 · 1 눌러서 확대 · 2 자동 순서. */
@@ -45,7 +47,7 @@ data class ComicBookPrefs(
     val webtoon: Boolean get() = dir == DIR_TTB
 
     fun toJson(): JSONObject = JSONObject()
-        .put("dir", dir).put("spread", spread).put("cover", coverAlone).put("wide", wide).put("panel", panel)
+        .put("dir", dir).put("spread", spread).put("cover", coverAlone).put("shift", shift).put("wide", wide).put("panel", panel)
         .put("gap", gap).put("margin", margin).put("crop", crop).put("cropSens", cropSens)
         .put("bri", brightness.toDouble()).put("con", contrast.toDouble()).put("gam", gamma.toDouble())
         .put("gray", gray).put("inv", invert).put("hq", hq).put("sharp", sharpen).put("ai", ai).put("asked", webtoonAsked).put("fit", fit)
@@ -64,6 +66,7 @@ data class ComicBookPrefs(
             dir = o.optInt("dir", base.dir).coerceIn(0, 3),
             spread = o.optInt("spread", base.spread).coerceIn(0, 2),
             coverAlone = o.optBoolean("cover", base.coverAlone),
+            shift = o.optBoolean("shift", false),
             wide = o.optInt("wide", base.wide).coerceIn(0, 2),
             panel = o.optInt("panel", base.panel).coerceIn(-1, 2),
             gap = o.optInt("gap", base.gap).coerceIn(0, 1),
@@ -101,7 +104,7 @@ class ComicPrefsStore(context: Context) {
     fun save(bookId: String, p: ComicBookPrefs) { sp.edit().putString("b:$bookId", p.toJson().toString()).apply() }
 
     /** [모든 만화 기본값으로] — 이 책의 값을 앞으로 처음 여는 만화의 기본값으로. 책마다 하는 일(물어봄 표시)은 빼고. */
-    fun saveDefaults(p: ComicBookPrefs) { sp.edit().putString("default", p.copy(webtoonAsked = false).toJson().toString()).apply() }
+    fun saveDefaults(p: ComicBookPrefs) { sp.edit().putString("default", p.copy(webtoonAsked = false, shift = false).toJson().toString()).apply() }
 
     fun forget(bookId: String) { sp.edit().remove("b:$bookId").apply() }
 
