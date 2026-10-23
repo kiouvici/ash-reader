@@ -335,6 +335,8 @@ fun ReaderScreen(
                         }
                     }
                 }
+                // 만화 설정(S-33, 책마다): 방향·펼침·웹툰·그림 보기·AI 화질. 쪽 수(펼침 배치)가 정해지므로 count 보다 먼저.
+                val comic = rememberComicSession(doc, target.id, target.once, spread, wDp > hDp, s.panelMode)
                 val pxW = constraints.maxWidth.toFloat()
                 val pxH = constraints.maxHeight.toFloat()
                 val count = doc.pageCount
@@ -345,9 +347,12 @@ fun ReaderScreen(
                         if (page >= count - 1) onFinished()
                     }
                 }
-                val panelMode = doc is ComicReaderDoc && s.panelMode != PanelMode.OFF
+                val comicPanel = comic?.panelMode(s.panelMode) ?: PanelMode.OFF
+                val panelMode = comic != null && comicPanel != PanelMode.OFF
+                val webtoon = comic?.webtoon == true
+                val aiOn = comic?.aiOn(s.aiUpscale) == true
                 // AI 화질 개선(F-73): 만화 + 설정 켬일 때만. 원본을 먼저 보여 주고 2배 결과로 바꿔 낀다.
-                val upscale = remember(doc, s.aiUpscale) { if (s.aiUpscale && doc is ComicReaderDoc) ComicUpscale(context, doc) else null }
+                val upscale = remember(doc, aiOn) { if (aiOn && doc is ComicReaderDoc) ComicUpscale(context, doc) else null }
                 DisposableEffect(upscale) {
                     val cd = doc as? ComicReaderDoc
                     cd?.upscale = upscale
@@ -356,18 +361,32 @@ fun ReaderScreen(
                         upscale?.close()
                     }
                 }
-                if (panelMode) {
+                if (comic != null) ComicSessionEffects(
+                    comic, autoSpread = spread, landscape = wDp > hDp, plainPages = panelMode || webtoon, upscale = upscale,
+                    onRelayout = { f -> page = f(page) }, onNotice = { stub(it) },
+                )
+                if (comic != null && showAa) ComicSettingsSheet(comic, s.panelMode, s.aiUpscale, upscale, s.upscaleCacheMb, onDismiss = { showAa = false })
+                if (comic != null && webtoon) {
+                    ComicWebtoonReader(
+                        cs = comic, startPage = comic.doc.sourceOf(page), colors = colors,
+                        menuVisible = menu, onToggleMenu = { menu = !menu },
+                        onPage = { if (it != page) { page = it; pagesTurned++ } },
+                        turnRequest = turnReq, turnForward = turnFwd,
+                        jumpRequest = jumpReq, onJumpHandled = { jumpReq = null },
+                    )
+                } else if (panelMode) {
                     ComicPanelReader(
-                        doc = doc as ComicReaderDoc, startPage = page, autoDefault = s.panelMode == PanelMode.AUTO, colors = colors,
+                        doc = doc as ComicReaderDoc, startPage = (doc as ComicReaderDoc).sourceOf(page), autoDefault = comicPanel == PanelMode.AUTO, colors = colors,
                         menuVisible = menu, onToggleMenu = { menu = !menu },
                         onPage = { if (it != page) { page = it; pagesTurned++ } },
                         turnRequest = turnReq, turnForward = turnFwd,
                         upscale = upscale,
                         jumpRequest = jumpReq, onJumpHandled = { jumpReq = null },
                     )
+                    ComicExtractOverlay(doc as ComicReaderDoc, listOf(page), colors) {}
                 } else {
                     val near = if (reflow) 3 else 0
-                    val source = remember(doc, s.theme, highlights, hit) {
+                    val source = remember(doc, s.theme, highlights, hit, comic?.layoutVersion) {
                         val hl = highlights; val h = hit
                         GuardedSource(doc, colors) { i, tpOf ->
                             // 쪽 수가 바뀌어도(이북식 글꼴·크기) 위치 비율로 근처 쪽을 찾은 뒤 글자로 다시 맞춘다
@@ -391,7 +410,8 @@ fun ReaderScreen(
                     val cfg = CurlConfig(
                         direction = if (doc.rtl) TurnDirection.RTL else TurnDirection.LTR,
                         effect = if (s.curl) TurnEffect.CURL else TurnEffect.SLIDE,
-                        spread = SpreadMode.AUTO,
+                        spread = comic?.spreadMode() ?: SpreadMode.AUTO,
+                        coverAlone = comic?.prefs?.coverAlone ?: true,
                         backColor = colors.bg,
                         shadowStrength = colors.shadow,
                     )
@@ -433,12 +453,17 @@ fun ReaderScreen(
                         modifier = Modifier.fillMaxSize().semantics { contentDescription = "${target.title} ${page + 1}쪽" },
                     )
                     LaunchedEffect(turnReq) { if (turnReq > 0) curlView?.turn(turnFwd) }
+                    if (doc is ComicReaderDoc) {
+                        // solid CBR 풀기 진행·쪽 준비 중(S-41). 보이는 쪽이 풀리면 다시 그린다.
+                        val visSrc = (if (spreadNow) listOf(page, page + 1) else listOf(page)).filter { it < count }.map { doc.sourceOf(it) }
+                        ComicExtractOverlay(doc, visSrc, colors) { curlView?.let { v -> v.tag = source; v.setPageSource(source, page) } }
+                    }
                     if (upscale != null && doc is ComicReaderDoc) {
                         val readySet by upscale.ready.collectAsState()
-                        LaunchedEffect(upscale, page, pxW, pxH) { upscale.request(page, pxW.toInt(), pxH.toInt()) }
+                        LaunchedEffect(upscale, page, pxW, pxH, comic?.layoutVersion) { upscale.request(doc.sourceOf(page), pxW.toInt(), pxH.toInt()) }
                         // 보이는 쪽의 2배 결과가 나왔는데 넘김 화면이 원본으로 그렸으면 다시 그린다
                         LaunchedEffect(readySet, page, source) {
-                            val vis = if (spreadNow) listOf(page, page + 1) else listOf(page)
+                            val vis = (if (spreadNow) listOf(page, page + 1) else listOf(page)).map { doc.sourceOf(it) }
                             if (vis.any { it in readySet && !doc.shownUpscaled(it) }) {
                                 delay(300)
                                 curlView?.let { v -> v.tag = source; v.setPageSource(source, page) }
@@ -559,7 +584,7 @@ fun ReaderScreen(
         txtEnc = k?.name.orEmpty()
         if (!target.once) onTextEncoding(txtEnc)
     } else null
-    if (showAa) ViewSettingsSheet(s, reflow, onSettings, onDismiss = { showAa = false }, txt = txtUi)
+    if (showAa && openDoc !is ComicReaderDoc) ViewSettingsSheet(s, reflow, onSettings, onDismiss = { showAa = false }, txt = txtUi)
     if (exportOpen) ExportSheet(bookId = if (target.once) null else target.id) { exportOpen = false }
     val toc by produceState<List<kr.vici.ashreader.doc.TocEntry>?>(null, openDoc, showToc) {
         val d = openDoc

@@ -35,6 +35,13 @@ class ComicArchive private constructor(
 
     fun readPage(index: Int, maxBytes: Long = 200L shl 20): ByteArray = readEntry(pages[index].name, maxBytes)
 
+    /** CBZ 쪽 그림 크기(머리만 읽음). CBR 은 null(풀어 둔 파일에서 읽는다). */
+    fun pageBounds(index: Int): Pair<Int, Int>? {
+        val z = zip ?: return null
+        val e = z.getEntry(pages[index].name) ?: return null
+        return z.getInputStream(e).use { PageDecoder.bounds(it) }
+    }
+
     private fun readEntry(name: String, maxBytes: Long): ByteArray = if (zip != null) {
         val e = zip.getEntry(name) ?: throw IOException("항목 없음: $name")
         if (e.size > maxBytes) throw IOException("항목이 너무 큼")
