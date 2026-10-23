@@ -64,8 +64,7 @@ class D04ReadingTest : E2eTest() {
         assertTrue("모서리를 끌어 넘어가지 않음 ($p4 → $p5)", p5 > p4)
         // 넘김 효과: 슬라이드·없음에서도 넘어가는지
         for (effect in listOf("슬라이드", "없음", "종이책")) {
-            openMenu()
-            clickText("넘김")
+            menuItem("넘김")
             clickText(effect)
             shot("turn-sheet-$effect")
             device.pressBack(); SystemClock.sleep(400)
@@ -116,8 +115,7 @@ class D04ReadingTest : E2eTest() {
     @Test
     fun viewSettingsSheet_allTabs() {
         openBook()
-        openMenu()
-        clickText("보기")
+        menuItem("보기")
         assertTrue(has(By.text("글꼴"), 8_000))
         shot("aa-text")
         // 글자 크기 키우기(오른쪽 '가') 두 번, 줄이기 한 번
@@ -150,8 +148,7 @@ class D04ReadingTest : E2eTest() {
         tap(0.9f, 0.5f)
         assertAlive()
         // 밝기 시트
-        openMenu()
-        clickText("밝기")
+        menuItem("밝기")
         SystemClock.sleep(800)
         shot("light-sheet")
         device.pressBack(); SystemClock.sleep(500)
@@ -162,8 +159,7 @@ class D04ReadingTest : E2eTest() {
     fun listen_tts_opens() {
         if (API >= 33) shell("pm grant $PKG android.permission.POST_NOTIFICATIONS")
         openBook()
-        openMenu()
-        clickText("듣기")
+        menuItem("듣기")
         // 엔진 확인(최대 15초): 엔진 없음/한국어 없음 안내, 알림 허용 묻기, 또는 바로 듣기 막대
         val end = SystemClock.uptimeMillis() + 20_000
         var seen = ""
@@ -217,10 +213,13 @@ class D04ReadingTest : E2eTest() {
         obj(By.desc("검색 표시 지우기")).click()
         // 목차 → 3장
         openMenu()
+        // 목차 → 1장 → 3장 (검색 결과 쪽이 3장과 같은 쪽일 수 있어 1장에서 출발)
+        menuItem("목차")
+        obj(By.textContains("제1장"), 10_000).click()
+        SystemClock.sleep(1_200)
         closeMenu()
         val before = page()
-        openMenu()
-        clickText("목차")
+        menuItem("목차")
         val ch = obj(By.textContains("제3장"), 10_000)
         shot("toc")
         ch.click()
@@ -263,8 +262,7 @@ class D04ReadingTest : E2eTest() {
         assertTrue("형광펜 안내가 없음", done)
         shot("highlighted")
         // 목록 확인
-        openMenu()
-        clickText("목차")
+        menuItem("목차")
         clickText("책갈피·메모·형광펜")
         assertTrue("메모가 목록에 없음", has(By.text("e2e 쪽 메모"), 5_000))
         assertTrue("책갈피가 목록에 없음", has(By.text(Pattern.compile("\\s*${page}쪽")), 3_000))
@@ -288,8 +286,7 @@ class D04ReadingTest : E2eTest() {
     @Test
     fun autoTurn_starts_and_stops() {
         openBook()
-        openMenu()
-        clickText("넘김")
+        menuItem("넘김")
         obj(By.text("자동 넘김")).click()
         SystemClock.sleep(500)
         assertAlive()

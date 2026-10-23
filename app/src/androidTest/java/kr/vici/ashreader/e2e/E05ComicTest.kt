@@ -28,8 +28,7 @@ class E05ComicTest : E2eTest() {
 
     /** 읽기 메뉴 → 보기(만화 설정 시트). */
     private fun openComicSheet() {
-        openMenu()
-        clickText("보기")
+        menuItem("보기")
         assertTrue("만화 설정이 열리지 않음", has(By.text("만화 설정"), 8_000))
     }
 
@@ -67,8 +66,7 @@ class E05ComicTest : E2eTest() {
         shot("page-view-next")
         assertTrue("만화 쪽 넘김이 안 됨 ($a → $b)", a != null && b != null && b > a)
         // 쪽 목록(그리드)
-        openMenu()
-        clickText("쪽 목록")
+        menuItem("쪽 목록")
         SystemClock.sleep(1_500)
         shot("page-grid")
         device.pressBack(); SystemClock.sleep(600)

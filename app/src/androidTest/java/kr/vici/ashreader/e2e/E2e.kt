@@ -243,6 +243,15 @@ abstract class E2eTest {
         fail("읽기 메뉴가 열리지 않음")
     }
 
+    /** 읽기 메뉴의 단추(목차·보기·넘김·듣기·밝기·메모·쪽 목록)를 누른다. 메뉴가 그새 닫혔으면 다시 연다. */
+    protected fun menuItem(label: String) {
+        repeat(3) {
+            openMenu()
+            find(By.text(label), 2_500)?.let { it.click(); SystemClock.sleep(500); return }
+        }
+        shot("menu-item-$label"); fail("읽기 메뉴에 '$label' 이 없음")
+    }
+
     protected fun closeMenu() {
         if (device.hasObject(By.desc("쪽 이동"))) { device.pressBack(); SystemClock.sleep(500) }
     }
@@ -269,13 +278,15 @@ abstract class E2eTest {
      */
     inner class UiRef(val sel: BySelector, private var o: UiObject2) {
         private fun <T> live(f: (UiObject2) -> T): T {
-            repeat(4) { i ->
+            var last: StaleObjectException? = null
+            repeat(6) {
                 try { return f(o) } catch (e: StaleObjectException) {
+                    last = e
                     SystemClock.sleep(300); pump()
-                    o = device.findObject(sel) ?: if (i == 3) throw e else return@repeat
+                    device.findObject(sel)?.let { o = it }
                 }
             }
-            return f(o)
+            throw last ?: IllegalStateException("화면 요소를 다시 찾지 못함: $sel")
         }
         fun click() = live { it.click() }
         fun longClick() = live { it.longClick() }
