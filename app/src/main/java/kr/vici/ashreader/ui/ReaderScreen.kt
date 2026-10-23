@@ -222,6 +222,9 @@ fun ReaderScreen(
     var txtEnc by rememberSaveable(target.id) { mutableStateOf(target.textEncoding) }
     // 한글 문서 보기 방식(F-28): false = 원본(쪽 그림), true = 이북식(다시 배치 — 글꼴·크기·테마·글자 선택·검색·목차)
     val isHwp = fmt.group == FormatGroup.HWP
+    // Word(DOCX·DOC·RTF)도 원본(쪽 모양, F-30)/이북식 두 보기. 보기 상태는 hwpEbook 을 같이 쓴다.
+    val isWord = fmt.group == FormatGroup.WORD
+    val dualView = isHwp || isWord
     var hwpEbook by rememberSaveable(target.id) { mutableStateOf(target.viewMode == Book.VIEW_EBOOK) }
     /** 그림만 든 PDF 를 만화 보기로 연 상태. */
     var pdfComic by rememberSaveable(target.id) { mutableStateOf(fmt == DocFormat.PDF && target.viewMode == Book.VIEW_COMIC) }
@@ -232,7 +235,7 @@ fun ReaderScreen(
     var firstLoadDone by rememberSaveable(target.id) { mutableStateOf(false) }
     /** [page] 를 정할 때의 쪽 수. 회전 등으로 다시 배치돼 쪽 수가 바뀌면 비율로 옮긴다. */
     var pageCountSeen by rememberSaveable(target.id) { mutableIntStateOf(0) }
-    val reflow = fmt.reflowable || (isHwp && hwpEbook)
+    val reflow = if (isWord) hwpEbook else fmt.reflowable || (isHwp && hwpEbook)
     /** 보기 방식을 바꾼 뒤 새 문서에서 이어 볼 위치(읽은 비율). */
     var pendingFrac by remember { mutableStateOf<Float?>(null) }
     /** 암호 걸린 Word·PDF 의 암호. 메모리에만 두고 저장하지 않는다. */
@@ -265,7 +268,7 @@ fun ReaderScreen(
             val r = withContext(Dispatchers.IO) {
                 runCatching {
                     DocOpener.open(
-                        context, File(target.path), fmt, pageWdp, hDp, s, hwpEbook = isHwp && hwpEbook, password = pw, docId = target.id, comic = pdfComic,
+                        context, File(target.path), fmt, pageWdp, hDp, s, hwpEbook = dualView && hwpEbook, password = pw, docId = target.id, comic = pdfComic,
                         textEncoding = TextEncoding.Kind.of(txtEnc),
                     )
                 }
@@ -293,8 +296,11 @@ fun ReaderScreen(
                 if (fmt == DocFormat.TXT && txtEnc.isNotEmpty()) {
                     Button(onClick = { txtEnc = ""; onTextEncoding("") }, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("인코딩 자동으로") }
                 }
-                if (isHwp && hwpEbook) {
+                if (dualView && hwpEbook) {
                     Button(onClick = { hwpEbook = false }, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("원본 보기로") }
+                }
+                if (isWord && !hwpEbook) {
+                    Button(onClick = { hwpEbook = true; onViewMode(Book.VIEW_EBOOK) }, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("이북식 보기로") }
                 }
                 Button(onClick = onBack, modifier = Modifier.padding(top = 16.dp).heightIn(min = 48.dp)) { Text("서재로") }
             }
@@ -366,7 +372,7 @@ fun ReaderScreen(
                         jumpRequest = jumpReq, onJumpHandled = { jumpReq = null },
                     )
                 } else {
-                    val near = if (reflow) 3 else 0
+                    val near = if (reflow || isWord) 3 else 0 // Word 원본↔이북식은 쪽 수가 달라 근처 쪽까지 찾는다
                     val source = remember(doc, s.theme, highlights, hit) {
                         val hl = highlights; val h = hit
                         GuardedSource(doc, colors) { i, tpOf ->
@@ -496,15 +502,15 @@ fun ReaderScreen(
                         onBookmark = { onToggleBookmark(page, locatorFrac(page, count), curBookmark?.id) },
                         onSearch = { if (doc is MupdfReaderDoc) { menu = false; searchOpen = true } else stub(noTextMsg(fmt)) },
                         viewToggle = when {
-                            isHwp && !target.once -> if (hwpEbook) "원본" else "이북식"
+                            dualView && !target.once -> if (hwpEbook) "원본" else "이북식"
                             pdfToggle -> if (pdfComic) "PDF" else "만화"
                             else -> null
                         },
                         viewToggleDesc = when {
-                            isHwp -> if (hwpEbook) "원본으로 보기" else "이북식으로 보기"
+                            dualView -> if (hwpEbook) "원본으로 보기" else "이북식으로 보기"
                             else -> if (pdfComic) "PDF 쪽 보기로" else "만화로 보기"
                         },
-                        onViewToggle = { if (isHwp) toggleHwpView() else togglePdfComic() },
+                        onViewToggle = { if (dualView) toggleHwpView() else togglePdfComic() },
                         modifier = Modifier.align(Alignment.TopCenter))
                     BottomMenu(
                         page, count, colors, s.theme, Modifier.align(Alignment.BottomCenter),
@@ -741,9 +747,11 @@ private fun OnceBar(fmt: DocFormat, page: Int, count: Int, c: ReadingColors, ebo
             Text("한 번만 보는 중이에요", fontSize = 14.sp, color = c.fgC, modifier = Modifier.weight(1f))
             TextButton(onClick = onAdd, modifier = Modifier.heightIn(min = 48.dp)) { Text("서재에 추가", color = c.accentC, fontWeight = FontWeight.Bold) }
         }
-        if (fmt.group == FormatGroup.HWP) {
+        if (fmt.group == FormatGroup.HWP || fmt.group == FormatGroup.WORD) {
             Text(
-                if (ebook) "이북식 보기 — 글자 크기·줄 간격·테마를 바꾸고 글자를 고를 수 있어요" else "원본 보기 — 표·서식·도장까지 한글 문서 그대로 표시",
+                if (ebook) "이북식 보기 — 글자 크기·줄 간격·테마를 바꾸고 글자를 고를 수 있어요"
+                else if (fmt.group == FormatGroup.WORD) "원본 보기 — 쪽·표·머리글까지 Word 문서 모양 그대로 표시"
+                else "원본 보기 — 표·서식·도장까지 한글 문서 그대로 표시",
                 fontSize = 12.sp, color = c.subC,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
