@@ -11,6 +11,7 @@
 //!   nativePageTextChars(h, i) -> int  공백 제외 글자 수(F-28 판정용)
 //!   nativeToXhtml(h, dir, title) -> String?  이북식 보기용 XHTML(그림은 dir/images 에 씀). 실패 시 null
 //!   nativeImageRects(h, i) -> float[]  쪽 안 그림 영역(쪽 기준 0..1, l t r b 반복) — 야간 '그림은 반전 안 함'(F-21)
+//!   nativePageTextLayout(h, i) -> float[]?  쪽 글자 줄기와 글자 위치(원본 보기 글자 선택, 7B). 형식은 textlayout.rs. 실패 시 null
 //!   nativeClose(h)
 //! 패닉은 catch_unwind로 잡아 오류로 돌려준다(앱 종료 없음, N-03).
 
@@ -23,6 +24,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, Mutex, OnceLock};
 
 pub mod reflow;
+pub mod textlayout;
 
 pub struct Doc {
     core: rhwp::DocumentCore,
@@ -181,6 +183,19 @@ impl Doc {
         let mut out = Vec::new();
         catch_unwind(AssertUnwindSafe(|| walk(tree.root(), w, h, &mut out))).map_err(|_| "그림 영역 패닉".to_string())?;
         Ok(out)
+    }
+
+    /// 쪽 글자 줄기와 글자 위치(원본 보기 글자 선택·검색·형광펜, 7B). 형식은 [textlayout::flatten].
+    pub fn page_text_layout(&self, i: u32) -> Result<Vec<f32>, String> {
+        let info = catch_unwind(AssertUnwindSafe(|| self.core.get_page_info_native(i)))
+            .map_err(|_| "쪽 정보 패닉".to_string())?
+            .map_err(|e| format!("{e:?}"))?;
+        let lay = catch_unwind(AssertUnwindSafe(|| self.core.get_page_text_layout_native(i)))
+            .map_err(|_| "글자 배치 패닉".to_string())?
+            .map_err(|e| format!("{e:?}"))?;
+        catch_unwind(AssertUnwindSafe(|| textlayout::flatten(&info, &lay)))
+            .map_err(|_| "글자 배치 해석 패닉".to_string())?
+            .ok_or_else(|| "글자 배치 형식 오류".to_string())
     }
 
     pub fn page_text_chars(&self, i: u32) -> u32 {
@@ -356,6 +371,18 @@ pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeToXhtml
 pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativeImageRects(mut env: JNIEnv, _c: JClass, h: jlong, i: jint) -> jfloatArray {
     guarded(&mut env, std::ptr::null_mut(), |env| {
         let v = doc(h).and_then(|d| d.image_rects(i as u32).map_err(set_err).ok()).unwrap_or_default();
+        let Ok(arr) = env.new_float_array(v.len() as i32) else { return std::ptr::null_mut() };
+        if !v.is_empty() {
+            env.set_float_array_region(&arr, 0, &v).ok();
+        }
+        arr.into_raw()
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_kr_vici_ashreader_engine_hwp_HwpNative_nativePageTextLayout(mut env: JNIEnv, _c: JClass, h: jlong, i: jint) -> jfloatArray {
+    guarded(&mut env, std::ptr::null_mut(), |env| {
+        let Some(v) = doc(h).and_then(|d| d.page_text_layout(i as u32).map_err(set_err).ok()) else { return std::ptr::null_mut() };
         let Ok(arr) = env.new_float_array(v.len() as i32) else { return std::ptr::null_mut() };
         if !v.is_empty() {
             env.set_float_array_region(&arr, 0, &v).ok();

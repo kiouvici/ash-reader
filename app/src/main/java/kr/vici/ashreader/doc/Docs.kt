@@ -533,7 +533,10 @@ object TxtUtf8 {
     }
 }
 
-/** 한글 원본 보기(쪽 그림). 글자 선택·검색·목차는 이북식 보기([HwpXhtml] → [MupdfReaderDoc])에서 쓴다. */
+/**
+ * 한글 원본 보기(쪽 그림). 목차·듣기는 이북식 보기([HwpXhtml] → [MupdfReaderDoc])에서 쓴다.
+ * 글자 선택·검색·형광펜은 rhwp 글자 배치([HwpText])로 원본에서도 쓴다(7B).
+ */
 class HwpReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
     private val lock = Any()
     private val doc: HwpDoc = try { HwpDoc.open(file.absolutePath) } catch (e: Exception) {
@@ -561,6 +564,16 @@ class HwpReaderDoc(file: File, override val format: DocFormat) : ReaderDoc {
     }
 
     override fun pageAspect(index: Int): Float? = aspectCache[index] ?: synchronized(lock) { runCatching { doc.pageAspect(index) }.getOrNull() }?.also { aspectCache[index] = it }
+
+    private val textCache = object : android.util.LruCache<Int, TextPage>(24) {}
+
+    /** 쪽 글자와 위치(7B 원본 보기 글자 선택). 비율은 렌더와 같은 쪽 SVG 크기를 쓴다. 글자가 없으면 null. */
+    override fun pageText(index: Int): TextPage? {
+        textCache.get(index)?.let { return it }
+        val raw = synchronized(lock) { runCatching { doc.textLayout(index) }.getOrNull() } ?: return null
+        val tp = runCatching { HwpText.page(raw, pageAspect(index)) }.getOrNull() ?: return null
+        return tp.also { textCache.put(index, it) }
+    }
 
     /**
      * F-28 자동 전환 판정: 첫 쪽(작게 렌더)이 비었는데 글자는 있거나, 렌더 자체가 실패하면 true.

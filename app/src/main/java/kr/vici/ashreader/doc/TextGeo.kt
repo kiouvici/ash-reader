@@ -41,7 +41,7 @@ object TextGeo {
         return if (bestD <= maxDist) best else -1
     }
 
-    private fun isWordChar(c: Char) = !c.isWhitespace() && c !in ".,!?;:\"'“”‘’()[]{}<>「」『』《》〈〉·…—–-/、。，"
+    private fun isWordChar(c: Char) = !c.isWhitespace() && c !in ".,!?;:\"'“”‘’()[]{}<>「」『』《》〈〉·…—–-/、。，" && c !in "：；！？（）［］｛｝｢｣〔〕【】＜＞～※☏○●◎□■△▲▷▶◇◆*"
 
     /** [i] 글자가 든 낱말 범위(끝 제외). 낱말 글자가 아니면 그 글자 하나. */
     fun wordAt(text: String, i: Int): IntRange {
