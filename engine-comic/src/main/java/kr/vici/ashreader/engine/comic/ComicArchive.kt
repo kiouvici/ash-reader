@@ -21,7 +21,7 @@ class ComicArchive private constructor(
 ) : Closeable {
     val pages: List<PageEntry>
     val direction: ReadingDirection?
-    /** CBR: archiveList 순서의 항목 이름(풀기 진행의 번호 → 이름). */
+    /** CBR: archiveList 순서의 항목 이름(풀기 진행의 번호 → 이름). 같은 이름이 여럿이면 겹치지 않게 바꾼 이름(모두 남긴다). */
     private val rarNames: List<String>
     private val rarIndex = HashMap<String, Int>()
 
@@ -29,11 +29,13 @@ class ComicArchive private constructor(
         val all: List<Pair<String, Long>> = if (zip != null) {
             zip.entries().asSequence().filter { !it.isDirectory }.map { it.name to it.size }.toList()
         } else {
-            rar { NativeComic.archiveList(file.path) }.toList().chunked(2)
+            // 항목 번호(archiveList 순서)로 읽으므로, 같은 이름이 여럿이어도 이름만 바꿔 모두 쪽으로 남긴다
+            val raw = rar { NativeComic.archiveList(file.path) }.toList().chunked(2)
                 .map { ComicFormat.decodeName(it[0]) to (String(it[1], Charsets.US_ASCII).toLongOrNull() ?: -1L) }
+            ComicFormat.uniqueNames(raw.map { it.first }).zip(raw) { n, (_, size) -> n to size }
         }
         rarNames = if (zip == null) all.map { it.first } else emptyList()
-        rarNames.forEachIndexed { i, n -> rarIndex.putIfAbsent(n, i) }
+        rarNames.forEachIndexed { i, n -> rarIndex[n] = i }
         pages = ComicFormat.pages(all)
         direction = all.firstOrNull { it.first.substringAfterLast('/').equals("ComicInfo.xml", true) }
             ?.let { ComicFormat.directionFromComicInfo(String(readEntry(it.first, 4L shl 20), Charsets.UTF_8)) }

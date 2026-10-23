@@ -36,16 +36,138 @@ object TxtToc {
     private const val MAX_LEN = 60
     private const val MAX_HEADINGS = 3000
 
-    /** 사용자 식이 맞는 정규식인지(설정 화면 안내용). */
-    fun validCustom(custom: String): Boolean = custom.isBlank() || runCatching { Regex(custom) }.isSuccess
+    /**
+     * 사용자 식이 문서 하나에서 쓸 수 있는 시간(ReDoS 막기). 기본 200ms + 줄 수에 비례한 몫(줄당 20µs, 최대 2초).
+     * 넘으면 사용자 식은 버리고 기본 모양으로만 찾는다.
+     * (안드로이드 정규식은 ICU 네이티브라 CharSequence 로 끊을 수 없다 → 따로 도는 스레드에서 맞춰 보고 기한까지만 기다린다.
+     *  위험한 모양(중첩 반복·역참조)은 [validCustom] 이 미리 막아, 버린 스레드도 오래 돌지 않는다.)
+     */
+    const val CUSTOM_BUDGET_MS = 200L
+    private const val PROBE_BUDGET_MS = 100L
+    private const val MAX_UNBOUNDED = 4
 
-    fun find(lines: List<String>, mask: Int, custom: String = ""): List<Heading> {
-        val user = custom.takeIf { it.isNotBlank() }?.let { runCatching { Regex(it) }.getOrNull() }
-        if ((mask and ALL) == 0 && user == null) return emptyList()
+    /**
+     * 느려질 수 있는 식의 모양을 막는다: 반복(*, +, {n,}, {n,m} 등 2번 이상)이 걸린 괄호 안에 또 반복(?, * …)이나 '|' 가 있는 식,
+     * 역참조(\1, \k<…>), 끝없는 반복이 [MAX_UNBOUNDED]개 넘는 식.
+     */
+    internal fun riskyShape(re: String): Boolean {
+        data class G(var inner: Boolean = false)
+        val stack = ArrayList<G>()
+        var lastGroup: G? = null // 바로 앞이 닫는 괄호면 그 괄호
+        var unbounded = 0
+        var i = 0
+        fun markInner() { stack.forEach { it.inner = true } }
+        while (i < re.length) {
+            val c = re[i]
+            var closed: G? = null
+            when (c) {
+                '\\' -> {
+                    val n = re.getOrNull(i + 1)
+                    if (n != null && (n in '1'..'9' || n == 'k')) return true
+                    i += 2; lastGroup = null; continue
+                }
+                '[' -> {
+                    // 문자 묶음: 닫는 ] 까지 건너뜀(맨 앞 ^· ] 와 \ 처리)
+                    var k = i + 1
+                    if (re.getOrNull(k) == '^') k++
+                    if (re.getOrNull(k) == ']') k++
+                    while (k < re.length && re[k] != ']') { if (re[k] == '\\') k++; k++ }
+                    i = k + 1; lastGroup = null; continue
+                }
+                '(' -> { stack += G(); i++; if (re.getOrNull(i) == '?') { i++; if (re.getOrNull(i) == '<' && re.getOrNull(i + 1) != '=' && re.getOrNull(i + 1) != '!') { while (i < re.length && re[i] != '>') i++; i++ } }; lastGroup = null; continue }
+                ')' -> { closed = stack.removeLastOrNull(); i++ }
+                '|' -> { markInner(); i++ }
+                '*', '+', '?', '{' -> {
+                    var max = 1 // 반복 최대 횟수(끝없음 = Int.MAX_VALUE)
+                    if (c == '{') {
+                        val e = re.indexOf('}', i)
+                        val body = if (e > i) re.substring(i + 1, e) else ""
+                        val m = Regex("^(\\d+)(,(\\d*))?$").find(body)
+                        if (m == null) { i++; lastGroup = null; continue } // 글자 그대로의 {
+                        max = when {
+                            m.groupValues[2].isEmpty() -> m.groupValues[1].toInt()
+                            m.groupValues[3].isEmpty() -> Int.MAX_VALUE
+                            else -> m.groupValues[3].toIntOrNull() ?: Int.MAX_VALUE
+                        }
+                        i = e + 1
+                    } else { max = if (c == '?') 1 else Int.MAX_VALUE; i++ }
+                    if (max == Int.MAX_VALUE || max > 60) unbounded++
+                    if (max > 1 && lastGroup?.inner == true) return true
+                    markInner()
+                    // 게으른·소유 반복 표시(*? *+)는 건너뜀
+                    if (re.getOrNull(i) == '?' || re.getOrNull(i) == '+') i++
+                    lastGroup = null; continue
+                }
+                else -> i++
+            }
+            lastGroup = closed
+            if (closed != null && closed.inner) markInner()
+        }
+        return unbounded > MAX_UNBOUNDED
+    }
+
+    /** 일부러 느리게 만드는 줄들(빠져나간 위험한 식을 시간으로 한 번 더 거른다). */
+    private val probes = listOf("a", "1", "가", " ", "제", "【", "-", "#", ".").map { it.repeat(MAX_LEN - 1) + "\u0001" } +
+        listOf("제1장 " + "가".repeat(MAX_LEN - 5), "Chapter " + "a1".repeat((MAX_LEN - 8) / 2))
+
+    /** 식이 맞고, 위험한 모양이 아니고, 시험 줄들에서 [PROBE_BUDGET_MS] 안에 끝나는지(설정 화면·백업 가져오기). */
+    fun validCustom(custom: String): Boolean {
+        if (custom.isBlank()) return true
+        if (custom.length > 200 || riskyShape(custom)) return false
+        val r = runCatching { Regex(custom) }.getOrNull() ?: return false
+        return matchAll(r, probes, PROBE_BUDGET_MS) != null
+    }
+
+    /** 틀렸거나 위험한 식은 빈 값으로(백업에서 들어온 값 등). */
+    fun safeCustom(custom: String): String = custom.trim().take(200).takeIf { validCustom(it) }.orEmpty()
+
+    /**
+     * [lines] 각각에 [r] 이 맞는지 따로 도는 스레드에서 본다. [budgetMs] 안에 못 끝나면 null(스레드는 다음 줄에서 멈춘다).
+     */
+    private fun matchAll(r: Regex, lines: List<String>, budgetMs: Long): BooleanArray? {
+        val out = BooleanArray(lines.size)
+        val stop = java.util.concurrent.atomic.AtomicBoolean(false)
+        val done = java.util.concurrent.CountDownLatch(1)
+        val t = Thread({
+            try {
+                for ((k, l) in lines.withIndex()) {
+                    if (stop.get()) return@Thread
+                    out[k] = runCatching { r.containsMatchIn(l) }.getOrDefault(false)
+                }
+            } finally { done.countDown() }
+        }, "ash-txt-toc")
+        t.isDaemon = true
+        t.priority = Thread.MIN_PRIORITY
+        t.start()
+        val ok = done.await(budgetMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+        if (!ok) { stop.set(true); return null }
+        return out
+    }
+
+    /** [headings] = 찾은 제목, [customTimedOut] = 사용자 식이 시간을 넘겨(또는 위험한 모양이라) 기본 모양으로만 찾았음. */
+    data class Found(val headings: List<Heading>, val customTimedOut: Boolean)
+
+    fun find(lines: List<String>, mask: Int, custom: String = ""): List<Heading> = findEx(lines, mask, custom).headings
+
+    fun findEx(lines: List<String>, mask: Int, custom: String = "", budgetMs: Long = CUSTOM_BUDGET_MS): Found {
+        var user = custom.takeIf { it.isNotBlank() }?.let { runCatching { Regex(it) }.getOrNull() }
+        var timedOut = false
+        if (user != null && riskyShape(custom)) { user = null; timedOut = true }
+        if ((mask and ALL) == 0 && user == null) return Found(emptyList(), timedOut)
+        // 사용자 식은 제목 후보 줄(60자 이하)에만, 시간 기한을 두고 한꺼번에 맞춰 본다
+        val trimmed = lines.map { it.trim().trim('\u3000') }
+        var userHit: Map<Int, Boolean> = emptyMap()
+        if (user != null) {
+            val idx = trimmed.indices.filter { trimmed[it].isNotEmpty() && trimmed[it].length <= MAX_LEN }
+            val budget = minOf(2_000L, budgetMs + idx.size / 50)
+            val r = matchAll(user, idx.map { trimmed[it] }, budget)
+            if (r == null) { user = null; timedOut = true } else userHit = idx.withIndex().associate { (k, li) -> li to r[k] }
+        }
+        if ((mask and ALL) == 0 && user == null) return Found(emptyList(), timedOut)
         data class Raw(val line: Int, val title: String, val top: Boolean, val numberOnly: Boolean)
         val raw = ArrayList<Raw>()
-        for ((i, l0) in lines.withIndex()) {
-            val l = l0.trim().trim('\u3000')
+        for (i in lines.indices) {
+            val l = trimmed[i]
             if (l.isEmpty() || l.length > MAX_LEN) continue
             var hit = false; var top = false; var numberOnly = false
             if ((mask and CHAPTER) != 0) {
@@ -57,7 +179,7 @@ object TxtToc {
             }
             if (!hit && (mask and NAMED) != 0 && named.matches(l)) hit = true
             if (!hit && (mask and NUMBER) != 0 && number.any { it.matches(l) }) { hit = true; numberOnly = true }
-            if (!hit && user != null && runCatching { user.containsMatchIn(l) }.getOrDefault(false)) hit = true
+            if (!hit && user != null && userHit[i] == true) hit = true
             if (hit) raw += Raw(i, l, top, numberOnly)
             if (raw.size >= MAX_HEADINGS) break
         }
@@ -69,7 +191,7 @@ object TxtToc {
         }
         val kept = raw.filter { !it.numberOnly || keepNums }
         val anyTop = kept.any { it.top } && kept.any { !it.top }
-        return kept.map { Heading(it.line, it.title, if (anyTop && !it.top) 1 else 0) }
+        return Found(kept.map { Heading(it.line, it.title, if (anyTop && !it.top) 1 else 0) }, timedOut)
     }
 }
 
@@ -143,9 +265,11 @@ object Dialogue {
  * 찾은 제목은 <h2>/<h3> 로 바꿔 MuPDF 가 목차(outline)를 만든다.
  */
 object TxtXhtml {
-    fun convert(text: String, title: String, mask: Int, custom: String, hyphenLang: Boolean): String {
+    fun convert(text: String, title: String, mask: Int, custom: String, hyphenLang: Boolean, onCustomTimeout: () -> Unit = {}): String {
         val lines = text.split('\n')
-        val heads = TxtToc.find(lines, mask, custom).associateBy { it.line }
+        val found = TxtToc.findEx(lines, mask, custom)
+        if (found.customTimedOut) onCustomTimeout()
+        val heads = found.headings.associateBy { it.line }
         val sb = StringBuilder(text.length + text.length / 4 + 512)
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\"")
         if (hyphenLang) sb.append(" lang=\"en\"")

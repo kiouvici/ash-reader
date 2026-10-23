@@ -230,9 +230,10 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
         Opened(f, name.substringBeforeLast('.'), fmt, id)
     }
 
+    /** 서재로 가져오기. 서재 쪽(books/)으로 복사한 뒤 캐시의 한 번만 보기 사본은 지운다(캐시에 쌓이지 않게). */
     suspend fun import(uri: Uri): Book = withContext(Dispatchers.IO) {
         val o = openOnce(uri)
-        addOpened(o, folderOf(uri))
+        try { addOpened(o, folderOf(uri)) } finally { discardOnce(o) }
     }
 
     /** 이미 연 문서(한 번만 보기)를 서재에 넣는다. 예전에 '서재에서 빼기'한 같은 문서면 다시 보이게 한다. */

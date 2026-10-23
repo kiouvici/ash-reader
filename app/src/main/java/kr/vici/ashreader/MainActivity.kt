@@ -42,9 +42,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -114,9 +116,31 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
 
     val passwords: MutableMap<String, String> = HashMap()
 
+    /** 화면 회전·재생성과 상관없이 보여 줄 안내(가져오기 결과 등). */
+    val notices = Channel<String>(Channel.BUFFERED)
+
+    /**
+     * 여러 파일 가져오기(공유 SEND_MULTIPLE·파일 고르기). 화면이 회전돼도 멈추지 않게 ViewModel 범위에서 돈다.
+     * 한 번에 [MAX_IMPORT]개까지만 넣고, 넘는 몫은 알린다.
+     */
+    fun importAll(lib: LibraryRepo, uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        val take = uris.take(MAX_IMPORT)
+        viewModelScope.launch {
+            var ok = 0
+            for (u in take) runCatching { lib.import(u) }.onSuccess { ok++ }
+            val msg = buildString {
+                append(if (ok == take.size) "${ok}권을 서재에 넣었어요." else "${ok}권을 넣고, ${take.size - ok}개 파일은 넣지 못했어요.")
+                if (uris.size > take.size) append(" 한 번에 ${MAX_IMPORT}개까지만 넣어요(${uris.size - take.size}개 제외).")
+            }
+            notices.send(msg)
+        }
+    }
+
     companion object {
         private const val K_SCREEN = "ash.screen"
         private const val K_TAB = "ash.tab"
+        const val MAX_IMPORT = 50
 
         fun encode(sc: Screen): Bundle = Bundle().apply {
             when (sc) {
@@ -355,11 +379,9 @@ private fun AshRoot(incoming: MutableStateFlow<List<Uri>>) {
         if (all.isEmpty()) return@LaunchedEffect
         incoming.value = emptyList()
         if (all.size > 1) {
-            // 여러 파일 공유(SEND_MULTIPLE): 서재에 넣고 알린다
-            var ok = 0
-            for (u in all) runCatching { app.library.import(u) }.onSuccess { ok++ }
+            // 여러 파일 공유(SEND_MULTIPLE): 서재에 넣고 알린다(최대 50개, 회전해도 이어서)
             nav.screen = nav.tab
-            snack.showSnackbar(if (ok == all.size) "${ok}권을 서재에 넣었어요." else "${all.size - ok}개 파일은 넣지 못했어요.")
+            nav.importAll(app.library, all)
             return@LaunchedEffect
         }
         val uri = all[0]
@@ -385,12 +407,9 @@ private fun AshRoot(incoming: MutableStateFlow<List<Uri>>) {
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        scope.launch {
-            var ok = 0
-            for (u in uris) runCatching { app.library.import(u) }.onSuccess { ok++ }
-            if (uris.isNotEmpty()) snack.showSnackbar(if (ok == uris.size) "${ok}권을 서재에 넣었어요." else "${uris.size - ok}개 파일은 넣지 못했어요.")
-        }
+        nav.importAll(app.library, uris)
     }
+    LaunchedEffect(nav) { for (m in nav.notices) snack.showSnackbar(m) }
 
     when (val sc = nav.screen) {
         is Screen.Reader -> {
@@ -567,6 +586,10 @@ private fun AshRoot(incoming: MutableStateFlow<List<Uri>>) {
                                     (vols + picked).forEach { dao.setSeries(it.id, name, Book.SERIES_MANUAL) }
                                     nav.screen = Screen.Series(SeriesGroups.keyOf(Book(id = "", title = "", format = "", path = "", seriesKey = name, seriesManual = Book.SERIES_MANUAL))!!)
                                 }
+                            },
+                            isTaken = { n ->
+                                val k = SeriesGroups.keyOf(Book(id = "", title = "", format = "", path = "", seriesKey = n, seriesManual = Book.SERIES_MANUAL))
+                                k != null && k != sc.key && books.any { SeriesGroups.keyOf(it) == k }
                             },
                         )
                     }

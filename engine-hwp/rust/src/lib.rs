@@ -28,8 +28,17 @@ pub struct Doc {
     core: rhwp::DocumentCore,
 }
 
+// 스레드 안전(F-28): 문서마다 핸들(Box<Doc>, 각자의 DocumentCore)이 따로라, 10초를 넘겨 버려진 원본 열기 스레드와
+// 이북식 변환 스레드가 동시에 돌아도 서로의 문서를 건드리지 않는다. 이 라이브러리의 전역 값은 아래 둘뿐이다.
+// - FONTDB: Mutex 로 감싼 Arc(읽을 때 복제본을 가져가므로 그리는 동안 잠그지 않음)
+// - LAST_ERROR: 스레드마다 따로(thread_local) — 다른 스레드의 오류 문구가 섞이지 않게(JNI 호출은 부른 자바 스레드에서 돈다)
+// rhwp v0.8.7 쪽 전역 값도 확인함: static mut 없음. thread_local!(파서·그림 변환 메모·글꼴 캐시),
+// OnceLock/LazyLock(처음 한 번 채운 뒤 읽기만 하는 표), Atomic 성능 계수기뿐이라 문서끼리 공유하는 바뀌는 상태가 없다.
+// 같은 핸들을 여러 스레드가 쓰는 일은 Kotlin 쪽(HwpReaderDoc 의 lock)에서 막는다.
 static FONTDB: OnceLock<Mutex<Arc<resvg::usvg::fontdb::Database>>> = OnceLock::new();
-static LAST_ERROR: OnceLock<Mutex<String>> = OnceLock::new();
+thread_local! {
+    static LAST_ERROR: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
 
 /// 잠금이 패닉으로 오염돼도(poisoned) 값은 그대로 쓴다(JNI 경계에서 다시 패닉하지 않게).
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -37,11 +46,11 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 fn set_err(s: String) {
-    *lock(LAST_ERROR.get_or_init(|| Mutex::new(String::new()))) = s;
+    LAST_ERROR.with(|e| *e.borrow_mut() = s);
 }
 
 fn last_err() -> String {
-    lock(LAST_ERROR.get_or_init(|| Mutex::new(String::new()))).clone()
+    LAST_ERROR.with(|e| e.borrow().clone())
 }
 
 fn fontdb() -> Arc<resvg::usvg::fontdb::Database> {

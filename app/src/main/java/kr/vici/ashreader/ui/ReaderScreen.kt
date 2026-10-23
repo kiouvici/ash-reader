@@ -621,6 +621,9 @@ fun ReaderScreen(
                         imageOnly = withContext(Dispatchers.IO) { doc.isImageOnly() }
                     }
                     // F-28 원본 첫 쪽 검사·10초 초과는 문서를 여는 곳(openHwpOriginal)에서 한다
+                    if (first && doc is MupdfReaderDoc && doc.tocFallback) {
+                        snack.showSnackbar("내 제목 모양(정규식)이 너무 오래 걸려 기본 모양으로만 목차를 만들었어요.")
+                    }
                 }
                 // 만화 설정(S-33, 책마다): 방향·펼침·웹툰·그림 보기·AI 화질. 쪽 수(펼침 배치)가 정해지므로 count 보다 먼저.
                 val comic = rememberComicSession(doc, target.id, target.once, spread, wDp > hDp, s.panelMode)
