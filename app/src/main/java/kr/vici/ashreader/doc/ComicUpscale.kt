@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.doc
 
+import kotlinx.coroutines.async
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
@@ -324,6 +325,19 @@ object AiCapability {
         val p = s.split(',')
         val v = Verdict.entries.firstOrNull { it.name == p.getOrNull(0) } ?: return null
         return Result(v, p.getOrNull(1) == "1", p.getOrNull(2)?.toIntOrNull() ?: 0)
+    }
+
+    /** 지금 도는 측정(시트를 다시 열어도 하나만). */
+    @Volatile private var running: kotlinx.coroutines.Deferred<Result>? = null
+
+    /**
+     * 화면용: [ms] 안에 끝나지 않으면 '너무 느림'으로 본다(측정은 뒤에서 계속 돌아 끝나면 저장된다).
+     * 소프트웨어 Vulkan(에뮬레이터 SwiftShader 등)에서는 측정이 몇 분씩 걸려 '확인하는 중… (약 10초)'에서 멈춰 있었다(7D E2E).
+     */
+    suspend fun measureWithin(c: Context, ms: Long = 20_000): Result {
+        val app = c.applicationContext
+        val job = running?.takeIf { it.isActive } ?: (app as kr.vici.ashreader.AshApp).appScope.async { measure(app) }.also { running = it }
+        return kotlinx.coroutines.withTimeoutOrNull(ms) { job.await() } ?: Result(Verdict.TOO_SLOW, false, 0)
     }
 
     /** 무거움(약 10초). 백그라운드에서. */

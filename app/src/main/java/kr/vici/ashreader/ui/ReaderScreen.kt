@@ -679,10 +679,6 @@ fun ReaderScreen(
                 )
                 // F-73 전후 비교(S-33 [화질]): 도구 막대 자리를 차지하는 비교 화면. 끝내면 보던 쪽으로.
                 var compareOpen by remember(doc) { mutableStateOf(false) }
-                if (comic != null && showAa) ComicSettingsSheet(
-                    comic, s.panelMode, s.aiUpscale, upscale, s.upscaleCacheMb, onDismiss = { showAa = false }, side = spread,
-                    onCompare = { showAa = false; menu = false; compareOpen = true },
-                )
                 if (compareOpen && comic != null) AiCompareScreen(
                     comic.doc, upscale, comic.doc.sourceOf(page),
                     onExit = { src -> compareOpen = false; if (src != comic.doc.sourceOf(page)) jumpReq = comic.doc.indexOf(src) },
@@ -941,6 +937,9 @@ fun ReaderScreen(
                             }
                             v.setConfig(cfg)
                             if (v.tag !== source) { v.tag = source; v.setPageSource(source, page) }
+                            // 접근성(TalkBack·UiAutomator): Compose semantics 설명은 AndroidView 안의 넘김 화면 노드에 실리지 않아
+                            // (특히 Android 8) 읽기 화면이 '이름 없는 화면'이 된다 → View 자체에도 지금 쪽을 단다
+                            v.contentDescription = "${target.title} ${page + 1}쪽"
                         },
                         onRelease = { it.release() },
                         modifier = Modifier.fillMaxSize()
@@ -1195,6 +1194,12 @@ fun ReaderScreen(
                         onDismiss = { foot = null })
                 }
 
+                // 만화 설정(S-33): 태블릿 가로는 화면 안 측면 시트(Box)라 쪽 화면들보다 '뒤'에 그리면 가려져 안 보였다(7D E2E).
+                // 쪽 화면·메뉴 다음에 그린다(휴대폰 바텀시트는 따로 창이라 상관없음).
+                if (comic != null && showAa) ComicSettingsSheet(
+                    comic, s.panelMode, s.aiUpscale, upscale, s.upscaleCacheMb, onDismiss = { showAa = false }, side = spread,
+                    onCompare = { showAa = false; menu = false; compareOpen = true },
+                )
                 if (!s.tapGuideShown && !target.once) TapGuide(
                     rtl = doc.rtl, panelMode = panelMode,
                     grid = TapZones.grid(s.tapLayout, s.tapCustom, s.leftHanded, doc.rtl),

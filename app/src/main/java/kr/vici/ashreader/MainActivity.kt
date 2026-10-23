@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
@@ -522,6 +523,11 @@ private fun AshRoot(nav: NavModel) {
                         if (first == null || !Links.launch(context, first.pkg)) nav.screen = Screen.StoreEdit
                     },
                 )
+            }
+            // 앱 안내(형광펜·메모를 남겼어요, 서재에 넣었어요 등)는 서재 탭 Scaffold 에만 걸려 있어 읽는 동안 보이지 않고
+            // 서재로 돌아간 뒤에야 떴다(7D E2E) → 읽기 화면 위에도 띄운다. 빈 Box 라 누름은 받지 않는다.
+            Box(Modifier.fillMaxSize()) {
+                SnackbarHost(snack, Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(bottom = 140.dp))
             }
             nextVol?.let { (done, next) ->
                 NextVolumeSheet(done, next,

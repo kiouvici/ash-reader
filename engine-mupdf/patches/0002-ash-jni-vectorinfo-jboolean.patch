@@ -1,0 +1,21 @@
+ASH 7D: StructuredTextWalker.VectorInfo 의 boolean 필드에 비트값(2·4)을 그대로 넣어
+디버그 빌드(CheckJNI)에서 'JNI DETECTED ERROR: unexpected jboolean value: 2' 로 앱이 죽는다(E2E 에서 Word 원본 보기).
+0/1 로 바꿔 넣는다. (MuPDF 1.28.5 platform/java/jni/wrap.c)
+
+diff --git a/platform/java/jni/wrap.c b/platform/java/jni/wrap.c
+index b662bad..848e5b6 100644
+--- a/platform/java/jni/wrap.c
++++ b/platform/java/jni/wrap.c
+@@ -613,9 +613,9 @@ static inline jobject to_VectorInfo_safe(fz_context *ctx, JNIEnv *env, int flags
+ 	jobject jvecinfo;
+ 	if (!ctx) return NULL;
+ 	jvecinfo = (*env)->NewObject(env, cls_StructuredTextWalker_VectorInfo, mid_StructuredTextWalker_VectorInfo_init);
+-	(*env)->SetBooleanField(env, jvecinfo, fid_StructuredTextWalker_VectorInfo_isStroked, flags & FZ_STEXT_VECTOR_IS_STROKED);
+-	(*env)->SetBooleanField(env, jvecinfo, fid_StructuredTextWalker_VectorInfo_isRectangle, flags & FZ_STEXT_VECTOR_IS_RECTANGLE);
+-	(*env)->SetBooleanField(env, jvecinfo, fid_StructuredTextWalker_VectorInfo_continues, flags & FZ_STEXT_VECTOR_CONTINUES);
++	(*env)->SetBooleanField(env, jvecinfo, fid_StructuredTextWalker_VectorInfo_isStroked, (flags & FZ_STEXT_VECTOR_IS_STROKED) ? JNI_TRUE : JNI_FALSE);
++	(*env)->SetBooleanField(env, jvecinfo, fid_StructuredTextWalker_VectorInfo_isRectangle, (flags & FZ_STEXT_VECTOR_IS_RECTANGLE) ? JNI_TRUE : JNI_FALSE);
++	(*env)->SetBooleanField(env, jvecinfo, fid_StructuredTextWalker_VectorInfo_continues, (flags & FZ_STEXT_VECTOR_CONTINUES) ? JNI_TRUE : JNI_FALSE);
+ 	return jvecinfo;
+ }
+ 

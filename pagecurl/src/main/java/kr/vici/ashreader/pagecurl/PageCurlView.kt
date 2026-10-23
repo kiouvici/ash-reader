@@ -209,15 +209,18 @@ class PageCurlView @JvmOverloads constructor(
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         // GL 스레드에서 EGL 을 정리한 뒤 Surface 를 놓아야 하므로 끝날 때까지 기다린다.
+        // 7D E2E: 예전에는 정리 작업을 큐 맨 뒤에 넣고 2초만 기다렸다. 느린 GPU(소프트웨어 GL)에서 쪽 그림 올리기가 줄 서 있으면
+        // 2초 안에 못 끝나, EGL 이 아직 쥔 Surface 를 시스템이 먼저 풀어 Surface::~Surface 에서 SIGSEGV(힙 손상)가 났다.
+        // → 정리를 큐 맨 앞에 넣고(앞 작업 하나만 기다림) 넉넉히 기다린다.
         val done = java.util.concurrent.CountDownLatch(1)
-        gl.post {
+        gl.postAtFrontOfQueue {
             clearTextures()
             renderer.release()
             egl?.release()
             egl = null
             done.countDown()
         }
-        done.await(2, java.util.concurrent.TimeUnit.SECONDS)
+        if (!done.await(10, java.util.concurrent.TimeUnit.SECONDS)) Log.w(EglCore.TAG, "surfaceDestroyed: GL 정리가 10초 안에 끝나지 않음")
     }
 
     private fun onResize(w: Int, h: Int) {

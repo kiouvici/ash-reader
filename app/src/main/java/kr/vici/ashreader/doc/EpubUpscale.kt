@@ -212,7 +212,7 @@ fun EpubUpscaleHook(doc: ReaderDoc, on: Boolean, curl: PageCurlView?, onRefresh:
     val md = doc as? MupdfReaderDoc
     val want = on && md != null && md.ebookImages
     val cap by produceState(AiCapability.cached(context), want) {
-        if (want && value == null) value = withContext(Dispatchers.IO) { AiCapability.measure(context) }
+        if (want && value == null) value = AiCapability.measureWithin(context)
     }
     val ok = want && cap?.verdict == AiCapability.Verdict.OK
     val up = remember(doc, ok) { if (ok && md != null) EpubImageUpscale(context, md) else null }

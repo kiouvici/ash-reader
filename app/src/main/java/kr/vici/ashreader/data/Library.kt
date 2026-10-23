@@ -209,11 +209,19 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
      */
     private val live = OnceRefs()
 
-    fun displayName(uri: Uri): String = runCatching {
-        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+    fun displayName(uri: Uri): String =
+        column(uri, OpenableColumns.DISPLAY_NAME)
+            // 미디어 저장소 주소(content://media/…/file/17)는 Android 8~9 에서 이름 칸이 비어 있어 제목이 "17"이 되던 것(7D E2E):
+            // 옛 _data(경로) 칸의 파일 이름을 쓴다
+            ?: column(uri, "_data")?.substringAfterLast('/')
+            ?: uri.lastPathSegment?.substringAfterLast('/')?.takeUnless { it.all(Char::isDigit) }
+            ?: "문서"
+
+    private fun column(uri: Uri, col: String): String? = runCatching {
+        context.contentResolver.query(uri, arrayOf(col), null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getString(0) else null
         }
-    }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/') ?: "문서"
+    }.getOrNull()?.takeIf { it.isNotBlank() }
 
     /** 외부 파일을 [dir] 안으로 복사한다(엔진은 경로로 연다). */
     private fun copy(uri: Uri, dir: File, name: String, tmpName: String = "tmp-" + System.nanoTime()): File {

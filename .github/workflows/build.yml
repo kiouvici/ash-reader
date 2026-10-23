@@ -26,6 +26,7 @@ concurrency:
 #   gradle/actions/setup-gradle v6.4.0 3f5f9adaf7d9fecd50b5935e54106014257a94e6
 #   actions/upload-artifact   v7.0.2  cf430e030ddbb5b0abf93d22962f4752f3646cd9
 #   reactivecircus/android-emulator-runner v2.38.0 a421e43855164a8197daf9d8d40fe71c6996bb0d
+#   actions/download-artifact v7.0.0  37930b1c2abaa49bbe596cd826c3c89aef350131
 
 jobs:
   compile:
@@ -588,7 +589,7 @@ jobs:
           force-avd-creation: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
           disable-animations: true
-          script: ./gradlew --console=plain :bench:connectedDebugAndroidTest :app:connectedDebugAndroidTest
+          script: ./gradlew --console=plain :bench:connectedDebugAndroidTest :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notPackage=kr.vici.ashreader.e2e
 
       # 러너(2코어)에서 에뮬레이터 부팅이 가끔 시간 초과 → 1회만 재시도
       - name: Emulator smoke test (retry)
@@ -603,7 +604,7 @@ jobs:
           force-avd-creation: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
           disable-animations: true
-          script: ./gradlew --console=plain :bench:connectedDebugAndroidTest :app:connectedDebugAndroidTest
+          script: ./gradlew --console=plain :bench:connectedDebugAndroidTest :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notPackage=kr.vici.ashreader.e2e
 
       - name: Upload smoke test report
         if: always()
@@ -615,3 +616,183 @@ jobs:
             app/build/reports/androidTests/
           if-no-files-found: ignore
           retention-days: 14
+
+  # ───────────── 7D 종단(E2E) UI 시험 ─────────────
+  # 앱·시험 APK 를 한 번만 빌드해 산출물로 넘기고, 에뮬레이터 job 들(휴대폰·태블릿 가로/세로·API 26)이 나눠 돌린다.
+  e2e-apks:
+    needs: compile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 cmake;3.22.1"
+
+      - name: Set up Rust + cargo-ndk
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-linux-android x86_64-linux-android armv7-linux-androideabi i686-linux-android
+          cargo install cargo-ndk --version 4.1.2 --locked
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - name: Cache ncnn build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /home/runner/ncnn-cache
+          key: ncnn-20261020-ndk28.2.13676358-arm64-v8a_x86_64-v1
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-provider: basic
+
+      # Maven Central 429 등 일시 오류: 1분 쉬고 한 번 더
+      - name: Build app + E2E test APKs (debug)
+        shell: bash
+        run: |
+          T=":app:assembleDebug :app:assembleDebugAndroidTest"
+          .github/scripts/gradle-annotate.sh $T || { echo "::warning title=e2e-apks::빌드 실패 — 60초 뒤 다시 시도"; sleep 60; .github/scripts/gradle-annotate.sh $T; }
+          mkdir -p e2e-apks
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk e2e-apks/
+          ls -la e2e-apks
+
+      - name: Upload E2E APKs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-apks-${{ github.run_number }}
+          path: e2e-apks/
+          retention-days: 3
+
+  e2e:
+    needs: e2e-apks
+    name: e2e (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # 결과 브랜치(ci-e2e/<이름>)에 화면·logcat 을 올리기 위한 쓰기 권한(작업 브랜치 push 때만 씀)
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 묶음 a = 첫 실행·서재·모든 형식, b = 읽기·만화·설정·인텐트·복원(+ 프로세스 종료 복원)
+          - { name: phone-35-a, api: 35, target: google_apis, profile: pixel_7, ram: 3072M, suite: a, orient: natural }
+          - { name: phone-35-b, api: 35, target: google_apis, profile: pixel_7, ram: 3072M, suite: b, orient: natural }
+          - { name: phone-36-b, api: 36, target: google_apis, profile: pixel_7, ram: 3072M, suite: b, orient: natural }
+          - { name: tablet-35-land-a, api: 35, target: google_apis, profile: pixel_tablet, ram: 4096M, suite: a, orient: landscape }
+          - { name: tablet-35-land-b, api: 35, target: google_apis, profile: pixel_tablet, ram: 4096M, suite: b, orient: landscape }
+          - { name: tablet-35-port, api: 35, target: google_apis, profile: pixel_tablet, ram: 4096M, suite: portrait, orient: portrait }
+          - { name: api26-smoke, api: 26, target: default, profile: pixel_5, ram: 2048M, suite: smoke, orient: natural }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Download E2E APKs
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: e2e-apks-${{ github.run_number }}
+          path: apks
+
+      - name: Make synthetic test files
+        shell: bash
+        run: python3 .github/scripts/make-e2e-files.py e2e-files e2e-files-view
+
+      - name: Run E2E on emulator
+        id: run1
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          OUT: e2e-out
+          APK_DIR: apks
+          FILES_DIR: e2e-files
+          VIEW_DIR_LOCAL: e2e-files-view
+        with:
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.target }}
+          arch: x86_64
+          profile: ${{ matrix.profile }}
+          ram-size: ${{ matrix.ram }}
+          disk-size: 6G
+          emulator-boot-timeout: 900
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
+          disable-animations: true
+          script: bash .github/scripts/e2e-run.sh ${{ matrix.suite }} ${{ matrix.orient }}
+
+      # 에뮬레이터 부팅 실패(시험 결과가 없음)일 때만 한 번 더. 시험 실패는 다시 돌리지 않는다.
+      - name: Run E2E on emulator (retry after boot failure)
+        id: run2
+        if: steps.run1.outcome == 'failure' && hashFiles('e2e-out/instrument/*.txt') == ''
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          OUT: e2e-out
+          APK_DIR: apks
+          FILES_DIR: e2e-files
+          VIEW_DIR_LOCAL: e2e-files-view
+        with:
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.target }}
+          arch: x86_64
+          profile: ${{ matrix.profile }}
+          ram-size: ${{ matrix.ram }}
+          disk-size: 6G
+          emulator-boot-timeout: 900
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
+          disable-animations: true
+          script: bash .github/scripts/e2e-run.sh ${{ matrix.suite }} ${{ matrix.orient }}
+
+      - name: Upload E2E screenshots + logcat
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-${{ matrix.name }}-${{ github.run_number }}
+          path: e2e-out/
+          if-no-files-found: warn
+          retention-days: 14
+
+      # 산출물(Azure blob)을 내려받을 수 없는 환경용: 줄인 화면·logcat(gzip)·결과를 고아 브랜치 ci-e2e/<이름> 에 덮어쓴다.
+      # main 이 아닌 브랜치 push 때만. 다 보면 브랜치는 지워도 된다(git push origin --delete ci-e2e/<이름>).
+      - name: Publish E2E results to ci-e2e branch
+        if: always() && github.event_name == 'push' && github.ref != 'refs/heads/main'
+        continue-on-error: true
+        shell: bash
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          [ -d e2e-out ] || exit 0
+          rm -rf /tmp/pub && mkdir -p /tmp/pub && cp -r e2e-out/. /tmp/pub/
+          cd /tmp/pub
+          [ -f logcat.txt ] && gzip -9 logcat.txt
+          if command -v mogrify >/dev/null; then find shots -name '*.png' -exec mogrify -resize '50%' -strip {} + ; fi
+          git init -q -b r && git config user.name ci && git config user.email ci@users.noreply.github.com
+          git add -A && git commit -qm "e2e ${{ matrix.name }} run ${{ github.run_number }} (${{ github.sha }})"
+          git push -q --force "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git" HEAD:refs/heads/ci-e2e/${{ matrix.name }}
+
+      - name: E2E result
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.run1.outcome }}" = "success" ] || [ "${{ steps.run2.outcome }}" = "success" ]; then exit 0; fi
+          echo "::error title=e2e (${{ matrix.name }})::종단 시험 실패 — 산출물 e2e-${{ matrix.name }}-${{ github.run_number }} 의 shots/·logcat.txt·instrument/ 를 보세요"
+          exit 1

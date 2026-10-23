@@ -430,10 +430,15 @@ object PagedComposer {
             try { f(k) } finally { if (k !== text) k.destroy() }
         }
         override fun close() {}
-        override fun fillPath(path: Path?, evenOdd: Boolean, ctm: Matrix?, cs: ColorSpace?, color: FloatArray?, alpha: Float, cp: Int) = t.fillPath(path, evenOdd, ctm, cs, color, alpha, cp)
-        override fun strokePath(path: Path?, stroke: StrokeState?, ctm: Matrix?, cs: ColorSpace?, color: FloatArray?, alpha: Float, cp: Int) = t.strokePath(path, stroke, ctm, cs, color, alpha, cp)
-        override fun clipPath(path: Path?, evenOdd: Boolean, ctm: Matrix?) = t.clipPath(path, evenOdd, ctm)
-        override fun clipStrokePath(path: Path?, stroke: StrokeState?, ctm: Matrix?) = t.clipStrokePath(path, stroke, ctm)
+        // 7D E2E: 표시 목록(DisplayList)을 돌릴 때 넘어오는 Path 는 목록 메모리 안의 '압축 경로'다. 자바 Path 를 그대로 두면
+        // 목록을 없앤 뒤 FinalizerDaemon 이 fz_drop_path 로 이미 풀린 메모리를 건드려 'Scudo: corrupted chunk header'(SIGABRT)로
+        // 앱이 죽었다(Word 원본 보기) → 넘긴 즉시 놓는다(목록이 살아 있는 동안).
+        override fun fillPath(path: Path?, evenOdd: Boolean, ctm: Matrix?, cs: ColorSpace?, color: FloatArray?, alpha: Float, cp: Int) =
+            try { t.fillPath(path, evenOdd, ctm, cs, color, alpha, cp) } finally { path?.destroy() }
+        override fun strokePath(path: Path?, stroke: StrokeState?, ctm: Matrix?, cs: ColorSpace?, color: FloatArray?, alpha: Float, cp: Int) =
+            try { t.strokePath(path, stroke, ctm, cs, color, alpha, cp) } finally { path?.destroy() }
+        override fun clipPath(path: Path?, evenOdd: Boolean, ctm: Matrix?) = try { t.clipPath(path, evenOdd, ctm) } finally { path?.destroy() }
+        override fun clipStrokePath(path: Path?, stroke: StrokeState?, ctm: Matrix?) = try { t.clipStrokePath(path, stroke, ctm) } finally { path?.destroy() }
         override fun fillText(text: Text?, ctm: Matrix?, cs: ColorSpace?, color: FloatArray?, alpha: Float, cp: Int) = if (text == null || ctm == null) Unit else withText(text, ctm) { t.fillText(it, ctm, cs, color, alpha, cp) }
         override fun strokeText(text: Text?, stroke: StrokeState?, ctm: Matrix?, cs: ColorSpace?, color: FloatArray?, alpha: Float, cp: Int) = if (text == null || ctm == null) Unit else withText(text, ctm) { t.strokeText(it, stroke, ctm, cs, color, alpha, cp) }
         override fun clipText(text: Text?, ctm: Matrix?) = t.clipText(text, ctm)

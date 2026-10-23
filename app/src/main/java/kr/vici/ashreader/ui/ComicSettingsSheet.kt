@@ -235,7 +235,7 @@ private fun ViewTab(cs: ComicSession, p: ComicBookPrefs) {
 private fun QualityTab(cs: ComicSession, globalAi: Boolean, globalPanel: PanelMode, upscale: ComicUpscale?, limitMb: Int, onCompare: (() -> Unit)?) {
     val context = LocalContext.current
     val cap by produceState(AiCapability.cached(context)) {
-        if (value == null) value = withContext(Dispatchers.IO) { AiCapability.measure(context) }
+        if (value == null) value = AiCapability.measureWithin(context)
     }
     LaunchedEffect(cap) { cap?.let { cs.aiVerdict = it.verdict } }
     val sub = MaterialTheme.colorScheme.onSurfaceVariant
