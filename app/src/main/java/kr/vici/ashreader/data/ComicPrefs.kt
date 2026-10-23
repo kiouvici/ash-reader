@@ -39,6 +39,8 @@ data class ComicBookPrefs(
     val ai: Int = -1,
     /** 웹툰 보기 제안(S-35)을 이 책에서 이미 물었나. */
     val webtoonAsked: Boolean = false,
+    /** 맞춤 방식(F-54): [FIT_SCREEN] 화면 · [FIT_WIDTH] 폭 · [FIT_HEIGHT] 높이 · [FIT_ORIGINAL] 원본. */
+    val fit: Int = FIT_SCREEN,
 ) {
     val webtoon: Boolean get() = dir == DIR_TTB
 
@@ -46,13 +48,17 @@ data class ComicBookPrefs(
         .put("dir", dir).put("spread", spread).put("cover", coverAlone).put("wide", wide).put("panel", panel)
         .put("gap", gap).put("margin", margin).put("crop", crop).put("cropSens", cropSens)
         .put("bri", brightness.toDouble()).put("con", contrast.toDouble()).put("gam", gamma.toDouble())
-        .put("gray", gray).put("inv", invert).put("hq", hq).put("sharp", sharpen).put("ai", ai).put("asked", webtoonAsked)
+        .put("gray", gray).put("inv", invert).put("hq", hq).put("sharp", sharpen).put("ai", ai).put("asked", webtoonAsked).put("fit", fit)
 
     companion object {
         const val DIR_AUTO = 0
         const val DIR_LTR = 1
         const val DIR_RTL = 2
         const val DIR_TTB = 3
+        const val FIT_SCREEN = 0
+        const val FIT_WIDTH = 1
+        const val FIT_HEIGHT = 2
+        const val FIT_ORIGINAL = 3
 
         fun fromJson(o: JSONObject, base: ComicBookPrefs = ComicBookPrefs()) = ComicBookPrefs(
             dir = o.optInt("dir", base.dir).coerceIn(0, 3),
@@ -73,6 +79,7 @@ data class ComicBookPrefs(
             sharpen = o.optInt("sharp", base.sharpen).coerceIn(0, 3),
             ai = o.optInt("ai", base.ai).coerceIn(-1, 1),
             webtoonAsked = o.optBoolean("asked", base.webtoonAsked),
+            fit = o.optInt("fit", base.fit).coerceIn(FIT_SCREEN, FIT_ORIGINAL),
         )
     }
 }

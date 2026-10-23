@@ -57,4 +57,6 @@ object Icons {
     val Next = line("next", "M6 5l9 7-9 7z", "M18 5v14")
     val Timer = line("timer", "M19 13a7 7 0 1 1 -14 0a7 7 0 1 1 14 0z", "M12 13V9", "M10 2h4")
     val Share = line("share", "M12 3v12", "M7 8l5-5 5 5", "M5 14v6h14v-6")
+    val Save = line("save", "M12 4v11", "M7 10l5 5 5-5", "M5 19h14")
+    val Scroll = line("scroll", "M7 3h10v18H7z", "M10 8h4M10 12h4M10 16h4")
 }

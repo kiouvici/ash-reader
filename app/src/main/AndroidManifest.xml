@@ -109,5 +109,15 @@
             android:name=".tts.ListenService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+        <!-- F-59 쪽 그림 공유: 캐시의 share/ 폴더만 내준다(밖에 공개하지 않고, 받는 앱에 그때그때 읽기 권한만). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/share_paths" />
+        </provider>
     </application>
 </manifest>

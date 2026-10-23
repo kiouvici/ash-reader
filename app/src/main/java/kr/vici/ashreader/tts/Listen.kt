@@ -45,6 +45,8 @@ object Listen {
         val bookId: String = "",
         val title: String = "",
         val cur: Sentence? = null,
+        /** 쪽 경계에 걸친 [cur] 를 읽는 중, 다음 쪽 몫에 들어섰다(읽기 화면이 다음 쪽으로 넘긴다). */
+        val onNext: Boolean = false,
         /** 잠자기 타이머: 끝나는 시각(elapsedRealtime), 0 = 없음. [sleepChapter] = 이 장 끝까지. */
         val sleepAt: Long = 0L,
         val sleepChapter: Boolean = false,
@@ -93,6 +95,10 @@ object Listen {
                     tt.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                     tt.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) {}
+                        // 쪽 경계에 걸친 문장: 다음 쪽 몫을 읽기 시작하면 화면도 넘긴다(API 26+)
+                        override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                            scope.launch { onRange(utteranceId, start) }
+                        }
                         override fun onDone(utteranceId: String?) { scope.launch { onUtteranceDone(utteranceId) } }
                         @Deprecated("Deprecated in Java")
                         override fun onError(utteranceId: String?) { scope.launch { onUtteranceDone(utteranceId) } }
@@ -238,9 +244,16 @@ object Listen {
         val t = tts ?: return
         val s = list.getOrNull(idx) ?: return
         gen++
-        _state.value = _state.value.copy(cur = s)
+        _state.value = _state.value.copy(cur = s, onNext = false)
         t.setSpeechRate(rate); t.setPitch(pitch)
         t.speak(s.text, TextToSpeech.QUEUE_FLUSH, null, "ash-$gen")
+    }
+
+    private fun onRange(id: String?, start: Int) {
+        if (id != "ash-$gen") return
+        val st = _state.value
+        val c = st.cur ?: return
+        if (c.spans && !st.onNext && start >= c.split) _state.value = st.copy(onNext = true)
     }
 
     private fun onUtteranceDone(id: String?) {
@@ -262,7 +275,7 @@ object Listen {
             if (page <= 0 || !load(page - 1, forward = false)) i = 0 else i = list.size - 1
         }
         idx = i.coerceIn(0, (list.size - 1).coerceAtLeast(0))
-        if (_state.value.playing) speakCurrent() else _state.value = _state.value.copy(cur = list.getOrNull(idx))
+        if (_state.value.playing) speakCurrent() else _state.value = _state.value.copy(cur = list.getOrNull(idx), onNext = false)
     }
 
     private fun finish(msg: String?) {

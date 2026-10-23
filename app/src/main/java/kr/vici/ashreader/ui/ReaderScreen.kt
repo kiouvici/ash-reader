@@ -59,6 +59,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -74,6 +75,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -88,10 +90,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kr.vici.ashreader.data.AutoScroll
 import kr.vici.ashreader.data.Book
+import kr.vici.ashreader.data.ComicBookPrefs
 import kr.vici.ashreader.data.Bookmark
 import kr.vici.ashreader.data.locatorFrac
 import kr.vici.ashreader.data.locatorPage
@@ -197,10 +202,22 @@ private class DocListenSource(private val doc: ReaderDoc, override val bookId: S
     override val pageCount: Int = doc.pageCount
     @Volatile private var tocPages: List<Int>? = null
 
-    override fun sentences(page: Int): List<Sentence> = guarded(doc, emptyList()) {
+    /** 쪽 글과 글자 위치를 아는지. */
+    private fun textOf(page: Int): Pair<String, Boolean>? {
+        if (page !in 0 until pageCount) return null
         val tp = doc.pageText(page)
-        if (tp != null && tp.text.isNotBlank()) Sentences.split(page, tp.text)
-        else Sentences.split(page, doc.pageLines(page).joinToString("\n")).map { it.copy(start = -1, end = -1) }
+        return if (tp != null && tp.text.isNotBlank()) tp.text to true else doc.pageLines(page).joinToString("\n") to false
+    }
+
+    /** 쪽 경계에 걸친 문장은 끊지 않고 다음 쪽 머리까지 한 문장으로 읽는다(앞 쪽이 가져간 머리는 뺀다). */
+    override fun sentences(page: Int): List<Sentence> = guarded(doc, emptyList()) {
+        val (text, located) = textOf(page) ?: return@guarded emptyList()
+        if (text.isBlank()) return@guarded emptyList()
+        val prev = runCatching { textOf(page - 1) }.getOrNull()
+        val next = runCatching { textOf(page + 1) }.getOrNull()
+        val l = Sentences.splitAcross(page, text, prev?.first, next?.first)
+        if (located && next?.second != false) l
+        else l.map { it.copy(start = if (located) it.start else -1, end = if (located) it.end else -1, start2 = -1, end2 = -1) }
     }
 
     override fun chapterEnd(page: Int): Int {
@@ -216,6 +233,12 @@ private fun cannotListen(doc: ReaderDoc, fmt: DocFormat): String? = when {
     fmt.group == FormatGroup.COMIC || doc is ComicReaderDoc -> "만화는 그림이라 들을 수 없어요."
     else -> "이 문서는 들을 수 없어요."
 }
+
+/** 확대 덧화면 요청: 자리 [index] 를 [zoom] 배로, 덧화면 좌표 ([fx], [fy]) 를 중심으로. */
+private data class ZoomReq(val index: Int, val fx: Float, val fy: Float, val zoom: Float)
+
+/** 두 번 탭을 가리기 위해 미룬 한 번 탭. */
+private class TapHold { var job: Job? = null; var at = 0L; var x = 0f; var y = 0f }
 
 /** 각주 팝업 상태(S-29). [anchor] = 링크 위치(화면 높이 비율), [below] = 카드를 링크 아래에. */
 private data class FootState(val text: String, val page: Int, val anchor: Float, val below: Boolean)
@@ -309,6 +332,16 @@ fun ReaderScreen(
     var showTune by remember { mutableStateOf(false) }
     /** 밝기를 끄는 동안의 값(가장자리·슬라이더). null = 설정값. */
     var liveLight by remember { mutableStateOf<Float?>(null) }
+    /** F-59 만화 쪽 메뉴를 연 원본 쪽. */
+    var comicMenuPage by remember { mutableStateOf<Int?>(null) }
+    /** 고정 쪽·만화 확대 덧화면(F-55·F-23). */
+    var zoomAt by remember { mutableStateOf<ZoomReq?>(null) }
+    /** 스크롤 보기에서 듣기가 읽는 쪽을 보이게. */
+    var revealReq by remember { mutableStateOf<Int?>(null) }
+    /** 지금 보기가 위아래 연속(스크롤 보기·웹툰)인가 / 만화인가 — 넘김 시트에 알린다. */
+    var continuousNow by remember { mutableStateOf(false) }
+    var comicNow by remember { mutableStateOf(false) }
+    val tapState = remember { TapHold() }
     /** F-44 자동 넘김. 화면을 누르면 멈춤([autoPaused]). */
     var autoOn by rememberSaveable(target.id) { mutableStateOf(false) }
     var autoPaused by remember { mutableStateOf(false) }
@@ -345,6 +378,8 @@ fun ReaderScreen(
     /** [page] 를 정할 때의 쪽 수. 회전 등으로 다시 배치돼 쪽 수가 바뀌면 비율로 옮긴다. */
     var pageCountSeen by rememberSaveable(target.id) { mutableIntStateOf(0) }
     val reflow = if (isWord) hwpEbook else fmt.reflowable || (isHwp && hwpEbook)
+    /** F-22 스크롤 보기(만화는 웹툰 보기로 대신). */
+    val scrollView = s.scrollView && fmt.group != FormatGroup.COMIC && !pdfComic
     /** 보기 방식을 바꾼 뒤 새 문서에서 이어 볼 위치(읽은 비율). */
     var pendingFrac by remember { mutableStateOf<Float?>(null) }
     /** 암호 걸린 Word·PDF 의 암호. 메모리에만 두고 저장하지 않는다. */
@@ -468,7 +503,8 @@ fun ReaderScreen(
         val wDp = maxWidth.value
         val hDp = maxHeight.value
         val spread = wDp > hDp && minOf(wDp, hDp) >= 600f
-        val pageWdp = if (spread) wDp / 2f else wDp
+        // F-22 스크롤 보기는 한 줄(칸)로: 이북류는 너무 넓지 않게 760dp 까지
+        val pageWdp = if (scrollView) (if (reflow) minOf(wDp, 760f) else wDp) else if (spread) wDp / 2f else wDp
         val txtKey = if (fmt == DocFormat.TXT) listOf(s.txtBlank, s.txtJoin, s.txtTrim, s.txtDefaultEncoding) else emptyList<Any>()
         val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook, txtEnc) + txtKey else listOf(spread, hwpEbook, pdfComic)
 
@@ -521,11 +557,6 @@ fun ReaderScreen(
                 val src = remember(doc) { DocListenSource(doc, target.id, target.title) }
                 LaunchedEffect(src) { listenSrc = src; Listen.attach(src) }
                 DisposableEffect(src) { onDispose { Listen.detach(src, keep = true) } }
-                // 읽는 문장이 다른 쪽으로 가면 따라 넘긴다
-                LaunchedEffect(listen.cur?.page, listening) {
-                    val cp = listen.cur?.page ?: return@LaunchedEffect
-                    if (listening && cp != page && cp in 0 until doc.pageCount) jumpReq = cp
-                }
                 // F-46 각주: 보이는 쪽의 문서 안 링크를 미리 읽어 둔다(누를 때 화면 스레드에서 엔진을 부르지 않게)
                 var pageLinks by remember(doc) { mutableStateOf<Map<Int, List<MupdfDoc.LinkBox>>>(emptyMap()) }
                 LaunchedEffect(doc, page, spreadNow) {
@@ -533,12 +564,6 @@ fun ReaderScreen(
                         val ps = if (spreadNow) listOf(page, page + 1) else listOf(page)
                         pageLinks = withContext(Dispatchers.IO) { ps.filter { it in 0 until doc.pageCount }.associateWith { p -> guarded(doc, emptyList()) { doc.internalLinks(p) } } }
                     }
-                }
-                // F-44 자동 넘김: 쪽이 바뀔 때마다 다시 센다
-                LaunchedEffect(autoOn, autoPaused, page, s.autoTurnSec, menu) {
-                    if (!autoOn || autoPaused || menu) return@LaunchedEffect
-                    delay(s.autoTurnSec * 1000L)
-                    if (page >= doc.pageCount - 1) { autoOn = false; stub("마지막 쪽이라 자동 넘김을 껐어요.") } else { turnFwd = true; turnReq++ }
                 }
                 LaunchedEffect(doc) {
                     openDoc = doc; sel = null; hit = null
@@ -600,11 +625,48 @@ fun ReaderScreen(
                         upscale?.close()
                     }
                 }
+                val comicDoc = doc as? ComicReaderDoc
+                // F-54 맞춤 방식(화면 외): 쪽마다 한 자리로 보고 쪽 안을 밀어 본다
+                val fitMode = comic != null && !panelMode && !webtoon && comic.prefs.fit != ComicBookPrefs.FIT_SCREEN
+                val scrollMode = scrollView && comicDoc == null
+                val continuous = scrollMode || webtoon
+                SideEffect { continuousNow = continuous; comicNow = comicDoc != null }
                 if (comic != null) ComicSessionEffects(
-                    comic, autoSpread = spread, landscape = wDp > hDp, plainPages = panelMode || webtoon, upscale = upscale,
+                    comic, autoSpread = spread, landscape = wDp > hDp, plainPages = panelMode || webtoon || fitMode, upscale = upscale,
                     onRelayout = { f -> page = f(page) }, onNotice = { stub(it) },
                 )
-                if (comic != null && showAa) ComicSettingsSheet(comic, s.panelMode, s.aiUpscale, upscale, s.upscaleCacheMb, onDismiss = { showAa = false })
+                if (comic != null && showAa) ComicSettingsSheet(comic, s.panelMode, s.aiUpscale, upscale, s.upscaleCacheMb, onDismiss = { showAa = false }, side = spread)
+                // F-58 미리 풀기 상한: 기기 RAM 의 1/8
+                LaunchedEffect(comicDoc) {
+                    val cd = comicDoc ?: return@LaunchedEffect
+                    val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+                    val mi = android.app.ActivityManager.MemoryInfo()
+                    am?.getMemoryInfo(mi)
+                    if (mi.totalMem > 0) cd.aheadBudget = (mi.totalMem / 8).coerceIn(64L shl 20, 768L shl 20)
+                }
+                // F-44 자동 넘김(쪽 넘김 보기): 쪽이 바뀔 때마다 다시 센다. 스크롤 보기·웹툰은 자동 스크롤(아래).
+                LaunchedEffect(autoOn, autoPaused, page, s.autoTurnSec, menu, continuous) {
+                    if (!autoOn || autoPaused || menu || continuous) return@LaunchedEffect
+                    delay(s.autoTurnSec * 1000L)
+                    if (page >= doc.pageCount - 1) { autoOn = false; stub("마지막 쪽이라 자동 넘김을 껐어요.") } else { turnFwd = true; turnReq++ }
+                }
+                val autoDp = if (continuous && autoOn && !autoPaused && !menu) AutoScroll.dpPerSec(s.autoScrollSpeed) else 0
+                val onAutoEnd = { autoOn = false; autoPaused = false; stub("끝까지 내려서 자동 스크롤을 껐어요.") }
+                // 읽는 문장이 다른 쪽으로 가면 따라 넘긴다. 쪽 경계에 걸친 문장은 다음 쪽 몫을 읽기 시작할 때 넘긴다.
+                // 바로 다음 쪽(펼침)이면 지금 넘김 효과로 넘기고, 멀면 건너뛴다.
+                LaunchedEffect(listen.cur, listen.onNext, listening) {
+                    val c = listen.cur ?: return@LaunchedEffect
+                    if (!listening) return@LaunchedEffect
+                    val cp = if (listen.onNext && c.spans) c.page + 1 else c.page
+                    if (cp !in 0 until doc.pageCount) return@LaunchedEffect
+                    if (scrollMode) { revealReq = cp; return@LaunchedEffect }
+                    val visible = if (!spreadNow) cp == page else if (page == 0) cp == 0 else cp == page || cp == page + 1
+                    if (visible) return@LaunchedEffect
+                    val nextFirst = if (!spreadNow) page + 1 else if (page == 0) 1 else page + 2
+                    if (cp == nextFirst && curlView != null && comicDoc == null && zoomAt == null) { turnFwd = true; turnReq++ } else jumpReq = cp
+                }
+                val tapOf = { x: Float, y: Float -> TapZones.action(x, y, s.tapLayout, s.tapCustom, s.leftHanded, doc.rtl) }
+                val comicMenuOf = { sourcePage: Int -> menu = false; comicMenuPage = sourcePage }
                 if (comic != null && webtoon) {
                     ComicWebtoonReader(
                         cs = comic, startPage = comic.doc.sourceOf(page), colors = colors,
@@ -612,6 +674,8 @@ fun ReaderScreen(
                         onPage = { if (it != page) { page = it; pagesTurned++ } },
                         turnRequest = turnReq, turnForward = turnFwd,
                         jumpRequest = jumpReq, onJumpHandled = { jumpReq = null },
+                        upscale = upscale, onLongPress = comicMenuOf,
+                        autoDpPerSec = autoDp, onAutoEnd = onAutoEnd,
                     )
                 } else if (panelMode) {
                     ComicPanelReader(
@@ -621,8 +685,27 @@ fun ReaderScreen(
                         turnRequest = turnReq, turnForward = turnFwd,
                         upscale = upscale,
                         jumpRequest = jumpReq, onJumpHandled = { jumpReq = null },
+                        onLongPress = comicMenuOf,
                     )
-                    ComicExtractOverlay(doc as ComicReaderDoc, listOf(page), colors) {}
+                    ComicExtractOverlay(doc as ComicReaderDoc, listOf(page), colors, menuVisible = menu) {}
+                } else if (fitMode && comicDoc != null) {
+                    // F-54 맞춤 방식(폭·높이·원본) + F-55 두 번 탭 2배 + F-58 미리 풀기
+                    val readySet = upscale?.ready?.collectAsState()?.value
+                    val extState = comicDoc.extract?.collectAsState()?.value
+                    LaunchedEffect(upscale, page, pxW, pxH) { upscale?.request(comicDoc.sourceOf(page), pxW.toInt(), pxH.toInt()) }
+                    ZoomPager(
+                        count = count, startIndex = page, fit = comic?.prefs?.fit ?: ComicBookPrefs.FIT_SCREEN, rtl = doc.rtl, colors = colors,
+                        load = { i, w -> (comicDoc.takeAheadFree(i, w) ?: comicDoc.renderFree(comicDoc.sourceOf(i), w))?.let { ZoomImage(it.bmp, it.nativeW) } },
+                        prefetch = { i, fwd, w -> comicDoc.prefetchFree(i, fwd, w) },
+                        tapAction = tapOf, menuVisible = menu, onToggleMenu = { menu = !menu },
+                        onPage = { if (it != page) { page = it; pagesTurned++ } },
+                        onLongPress = { i -> comicMenuOf(comicDoc.sourceOf(i)) },
+                        turnRequest = turnReq, turnForward = turnFwd,
+                        jumpRequest = jumpReq, onJumpHandled = { jumpReq = null },
+                        reloadKey = listOf(comicDoc.look, comic?.prefs?.fit, readySet?.contains(comicDoc.sourceOf(page)), extState?.done?.let { comicDoc.ready(comicDoc.sourceOf(page)) }),
+                    )
+                    ComicExtractOverlay(comicDoc, listOf(comicDoc.sourceOf(page)), colors, menuVisible = menu) {}
+                    if (upscale != null && !menu) UpscaleChip(upscale, comicDoc.sourceOf(page), Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 12.dp))
                 } else {
                     val near = if (reflow || isWord) 3 else 0 // Word 원본↔이북식은 쪽 수가 달라 근처 쪽까지 찾는다
                     val speaking = if (listening) listen.cur?.takeIf { it.start >= 0 } else null
@@ -632,7 +715,8 @@ fun ReaderScreen(
                         GuardedSource(doc, colors) { i, tpOf ->
                             // 쪽 수가 바뀌어도(이북식 글꼴·크기) 위치 비율로 근처 쪽을 찾은 뒤 글자로 다시 맞춘다
                             val cand = hl.filter { kotlin.math.abs(locatorPage(it.page, it.frac, count) - i) <= near }
-                            val tp = if (cand.isEmpty() && h?.page != i && sp?.page != i) null else tpOf()
+                            val spHere = sp != null && (sp.page == i || (sp.start2 >= 0 && sp.page + 1 == i))
+                            val tp = if (cand.isEmpty() && h?.page != i && !spHere) null else tpOf()
                             if (tp == null) emptyList<Mark>()
                             else {
                                 cand.mapNotNull { x ->
@@ -640,12 +724,65 @@ fun ReaderScreen(
                                     Mark(r.first, r.last + 1, HighlightColors[x.color.coerceIn(0, 3)])
                                 } + listOfNotNull(
                                     h?.takeIf { it.page == i }?.let { searchMark(it) },
-                                    // 듣기: 읽는 문장 옅은 주색 바탕(S-27)
+                                    // 듣기: 읽는 문장 옅은 주색 바탕(S-27). 쪽 경계에 걸친 문장은 다음 쪽 머리도 칠한다.
                                     sp?.takeIf { it.page == i && it.end <= tp.text.length }?.let { Mark(it.start, it.end, spColor) },
+                                    sp?.takeIf { it.start2 >= 0 && it.page + 1 == i && it.end2 <= tp.text.length }?.let { Mark(it.start2, it.end2, spColor) },
                                 )
                             }
                         }
                     }
+                    val rtl = doc.rtl
+                    /** 고른 칸·누른 곳(px)에서 낱말을 골라 글자 선택을 연다(S-28). */
+                    fun selectAt(slot: PageSlot, xPx: Float, yPx: Float) {
+                        scope.launch {
+                            val tp = withContext(Dispatchers.IO) { if (slot.page in 0 until count) guarded(doc, null) { doc.pageText(slot.page) } else null }
+                            if (tp == null || tp.text.isBlank()) { stub(noTextMsg(fmt)); return@launch }
+                            val b = slot.content(tp)
+                            val i = TextGeo.charAt(tp, (xPx - b.l) / (b.r - b.l), (yPx - b.t) / (b.b - b.t))
+                            if (i < 0) return@launch
+                            val w = TextGeo.wordAt(tp.text, i)
+                            sel = Selection(slot, tp, w.first, w.last + 1)
+                        }
+                    }
+                    // 스크롤 보기 자리 잡기용 쪽 비율(고정 쪽은 지금 쪽 것을 한 번 재 둔다 — 엔진 호출은 백그라운드)
+                    val defAspect by produceState<Float?>(if (reflow) hDp / pageWdp.coerceAtLeast(1f) else null, doc, scrollMode) {
+                        if (value == null && scrollMode) value = withContext(Dispatchers.IO) {
+                            guarded(doc, null) { doc.pageAspect(page.coerceIn(0, (count - 1).coerceAtLeast(0))) } ?: 1.414f
+                        }
+                    }
+                    val da = defAspect
+                    if (scrollMode && da == null) {
+                        CircularProgressIndicator(color = colors.accentC, modifier = Modifier.align(Alignment.Center))
+                    } else if (scrollMode && da != null) {
+                        // F-22 스크롤 보기(+ F-44 자동 스크롤)
+                        ScrollReader(
+                            source = source,
+                            aspectOf = { i -> if (reflow) da else guarded(doc, null) { doc.pageAspect(i) } },
+                            defaultAspect = da,
+                            columnMaxDp = if (reflow) pageWdp else wDp,
+                            zoomable = !reflow,
+                            colors = colors, startPage = page,
+                            onPage = { if (it != page) { page = it; pagesTurned++ } },
+                            onTap = { xf, yf ->
+                                touchTick++
+                                when {
+                                    sel != null -> sel = null
+                                    menu -> menu = false
+                                    foot != null -> foot = null
+                                    autoOn && !autoPaused -> autoPaused = true
+                                    yf < 0.3f -> { turnFwd = false; turnReq++ }
+                                    yf > 0.7f -> { turnFwd = true; turnReq++ }
+                                    else -> menu = true
+                                }
+                            },
+                            onLongPress = { slot, x, y -> menu = false; selectAt(slot, x, y) },
+                            onUserScroll = { if (sel != null) sel = null; touchTick++ },
+                            turnRequest = turnReq, turnForward = turnFwd,
+                            jumpRequest = jumpReq, onJumpHandled = { jumpReq = null },
+                            revealRequest = revealReq,
+                            autoDpPerSec = autoDp, onAutoEnd = onAutoEnd,
+                        )
+                    } else {
                     LaunchedEffect(jumpReq, source) {
                         val j = jumpReq ?: return@LaunchedEffect
                         page = j.coerceIn(0, (count - 1).coerceAtLeast(0))
@@ -660,7 +797,43 @@ fun ReaderScreen(
                         backColor = colors.bg,
                         shadowStrength = colors.shadow,
                     )
-                    val rtl = doc.rtl
+                    // 고정 쪽·만화: 두 번 탭 = 누른 곳 2배(F-55), 두 손가락 = 확대(F-23) → 확대 덧화면(ZoomPager)
+                    val zoomable = !reflow
+                    fun openZoom(xf: Float, yf: Float, k: Float) {
+                        val slot = slotAt(xf * pxW, pxW, pxH, page, spreadNow, rtl)
+                        if (slot.page !in 0 until count) return
+                        menu = false; sel = null
+                        zoomAt = ZoomReq(slot.page, (xf * pxW - slot.left) / slot.width * pxW, yf * pxH, k)
+                    }
+                    fun handleTap(v: PageCurlView, x: Float, y: Float) {
+                        when {
+                            sel != null -> sel = null
+                            menu -> menu = false
+                            foot != null -> foot = null
+                            autoOn && !autoPaused -> autoPaused = true
+                            else -> {
+                                // F-46: 문서 안 링크(각주)를 누르면 팝업, 읽던 쪽은 그대로
+                                val slot = slotAt(x * pxW, pxW, pxH, page, spreadNow, rtl)
+                                val nx = (x * pxW - slot.left) / slot.width
+                                val ny = (y * pxH - slot.top) / slot.height
+                                val pad = 0.015f
+                                val link = pageLinks[slot.page]?.firstOrNull { nx >= it.l - pad && nx <= it.r + pad && ny >= it.t - pad && ny <= it.b + pad }
+                                val md = doc as? MupdfReaderDoc
+                                if (link != null && md != null) {
+                                    scope.launch {
+                                        val fn = withContext(Dispatchers.IO) { guarded(doc, null) { md.footnote(link.uri) } }
+                                        if (fn == null) { stub("링크가 가리키는 곳을 찾지 못했어요.") }
+                                        else { foot = FootState(fn.text, fn.page, if (y < 0.6f) link.b else link.t, below = y < 0.6f) }
+                                    }
+                                } else when (tapOf(x, y)) {
+                                    TapAction.PREV -> { v.turn(next = false) }
+                                    TapAction.NEXT -> { v.turn(next = true) }
+                                    TapAction.MENU -> { menu = true }
+                                    TapAction.NONE -> {}
+                                }
+                            }
+                        }
+                    }
                     AndroidView(
                         factory = { ctx ->
                             PageCurlView(ctx).also { v ->
@@ -672,57 +845,85 @@ fun ReaderScreen(
                             v.onLongPress = { xf, yf ->
                                 menu = false
                                 val slot = slotAt(xf * pxW, pxW, pxH, page, spreadNow, rtl)
-                                scope.launch {
-                                    val tp = withContext(Dispatchers.IO) { if (slot.page in 0 until count) doc.pageText(slot.page) else null }
-                                    if (tp == null || tp.text.isBlank()) { stub(noTextMsg(fmt)); return@launch }
-                                    val b = slot.content(tp)
-                                    val i = TextGeo.charAt(tp, (xf * pxW - b.l) / (b.r - b.l), (yf * pxH - b.t) / (b.b - b.t))
-                                    if (i < 0) return@launch
-                                    val w = TextGeo.wordAt(tp.text, i)
-                                    sel = Selection(slot, tp, w.first, w.last + 1)
-                                }
+                                if (comicDoc != null) {
+                                    // F-59 만화 쪽 메뉴(표지로 지정·공유·저장)
+                                    if (slot.page in 0 until count) comicMenuOf(comicDoc.sourceOf(slot.page))
+                                } else selectAt(slot, xf * pxW, yf * pxH)
                             }
                             v.onTap = { x, y ->
                                 touchTick++
-                                when {
-                                    sel != null -> sel = null
-                                    menu -> menu = false
-                                    foot != null -> foot = null
-                                    autoOn && !autoPaused -> autoPaused = true
-                                    else -> {
-                                        // F-46: 문서 안 링크(각주)를 누르면 팝업, 읽던 쪽은 그대로
-                                        val slot = slotAt(x * pxW, pxW, pxH, page, spreadNow, rtl)
-                                        val nx = (x * pxW - slot.left) / slot.width
-                                        val ny = (y * pxH - slot.top) / slot.height
-                                        val pad = 0.015f
-                                        val link = pageLinks[slot.page]?.firstOrNull { nx >= it.l - pad && nx <= it.r + pad && ny >= it.t - pad && ny <= it.b + pad }
-                                        val md = doc as? MupdfReaderDoc
-                                        if (link != null && md != null) {
-                                            scope.launch {
-                                                val fn = withContext(Dispatchers.IO) { guarded(doc, null) { md.footnote(link.uri) } }
-                                                if (fn == null) { stub("링크가 가리키는 곳을 찾지 못했어요.") }
-                                                else { foot = FootState(fn.text, fn.page, if (y < 0.6f) link.b else link.t, below = y < 0.6f) }
-                                            }
-                                        } else when (TapZones.action(x, y, s.tapLayout, s.tapCustom, s.leftHanded, rtl)) {
-                                            TapAction.PREV -> { v.turn(next = false) }
-                                            TapAction.NEXT -> { v.turn(next = true) }
-                                            TapAction.MENU -> { menu = true }
-                                            TapAction.NONE -> {}
-                                        }
+                                val t = tapState
+                                val plain = sel == null && !menu && foot == null && !(autoOn && !autoPaused)
+                                if (zoomable && plain) {
+                                    // 두 번 탭을 가리려고 한 번 탭은 잠깐 미룬다(고정 쪽·만화만)
+                                    val now = SystemClock.uptimeMillis()
+                                    val pj = t.job
+                                    if (pj != null && pj.isActive && now - t.at < 300L && abs(x - t.x) < 0.08f && abs(y - t.y) < 0.08f) {
+                                        pj.cancel(); t.job = null
+                                        openZoom(x, y, 2f)
+                                    } else {
+                                        t.at = now; t.x = x; t.y = y
+                                        t.job = scope.launch { delay(250L); handleTap(v, x, y) }
                                     }
-                                }
+                                } else handleTap(v, x, y)
                             }
                             v.setConfig(cfg)
                             if (v.tag !== source) { v.tag = source; v.setPageSource(source, page) }
                         },
                         onRelease = { it.release() },
-                        modifier = Modifier.fillMaxSize().semantics { contentDescription = "${target.title} ${page + 1}쪽" },
+                        modifier = Modifier.fillMaxSize()
+                            .then(
+                                if (!zoomable) Modifier else Modifier.pointerInput(page, spreadNow) {
+                                    // 두 손가락을 대면 확대 덧화면으로(넘김 화면에는 취소가 간다)
+                                    awaitEachGesture {
+                                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                        while (true) {
+                                            val ev = awaitPointerEvent(PointerEventPass.Initial)
+                                            val down = ev.changes.filter { it.pressed }
+                                            if (down.isEmpty()) break
+                                            if (down.size >= 2) {
+                                                val cx = down.map { it.position.x }.average().toFloat()
+                                                val cy = down.map { it.position.y }.average().toFloat()
+                                                ev.changes.forEach { it.consume() }
+                                                tapState.job?.cancel()
+                                                openZoom(cx / size.width, cy / size.height, 1.5f)
+                                                break
+                                            }
+                                        }
+                                    }
+                                },
+                            )
+                            .semantics { contentDescription = "${target.title} ${page + 1}쪽" },
                     )
-                    LaunchedEffect(turnReq) { if (turnReq > 0) curlView?.turn(turnFwd) }
+                    // 넘김 화면을 처음 그릴 때의 요청 번호는 이미 처리된 것(스크롤 보기 등에서 돌아와도 넘기지 않게)
+                    val curlTurn0 = remember(doc) { turnReq }
+                    LaunchedEffect(turnReq) { if (turnReq > curlTurn0 && zoomAt == null) curlView?.turn(turnFwd) }
+                    zoomAt?.let { z ->
+                        ZoomPager(
+                            count = count, startIndex = z.index, fit = ComicBookPrefs.FIT_SCREEN, rtl = rtl, colors = colors,
+                            load = { i, w ->
+                                if (comicDoc != null) comicDoc.renderFree(comicDoc.sourceOf(i), w)?.let { ZoomImage(it.bmp, it.nativeW) }
+                                else {
+                                    // 고정 쪽: 화면 비율로 그린 쪽(형광펜·검색 표시 포함), 화소 상한 약 9MP
+                                    val k = kotlin.math.sqrt(9_000_000.0 / (pxW.toDouble() * pxH)).toFloat().coerceAtMost(w / pxW)
+                                    val rw = (pxW * k).toInt().coerceAtLeast(1); val rh = (pxH * k).toInt().coerceAtLeast(1)
+                                    ZoomImage(source.render(i, rw, rh), rw)
+                                }
+                            },
+                            tapAction = tapOf, menuVisible = false,
+                            onToggleMenu = { zoomAt = null; jumpReq = page; menu = true },
+                            onPage = { if (it != page) { page = it; pagesTurned++ } },
+                            onLongPress = if (comicDoc != null) ({ i: Int -> comicMenuOf(comicDoc.sourceOf(i)) }) else null,
+                            turnRequest = turnReq, turnForward = turnFwd,
+                            initialZoom = z.zoom, initialFocus = Offset(z.fx, z.fy),
+                            onExit = { zoomAt = null; jumpReq = page },
+                        )
+                        BackHandler { zoomAt = null; jumpReq = page }
+                    }
                     if (doc is ComicReaderDoc) {
                         // solid CBR 풀기 진행·쪽 준비 중(S-41). 보이는 쪽이 풀리면 다시 그린다.
                         val visSrc = (if (spreadNow) listOf(page, page + 1) else listOf(page)).filter { it < count }.map { doc.sourceOf(it) }
-                        ComicExtractOverlay(doc, visSrc, colors) { curlView?.let { v -> v.tag = source; v.setPageSource(source, page) } }
+                        ComicExtractOverlay(doc, visSrc, colors, menuVisible = menu) { curlView?.let { v -> v.tag = source; v.setPageSource(source, page) } }
                     }
                     if (upscale != null && doc is ComicReaderDoc) {
                         val readySet by upscale.ready.collectAsState()
@@ -737,11 +938,15 @@ fun ReaderScreen(
                         }
                         if (!menu) UpscaleChip(upscale, page, Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 12.dp))
                     }
+                    }
+                }
+                comicMenuPage?.let { mp ->
+                    if (comicDoc != null) ComicPageMenu(comicDoc, mp, target.title, target.id, target.path, target.once, onDismiss = { comicMenuPage = null }, onMessage = { stub(it) })
                 }
 
                 // 볼륨 키 (화면 설계서 4.5): 메뉴·시트가 열려 있으면 시스템 음량
                 // 듣는 동안은 소리 크기(4.5). 자동 넘김 중 볼륨 키 = 넘김 + 타이머 다시 시작(page 가 바뀌며 다시 셈)
-                val volOn = s.volumeKeys && !menu && !showAa && !showToc && !showTurn && !showLight && sel == null && !searchOpen && !listening
+                val volOn = s.volumeKeys && !menu && !showAa && !showToc && !showTurn && !showLight && sel == null && !searchOpen && !listening && comicMenuPage == null
                 DisposableEffect(volOn) {
                     val h: (Boolean) -> Boolean = { next -> touchTick++; turnFwd = next; turnReq++; true }
                     VolumeKeys.handler = if (volOn) h else null
@@ -754,7 +959,16 @@ fun ReaderScreen(
                 }
                 val chapterLeft = tocPages?.takeIf { it.isNotEmpty() }?.let { t -> (t.firstOrNull { it > page } ?: count) - page - 1 }
                 if (!menu && !panelMode && !(listening && !s.infoTop)) {
-                    ReaderInfoLine(page, count, chapterLeft, msPerPage, s, colors, Modifier.align(if (s.infoTop) Alignment.TopCenter else Alignment.BottomCenter))
+                    // 태블릿 두 쪽 펼침에서 '쪽마다' 설정이면 각 쪽 아래에 그 쪽 번호(만화는 원본 쪽 번호)
+                    val perPage = s.infoPerPage && spreadNow && !scrollView && !webtoon && !fitMode && zoomAt == null
+                    val halves = if (!perPage) null else {
+                        fun num(i: Int): Int? = if (i !in 0 until count) null else comicDoc?.sourceOf(i) ?: i
+                        val coverFirst = page == 0 && (comic?.prefs?.coverAlone ?: true)
+                        val a: Int? = if (coverFirst) null else num(page)
+                        val b: Int? = if (coverFirst) num(0) else num(page + 1)
+                        if (doc.rtl) b to a else a to b
+                    }
+                    ReaderInfoLine(page, count, chapterLeft, msPerPage, s, colors, Modifier.align(if (s.infoTop) Alignment.TopCenter else Alignment.BottomCenter), halves = halves)
                 }
                 // 자동 넘김 멈춤 띠
                 if (autoOn && autoPaused && !menu) Row(
@@ -762,7 +976,7 @@ fun ReaderScreen(
                         .background(colors.barC, RoundedCornerShape(24.dp)).padding(start = 16.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("자동 넘김 멈춤", fontSize = 14.sp, color = colors.fgC)
+                    Text(if (continuous) "자동 스크롤 멈춤" else "자동 넘김 멈춤", fontSize = 14.sp, color = colors.fgC)
                     TextButton(onClick = { autoPaused = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("다시 시작", color = colors.accentC, fontWeight = FontWeight.Bold) }
                     TextButton(onClick = { autoOn = false; autoPaused = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("끄기", color = colors.fgC) }
                 }
@@ -907,6 +1121,8 @@ fun ReaderScreen(
         onAuto = { v -> autoOn = v; autoPaused = false; if (v) { showTurn = false; menu = false } },
         onGuide = { showTurn = false; menu = false; onSettings { it.copy(tapGuideShown = false) } },
         onDismiss = { showTurn = false },
+        scrollAvailable = !comicNow && fmt.group != FormatGroup.COMIC && !pdfComic,
+        continuous = continuousNow || (s.scrollView && !comicNow && fmt.group != FormatGroup.COMIC && !pdfComic),
     )
     if (showLight) {
         val od = openDoc

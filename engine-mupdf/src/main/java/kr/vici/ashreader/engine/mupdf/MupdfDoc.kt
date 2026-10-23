@@ -27,6 +27,18 @@ class MupdfDoc private constructor(private val doc: Document) : Closeable {
 
     fun pageCount(): Int = doc.countPages()
 
+    /** 쪽 세로/가로 비율(F-22 스크롤 보기 자리 잡기). */
+    fun pageAspect(i: Int): Float {
+        val page = doc.loadPage(i)
+        try {
+            val b = page.bounds
+            val w = (b.x1 - b.x0).takeIf { it > 0f } ?: return 1.414f
+            return (b.y1 - b.y0) / w
+        } finally {
+            page.destroy()
+        }
+    }
+
     /** 쪽을 폭 [widthPx]에 맞춰 렌더한다. */
     fun renderPage(i: Int, widthPx: Int): Bitmap {
         val page = doc.loadPage(i)

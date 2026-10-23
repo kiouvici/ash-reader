@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kr.vici.ashreader.doc.ComicReaderDoc
 import kr.vici.ashreader.doc.ComicUpscale
@@ -73,6 +74,8 @@ fun ComicPanelReader(
     /** 목차·쪽 이동 막대에서 고른 쪽(처리 후 [onJumpHandled]). */
     jumpRequest: Int? = null,
     onJumpHandled: () -> Unit = {},
+    /** 길게 누름(F-59): 원본 쪽 번호. */
+    onLongPress: (Int) -> Unit = {},
 ) {
     var page by remember { mutableIntStateOf(startPage.coerceIn(0, (doc.pageCount - 1).coerceAtLeast(0))) }
     var sel by remember { mutableIntStateOf(if (autoDefault) 0 else -1) }
@@ -88,14 +91,24 @@ fun ComicPanelReader(
         // solid CBR: 풀리면 다시 읽는다(N-02)
         doc.extract?.collectAsState()?.value
         val pageReady = doc.ready(page)
+        var lastForward by remember { mutableStateOf(true) }
         val loaded by produceState<Pair<Bitmap, PagePanels>?>(null, page, upHere, doc.look, pageReady) {
+            val w = wPx.toInt().coerceAtLeast(1)
+            val p0 = page
             value = withContext(Dispatchers.IO) {
                 runCatching {
-                    val w = wPx.toInt().coerceAtLeast(1)
-                    // 2배 결과는 칸 확대에 쓰도록 화면 폭 2배까지 남긴다
-                    val b = doc.withLook((if (upHere) upscale?.load(page, w * 2) else null) ?: doc.pageBitmap(page, w))
-                    b to doc.panels(page, dir)
+                    // 2배 결과는 칸 확대에 쓰도록 화면 폭 2배까지 남긴다. 미리 풀어 둔 그림(F-58)이 있으면 그것부터.
+                    val b = (if (upHere) upscale?.load(p0, w * 2)?.let { doc.withLook(it) } else null)
+                        ?: doc.takeAhead("panel", p0, w)
+                        ?: doc.withLook(doc.pageBitmap(p0, w))
+                    b to doc.panels(p0, dir)
                 }.getOrNull()
+            }
+            // F-58: 넘김 방향으로 2쪽, 반대로 1쪽(칸 인식도 같이 해 둔다)
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    doc.prefetch("panel", p0, lastForward, w, doc.pageCount) { i -> doc.withLook(doc.pageBitmap(i, w)).also { runCatching { doc.panels(i, dir) } } }
+                }
             }
         }
         LaunchedEffect(page) { onPage(page) }
@@ -120,6 +133,7 @@ fun ComicPanelReader(
         val n = rects.size
 
         fun go(forward: Boolean) {
+            lastForward = forward
             if (n == 0 || (sel < 0 && !auto)) {
                 val np = page + if (forward) 1 else -1
                 if (np in 0 until doc.pageCount) { page = np; sel = if (auto) (if (forward) 0 else Int.MAX_VALUE) else -1 }
@@ -147,6 +161,8 @@ fun ComicPanelReader(
 
         // 두 번 탭 확대(사용자 확대): 화면 좌표 = u + uz × 내용 좌표
         var uz by remember { mutableFloatStateOf(1f) }
+        var zoomTick by remember { mutableIntStateOf(0) }
+        LaunchedEffect(zoomTick) { if (zoomTick > 0) { delay(2000); zoomTick = 0 } }
         var ux by remember { mutableFloatStateOf(0f) }
         var uy by remember { mutableFloatStateOf(0f) }
         LaunchedEffect(page, sel) { uz = 1f; ux = 0f; uy = 0f }
@@ -165,7 +181,9 @@ fun ComicPanelReader(
                         onDoubleTap = { p: Offset ->
                             if (uz > 1f) { uz = 1f; ux = 0f; uy = 0f }
                             else { uz = 2f; ux = -p.x; uy = -p.y; clampPan() }
+                            zoomTick++
                         },
+                        onLongPress = { onLongPress(page) },
                     ) { p: Offset ->
                         val xf = p.x / size.width
                         val yf = p.y / size.height
@@ -201,6 +219,11 @@ fun ComicPanelReader(
           }
         }
         if (upscale != null && !menuVisible) UpscaleChip(upscale, page, Modifier.align(Alignment.TopEnd).padding(top = 48.dp, end = 12.dp))
+        // 확대 배율(F-55, S-32): 바뀐 뒤 2초
+        if (zoomTick > 0) Text(
+            "${(uz * 100).toInt()}%", fontSize = 12.sp, color = colors.fgC,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 120.dp).background(colors.barC, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
+        )
 
         // 위 띠(메뉴 숨김일 때 안내)
         if (!menuVisible) Text(

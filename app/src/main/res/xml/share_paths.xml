@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- F-59 쪽 그림 공유: 앱 캐시 share/ 만 -->
+<paths>
+    <cache-path name="share" path="share/" />
+</paths>

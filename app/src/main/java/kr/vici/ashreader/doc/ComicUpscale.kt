@@ -116,7 +116,8 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
         level >= 0 && scale > 0 && level * 100 / scale <= 15 && !plugged
     }.getOrDefault(false)
 
-    private fun file(i: Int) = File(dir, "$i.webp")
+    /** 쪽 [i] 의 2배 결과 파일(웹툰 띠 영역 읽기에도 쓴다). */
+    fun file(i: Int) = File(dir, "$i.webp")
 
     private fun scan(): Set<Int> = dir.listFiles()?.mapNotNull { f ->
         if (f.name.endsWith(".webp") && f.length() > 0) f.name.removeSuffix(".webp").toIntOrNull() else null
