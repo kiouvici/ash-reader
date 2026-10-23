@@ -75,6 +75,7 @@ import kotlinx.coroutines.withContext
 import kr.vici.ashreader.Links
 import kr.vici.ashreader.ash
 import kr.vici.ashreader.data.Book
+import kr.vici.ashreader.data.SeriesGroups
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.NotesExport
 import kr.vici.ashreader.data.ScanFolder
@@ -405,6 +406,7 @@ fun BookMenuSheet(b: Book, onDismiss: () -> Unit, onOpen: () -> Unit, onRemove: 
     val f = DocFormat.of(b.format)
     var info by remember { mutableStateOf(false) }
     var confirmRemove by remember { mutableStateOf(false) }
+    var grouping by remember { mutableStateOf(false) }
     // 시트 안에서 바꾼 값을 바로 보이게(DB 흐름이 늦게 와도)
     var status by remember(b.id) { mutableStateOf(b.status) }
     var fav by remember(b.id) { mutableStateOf(b.favorite) }
@@ -431,9 +433,30 @@ fun BookMenuSheet(b: Book, onDismiss: () -> Unit, onOpen: () -> Unit, onRemove: 
             }
             MenuLine("열기", onClick = onOpen)
             MenuLine("처음부터 읽기") { scope.launch { app.db.books().restart(b.id); onOpen() } }
+            // F-62 시리즈 직접 묶기·빼기
+            if (SeriesGroups.keyOf(b) != null && b.seriesKey.isNotBlank()) MenuLine("시리즈에서 빼기") {
+                app.appScope.launch { app.db.books().setSeries(b.id, b.seriesKey, Book.SERIES_EXCLUDED) }; onDismiss()
+            }
+            MenuLine("시리즈로 묶기…") { grouping = true }
             MenuLine("형광펜·메모 내보내기", onClick = onExport)
             MenuLine("문서 정보") { info = true }
             MenuLine("서재에서 빼기", color = Color(0xFFB3261E)) { confirmRemove = true }
+        }
+    }
+    if (grouping) {
+        val names by produceState(emptyList<String>(), b.id) {
+            value = withContext(Dispatchers.IO) { SeriesGroups.groups(app.db.books().visibleBooks()).keys.map { SeriesGroups.nameOf(it) }.distinct().sorted() }
+        }
+        GroupIntoSeriesDialog(b, names, onDismiss = { grouping = false }) { name ->
+            grouping = false
+            app.appScope.launch {
+                // 같은 이름의 자동 묶음이 있으면 그 권들도 직접 묶음으로 옮겨 한 묶음이 되게
+                val all = app.db.books().visibleBooks()
+                all.filter { it.id != b.id && it.seriesManual == Book.SERIES_AUTO && it.seriesKey == name && SeriesGroups.keyOf(it)?.let { k -> SeriesGroups.groups(all).containsKey(k) } == true }
+                    .forEach { app.db.books().setSeries(it.id, name, Book.SERIES_MANUAL) }
+                app.db.books().setSeries(b.id, name, Book.SERIES_MANUAL)
+            }
+            onDismiss()
         }
     }
     if (info) {

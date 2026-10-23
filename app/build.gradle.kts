@@ -36,9 +36,12 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = ashVersionCode()
-        versionName = "0.1.0"
+        versionName = ashVersionName()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // 64비트 전용(기술 설계서 K-14, D-020): 만화·DjVu·MOBI 엔진은 64비트만 빌드하므로, 32비트 .so 가 일부만 들어가
+        // 32비트 기기에서 설치는 되나 열 때 멈추는 일을 막는다(32비트 전용 기기는 설치 단계에서 거부 — 알려진 제약).
+        ndk { abiFilters += (providers.gradleProperty("ash.abis").orNull?.split(",") ?: listOf("arm64-v8a", "x86_64")) }
     }
 
     signingConfigs {
@@ -97,7 +100,14 @@ android {
 
     buildFeatures {
         compose = true
+        // AppInfo.VERSION_LABEL = BuildConfig.VERSION_NAME (CI 판 이름)
+        buildConfig = true
     }
+}
+
+// Room 스키마 내보내기(exportSchema = true): app/schemas/<DB 클래스>/<판>.json — 판을 올릴 때 함께 커밋한다
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -127,6 +137,11 @@ dependencies {
     implementation(project(":engine-djvu"))
 
     testImplementation(libs.junit)
+    // DB 이전 시험(AshDbMigrationTest, CI 에뮬레이터 job)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.junit)
 }
 
 // N-05 ①: 병합된 매니페스트 INTERNET 권한 검사 (구현은 buildSrc/AshBuild.kt)

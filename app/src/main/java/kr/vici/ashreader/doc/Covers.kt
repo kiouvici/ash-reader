@@ -27,7 +27,7 @@ import kr.vici.ashreader.office.Cfb
  * 서재 표지 썸네일(실제 책 표지). 백그라운드에서 한 권씩 뽑아 앱 files/covers 에 폭 [WIDTH]px WebP 로 둔다.
  * 파일 이름 = 책 id + 파일 크기 + 수정 시각 → 파일이 바뀌면 새로 만든다. 못 뽑은 책은 표시 파일(.none)로 다시 시도하지 않는다.
  * - EPUB: OPF 표지(cover-image / meta cover) → 그림 중 첫 장
- * - PDF·XPS: 첫 쪽 / CBZ·CBR: 첫 그림
+ * - PDF: 첫 쪽 / CBZ·CBR: 첫 그림
  * - DOCX: 첫 내장 그림 → 없으면 첫 쪽(이북식 변환)
  * - HWP·HWPX: 미리보기 그림(PrvImage) → 없으면 첫 쪽(rhwp)
  * - DjVu: 첫 쪽
@@ -48,7 +48,7 @@ object Covers {
     fun dir(context: Context) = File(context.filesDir, "covers")
 
     fun supported(f: DocFormat) = when (f) {
-        DocFormat.EPUB, DocFormat.PDF, DocFormat.XPS, DocFormat.CBZ, DocFormat.CBR,
+        DocFormat.EPUB, DocFormat.PDF, DocFormat.CBZ, DocFormat.CBR,
         DocFormat.DOCX, DocFormat.HWP, DocFormat.HWPX, DocFormat.DJVU,
         DocFormat.MOBI, DocFormat.AZW3, DocFormat.CHM -> true
         else -> false
@@ -107,7 +107,7 @@ object Covers {
 
     private fun extract(context: Context, file: File, fmt: DocFormat, id: String): Bitmap? = when (fmt) {
         DocFormat.EPUB -> epub(file)
-        DocFormat.PDF, DocFormat.XPS -> {
+        DocFormat.PDF -> {
             BundledFonts.install(context)
             MupdfDoc.open(file.absolutePath).use { d -> if (d.pageCount() > 0) d.renderPage(0, WIDTH) else null }
         }

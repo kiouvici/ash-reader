@@ -8,10 +8,12 @@ import android.graphics.Bitmap
 internal object NativeComic {
     init { System.loadLibrary("ash_comic") }
 
-    fun interface Progress { fun onEntry(index: Int, name: String) }
+    fun interface Progress { fun onEntry(index: Int) }
 
-    @JvmStatic external fun archiveList(path: String): Array<String>
-    @JvmStatic external fun archiveRead(path: String, name: String, maxBytes: Long): ByteArray
+    /** [이름 바이트0, 크기(ASCII)0, …]. 이름은 압축 안 원래 바이트(UTF-8 또는 CP949). */
+    @JvmStatic external fun archiveList(path: String): Array<ByteArray>
+    /** [index] = archiveList 순서의 일반 파일 번호. */
+    @JvmStatic external fun archiveRead(path: String, index: Int, maxBytes: Long): ByteArray
     @JvmStatic external fun archiveExtractAll(path: String, dir: String, maxTotal: Long, progress: Progress?): Int
 
     @JvmStatic external fun vulkanInfo(): String

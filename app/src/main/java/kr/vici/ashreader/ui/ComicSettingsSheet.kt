@@ -30,6 +30,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -181,6 +182,11 @@ private fun TurnTab(cs: ComicSession, p: ComicBookPrefs, globalPanel: PanelMode)
     Label("두 쪽 보기")
     Choices(listOf("자동", "한 쪽", "두 쪽"), p.spread, enabled = !web) { i -> cs.update { it.copy(spread = i) } }
     SwitchLine("첫 쪽 단독", p.coverAlone, enabled = !web && p.spread != 1, sub = "두 쪽 보기에서 표지를 혼자 보여요") { v -> cs.update { it.copy(coverAlone = v) } }
+    // F-50: 펼침 그림의 짝이 어긋난 책 — 짝을 한 쪽 밀거나 되돌린다(두 쪽 보기일 때)
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = { cs.update { it.copy(shift = true) } }, enabled = !web && p.spread != 1 && !p.shift, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("짝 한 쪽 밀기") }
+        OutlinedButton(onClick = { cs.update { it.copy(shift = false) } }, enabled = !web && p.spread != 1 && p.shift, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("되돌리기") }
+    }
     Label("가로로 긴 쪽", "한 쪽 보기·세로 화면일 때. 두 쪽 보기에서는 펼침 하나로 크게 보여요")
     Choices(listOf("반으로 나눔", "회전", "그대로"), p.wide, enabled = !web) { i -> cs.update { it.copy(wide = i) } }
 

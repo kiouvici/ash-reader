@@ -76,7 +76,7 @@ class ComicSession(
         // 처음 배치는 지난번에 기록한 쪽 크기로 바로 정한다(저장된 읽던 쪽 번호가 같은 배치 기준이므로). 나머지는 ComicSessionEffects 가 뒤에서.
         if (!webtoon && panelMode(globalPanel) == PanelMode.OFF) {
             val sp = when (prefs.spread) { 1 -> false; 2 -> true; else -> autoSpread }
-            doc.commitLayout(SpreadLayout.build(doc.cachedSizes(), sp, landscape, WideMode.entries[prefs.wide.coerceIn(0, 2)], doc.rtl, prefs.coverAlone), sp)
+            doc.commitLayout(SpreadLayout.build(doc.cachedSizes(), sp, landscape, WideMode.entries[prefs.wide.coerceIn(0, 2)], doc.rtl, prefs.coverAlone, prefs.shift), sp)
         }
     }
 
@@ -160,10 +160,10 @@ fun ComicSessionEffects(
     val ext = cs.doc.extract?.collectAsState()?.value
     val relayout by rememberUpdatedState(onRelayout)
     val rtl = cs.doc.rtl
-    LaunchedEffect(cs, p.spread, p.wide, p.coverAlone, rtl, autoSpread, landscape, plainPages, ext?.finished) {
+    LaunchedEffect(cs, p.spread, p.wide, p.coverAlone, p.shift, rtl, autoSpread, landscape, plainPages, ext?.finished) {
         val spread = when (p.spread) { 1 -> false; 2 -> true; else -> autoSpread }
         val slots = if (plainPages) null else withContext(Dispatchers.IO) {
-            SpreadLayout.build(cs.doc.sizes(), spread, landscape, WideMode.entries[p.wide.coerceIn(0, 2)], rtl, p.coverAlone)
+            SpreadLayout.build(cs.doc.sizes(), spread, landscape, WideMode.entries[p.wide.coerceIn(0, 2)], rtl, p.coverAlone, p.shift)
         }
         val f = cs.doc.commitLayout(slots, spread && !plainPages)
         if (f != null) { relayout(f); cs.layoutVersion++ }

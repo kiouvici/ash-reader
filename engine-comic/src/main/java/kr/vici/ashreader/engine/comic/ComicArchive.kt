@@ -21,13 +21,19 @@ class ComicArchive private constructor(
 ) : Closeable {
     val pages: List<PageEntry>
     val direction: ReadingDirection?
+    /** CBR: archiveList 순서의 항목 이름(풀기 진행의 번호 → 이름). */
+    private val rarNames: List<String>
+    private val rarIndex = HashMap<String, Int>()
 
     init {
         val all: List<Pair<String, Long>> = if (zip != null) {
             zip.entries().asSequence().filter { !it.isDirectory }.map { it.name to it.size }.toList()
         } else {
-            rar { NativeComic.archiveList(file.path) }.toList().chunked(2).map { it[0] to it[1].toLong() }
+            rar { NativeComic.archiveList(file.path) }.toList().chunked(2)
+                .map { ComicFormat.decodeName(it[0]) to (String(it[1], Charsets.US_ASCII).toLongOrNull() ?: -1L) }
         }
+        rarNames = if (zip == null) all.map { it.first } else emptyList()
+        rarNames.forEachIndexed { i, n -> rarIndex.putIfAbsent(n, i) }
         pages = ComicFormat.pages(all)
         direction = all.firstOrNull { it.first.substringAfterLast('/').equals("ComicInfo.xml", true) }
             ?.let { ComicFormat.directionFromComicInfo(String(readEntry(it.first, 4L shl 20), Charsets.UTF_8)) }
@@ -45,22 +51,27 @@ class ComicArchive private constructor(
     private fun readEntry(name: String, maxBytes: Long): ByteArray = if (zip != null) {
         val e = zip.getEntry(name) ?: throw IOException("항목 없음: $name")
         if (e.size > maxBytes) throw IOException("항목이 너무 큼")
-        zip.getInputStream(e).use { it.readBytes() }
-    } else rar { NativeComic.archiveRead(file.path, name, maxBytes) }
+        zip.getInputStream(e).use { ComicFormat.readBounded(it, maxBytes) }
+    } else rar { NativeComic.archiveRead(file.path, rarIndex[name] ?: throw IOException("항목 없음: $name"), maxBytes) }
 
-    /** 전체를 앞에서부터 풀어 dir/000000.bin… 로 쓴다(압축 순서). 반환: 쓴 항목 수. */
-    fun extractAll(dir: File, maxTotal: Long = 500L shl 20, onEntry: (Int, String) -> Unit = { _, _ -> }): Int {
+    /**
+     * 전체를 앞에서부터 풀어 dir/000000.bin… 로 쓴다(압축 순서). 반환: 쓴 항목 수.
+     * 상한 [maxTotal] 은 실제로 푼 바이트로 센다(N-09: 머리의 크기를 속인 압축 폭탄 대비).
+     */
+    fun extractAll(dir: File, maxTotal: Long = ComicFormat.MAX_EXTRACT, onEntry: (Int, String) -> Unit = { _, _ -> }): Int {
         dir.mkdirs()
         return if (zip != null) {
             var total = 0L; var i = 0
             for (e in zip.entries()) {
                 if (e.isDirectory) continue
-                if (total + e.size > maxTotal) break
-                File(dir, "%06d.bin".format(i)).outputStream().use { o -> zip.getInputStream(e).use { it.copyTo(o) } }
-                total += e.size; onEntry(i, e.name); i++
+                if (e.size > 0 && total + e.size > maxTotal) break
+                val out = File(dir, "%06d.bin".format(i))
+                val n = out.outputStream().use { o -> zip.getInputStream(e).use { ComicFormat.copyBounded(it, o, maxTotal - total) } }
+                if (n < 0) { out.delete(); break }
+                total += n; onEntry(i, e.name); i++
             }
             i
-        } else rar { NativeComic.archiveExtractAll(file.path, dir.path, maxTotal) { i, n -> onEntry(i, n) } }
+        } else rar { NativeComic.archiveExtractAll(file.path, dir.path, maxTotal) { i -> onEntry(i, rarNames.getOrElse(i) { "" }) } }
     }
 
     override fun close() { zip?.close() }

@@ -370,46 +370,17 @@ private fun SwitchRow(name: String, sub: String, on: Boolean, onToggle: (Boolean
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(horizontal = 16.dp))
 }
 
-/** S-13 시리즈 안 화면. */
-@Composable
-fun SeriesScreen(key: String, vols: List<Book>, onBack: () -> Unit, onOpen: (Book) -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    val done = vols.count { it.status == Book.DONE }
-    val next = vols.firstOrNull { it.status != Book.DONE }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        ScreenTitle(key, onBack)
-        Text("전 ${vols.size}권 · ${if (done > 0) "${vols.filter { it.status == Book.DONE }.maxOf { it.volume }}권까지 읽음" else "아직 안 읽음"}${next?.let { " · 다음은 ${it.volume}권" } ?: ""}",
-            fontSize = 13.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp))
-        vols.forEach { b ->
-            val state = when {
-                b.status == Book.DONE -> "다 읽음"
-                b == next -> "다음 차례"
-                b.status == Book.READING -> "${(b.progress() * 100).toInt()}% 읽는 중"
-                else -> "안 읽음"
-            }
-            Row(Modifier.fillMaxWidth().clickable { onOpen(b) }.padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Cover(b, Modifier.width(56.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("${b.volume}권", fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                    Text(state, fontSize = 12.sp, color = if (b == next) cs.secondary else cs.onSurfaceVariant)
-                }
-                Badge(DocFormat.of(b.format))
-            }
-        }
-    }
-}
-
 /** S-45 다음 권 확인창. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NextVolumeSheet(done: Book, next: Book, onLibrary: () -> Unit, onOpenNext: () -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 28.dp)) {
-            Text("${done.volume}권을 다 읽었어요", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("이어서 ${next.volume}권을 열까요?", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, bottom = 20.dp))
+            Text("${kr.vici.ashreader.data.SeriesGroups.volumeLabel(done)}을 다 읽었어요", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("이어서 ${kr.vici.ashreader.data.SeriesGroups.volumeLabel(next)}을 열까요?", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, bottom = 20.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(onClick = onLibrary, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("서재로") }
-                Button(onClick = onOpenNext, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("${next.volume}권 열기") }
+                Button(onClick = onOpenNext, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("다음 권 열기") }
             }
         }
     }

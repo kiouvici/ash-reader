@@ -31,7 +31,8 @@ enum class DocFormat(val badge: String, val group: FormatGroup, val engine: Engi
     TXT("TXT", FormatGroup.TEXT, Engine.MUPDF),
     PDF("PDF", FormatGroup.PDF, Engine.MUPDF),
     DJVU("DjVu", FormatGroup.PDF, Engine.DJVU),
-    XPS("XPS", FormatGroup.PDF, Engine.MUPDF),
+    /** 요구사항 범위 밖(기술 설계서 2장 P15, D-018): 판별만 하고 '지원 안 하는 형식' 안내. */
+    XPS("XPS", FormatGroup.PDF, Engine.NONE),
     CBZ("CBZ", FormatGroup.COMIC, Engine.COMIC),
     CBR("CBR", FormatGroup.COMIC, Engine.COMIC),
     HWP("HWP", FormatGroup.HWP, Engine.HWP),
@@ -280,6 +281,12 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
         }
     }
 
+    /** 한 번만 보기 사본을 지운다(서재에 같은 문서가 있어 그쪽 파일로 열 때). 캐시 폴더 안 파일만. */
+    suspend fun discardOnce(o: Opened) = withContext(Dispatchers.IO) {
+        val f = runCatching { o.file.canonicalFile }.getOrNull()
+        if (f != null && f.parentFile == onceDir.canonicalFile) f.delete()
+    }
+
     /**
      * 앱 시작·종료 때 쓸기(필수 5): 서재에 없는 문서의 변환 캐시는 늘 지우고,
      * [clearCopies](설정 '한 번만 보기 기록 지우기')가 켜져 있으면 한 번만 보기 사본도 지운다.
@@ -368,7 +375,7 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
             z
         } catch (e: IllegalArgumentException) {
             z.close()
-            ZipFile(zip, java.nio.charset.Charset.forName("EUC-KR"))
+            ZipFile(zip, kr.vici.ashreader.engine.convert.TextEncoding.cp949())
         }
     }
 
@@ -381,9 +388,11 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
         if (out.isFile && out.length() > 0) return out
         openZip(zip).use { z ->
             val e = z.getEntry(entry) ?: throw java.io.FileNotFoundException("압축 파일 안에서 문서를 찾지 못했어요.")
-            if (e.size > (1L shl 30)) throw java.io.IOException("압축 안 문서가 너무 커요(1GB 넘음).")
+            // N-09: 상한 500MB. 머리의 크기를 믿지 않고 실제로 푼 바이트로도 센다
+            if (e.size > ZIP_ENTRY_MAX) throw java.io.IOException("압축 안 문서가 너무 커요(500MB 넘음).")
             val tmp = File(dir, "tmp-" + System.nanoTime())
-            z.getInputStream(e).use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
+            val n = z.getInputStream(e).use { i -> tmp.outputStream().use { o -> kr.vici.ashreader.engine.comic.ComicFormat.copyBounded(i, o, ZIP_ENTRY_MAX) } }
+            if (n < 0) { tmp.delete(); throw java.io.IOException("압축 안 문서가 너무 커요(500MB 넘음).") }
             if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
         }
         return out
@@ -430,6 +439,8 @@ class LibraryRepo(private val context: Context, private val db: AshDb) {
 
     companion object {
         const val SAF_CACHE_MAX = 1L shl 30
+        /** 압축 안 문서 하나를 풀 때 상한(N-09). */
+        const val ZIP_ENTRY_MAX = 500L shl 20
 
         /** [path] 가 [booksDir] 안의 파일이면 정규화한 파일, 아니면 null(../·심볼릭 링크로 밖을 가리키는 경로 거부). */
         fun insideBooks(booksDir: File, path: String): File? {

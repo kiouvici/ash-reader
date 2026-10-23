@@ -49,6 +49,8 @@ data class Book(
     @ColumnInfo(defaultValue = "0") val fileMtime: Long = 0,
     /** 0 = 보임, [HIDDEN_MISSING] = 파일이 없어짐(다시 찾으면 이어짐), [HIDDEN_REMOVED] = 사용자가 서재에서 뺌(다시 모으지 않음). */
     @ColumnInfo(defaultValue = "0") val hidden: Int = 0,
+    /** 시리즈 묶기(F-62): [SERIES_AUTO] 파일명으로 자동 / [SERIES_MANUAL] 직접 묶음([seriesKey] = 묶음 이름) / [SERIES_EXCLUDED] 묶기 풀기·시리즈에서 뺌. */
+    @ColumnInfo(defaultValue = "0") val seriesManual: Int = SERIES_AUTO,
 ) {
     companion object {
         const val TO_READ = 0
@@ -67,6 +69,9 @@ data class Book(
         const val HIDDEN_REMOVED = 2
         /** 압축 파일 안 문서: 서재에는 압축 파일 한 권으로만 보이고, 읽은 위치·책갈피는 이 기록에 둔다. */
         const val HIDDEN_INNER = 3
+        const val SERIES_AUTO = 0
+        const val SERIES_MANUAL = 1
+        const val SERIES_EXCLUDED = 2
     }
 }
 
@@ -171,6 +176,14 @@ interface BookDao {
 
     @Query("SELECT * FROM book WHERE seriesKey = :key AND volume = :volume AND hidden = 0 LIMIT 1")
     suspend fun volume(key: String, volume: Int): Book?
+
+    /** 다음 권 찾기(F-61)·시리즈 묶기(F-62)에 쓰는 보이는 책 전체. */
+    @Query("SELECT * FROM book WHERE hidden = 0")
+    suspend fun visibleBooks(): List<Book>
+
+    /** 시리즈 직접 묶기·풀기(F-62). */
+    @Query("UPDATE book SET seriesKey = :key, seriesManual = :mode WHERE id = :id")
+    suspend fun setSeries(id: String, key: String, mode: Int)
 
     @Upsert
     suspend fun upsert(b: Book)
@@ -280,7 +293,7 @@ interface BookDao {
     @Query("SELECT * FROM session") suspend fun allSessions(): List<ReadingSession>
 }
 
-@Database(entities = [Book::class, Bookmark::class, Note::class, ReadingSession::class, Highlight::class, StoreApp::class, ScanFolder::class], version = 4, exportSchema = false)
+@Database(entities = [Book::class, Bookmark::class, Note::class, ReadingSession::class, Highlight::class, StoreApp::class, ScanFolder::class], version = 5, exportSchema = true)
 abstract class AshDb : RoomDatabase() {
     abstract fun books(): BookDao
 
@@ -325,9 +338,19 @@ abstract class AshDb : RoomDatabase() {
             }
         }
 
+        /** 4 → 5: 시리즈 직접 묶기·풀기(F-62). 기존 책은 모두 자동 묶기(0). */
+        val M4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `book` ADD COLUMN `seriesManual` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** 앱이 쓰는 모든 이전(이전 시험 AshDbMigrationTest 도 이 목록을 쓴다). */
+        val MIGRATIONS = arrayOf(M1_2, M2_3, M3_4, M4_5)
+
         @Volatile private var inst: AshDb? = null
         fun get(context: Context): AshDb = inst ?: synchronized(this) {
-            inst ?: Room.databaseBuilder(context.applicationContext, AshDb::class.java, "ash.db").addMigrations(M1_2, M2_3, M3_4).build().also { inst = it }
+            inst ?: Room.databaseBuilder(context.applicationContext, AshDb::class.java, "ash.db").addMigrations(*MIGRATIONS).build().also { inst = it }
         }
     }
 }

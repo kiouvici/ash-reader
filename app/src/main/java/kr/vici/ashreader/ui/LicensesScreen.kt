@@ -124,7 +124,8 @@ fun LicensesScreen(onBack: () -> Unit) {
                     Text("${AppInfo.NAME} ${AppInfo.VERSION_LABEL}", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text(
                         "이 앱은 GNU AGPL 3.0 이상(AGPL-3.0-or-later)으로 배포돼요. 누구나 소스 코드를 받아 고치고 다시 배포할 수 있어요. " +
-                            "소스 코드: ${AppInfo.SOURCE_URL}",
+                            "소스 코드: ${AppInfo.SOURCE_URL} (함께 넣은 오픈소스 구성 요소의 소스도 같은 곳에서 판마다 따로 묶어 드려요.) " +
+                            "64비트 기기 전용이에요.",
                         fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 6.dp),
                     )
                     Text("아래는 앱에 함께 들어간 오픈소스 구성 요소예요. 누르면 라이선스 원문을 볼 수 있어요.", fontSize = 12.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
