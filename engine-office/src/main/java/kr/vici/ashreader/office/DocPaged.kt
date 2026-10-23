@@ -95,7 +95,8 @@ object DocPaged {
             for (k in 0 until p.numCharacterRuns()) {
                 val cr = p.getCharacterRun(k)
                 markSize = cr.fontSize / 2f; markFont = cr.fontName
-                if (pics != null && runCatching { pics.hasPicture(cr) }.getOrDefault(false)) {
+                val pt = pics
+                if (pt != null && runCatching { pt.hasPicture(cr) }.getOrDefault(false)) {
                     picture(cr)?.let { items += it }
                     continue
                 }
