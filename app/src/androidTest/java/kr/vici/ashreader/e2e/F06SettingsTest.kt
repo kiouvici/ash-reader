@@ -2,6 +2,8 @@
 package kr.vici.ashreader.e2e
 
 import android.os.SystemClock
+import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -11,6 +13,7 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Until
 import java.util.regex.Pattern
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -21,6 +24,11 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class F06SettingsTest : E2eTest() {
+    @get:Rule val compose: ComposeTestRule = createEmptyComposeRule()
+
+    /** Compose 시험 규칙이 걸린 동안은 프레임이 시험 시계로 돈다 → UiAutomator 로 볼 때마다 한 번 돌린다. */
+    override fun pump() { runCatching { compose.waitForIdle() } }
+
     private val switches = listOf(
         "서점 바로가기 줄 보이기", "TXT 끊긴 줄 합치기", "TXT 줄 앞 공백 정리", "가장자리로 밝기 조절", "왼손잡이(좌우 바꾸기)",
         "볼륨 버튼으로 넘기기", "스크롤 보기", "정보줄을 위에", "두 쪽 펼침에서 쪽마다 정보줄", "야간에 그림은 반전 안 함",
@@ -72,7 +80,7 @@ class F06SettingsTest : E2eTest() {
         for (d in dialogs) {
             row(d)
             shot("dialog-$d")
-            val btn = device.wait(Until.findObject(By.text(Pattern.compile("확인|닫기|취소"))), 5_000)
+            val btn = find(By.text(Pattern.compile("확인|닫기|취소")), 5_000)
             assertTrue("'$d' 를 눌렀는데 창이 없음", btn != null)
             // '정보줄 항목' 은 스위치 하나를 눌러 본다
             if (d == "정보줄 항목") device.findObject(By.checkable(true))?.click()
@@ -125,10 +133,10 @@ class F06SettingsTest : E2eTest() {
         row("백업·내보내기")
         clickText("파일로 내보내기")
         // 시스템 문서 만들기(DocumentsUI) → [저장]
-        assertTrue("문서 고르기가 열리지 않음", device.wait(Until.hasObject(By.pkg(Pattern.compile(".*documentsui.*"))), 15_000))
+        assertTrue("문서 고르기가 열리지 않음", has(By.pkg(Pattern.compile(".*documentsui.*")), 15_000))
         SystemClock.sleep(1_500)
         shot("export-picker")
-        val save = device.wait(Until.findObject(By.text(Pattern.compile("(?i)save|저장"))), 10_000)
+        val save = find(By.text(Pattern.compile("(?i)save|저장")), 10_000)
         assertTrue("[저장] 단추가 없음", save != null)
         save!!.click()
         assertTrue("내보내기 결과가 없음", has(By.textStartsWith("내보냈어요."), 20_000))
@@ -137,16 +145,16 @@ class F06SettingsTest : E2eTest() {
         // 가져오기: 방금 만든 파일(최근 파일·다운로드)
         row("백업·내보내기")
         clickText("파일에서 가져오기")
-        assertTrue(device.wait(Until.hasObject(By.pkg(Pattern.compile(".*documentsui.*"))), 15_000))
+        assertTrue(has(By.pkg(Pattern.compile(".*documentsui.*")), 15_000))
         SystemClock.sleep(2_000)
-        var file = device.wait(Until.findObject(By.textStartsWith("ASH-백업-")), 6_000)
+        var file = find(By.textStartsWith("ASH-백업-"), 6_000)
         if (file == null) {
             // 최근 목록에 없으면 다운로드로
             device.findObject(By.desc(Pattern.compile("(?i)show roots|루트 표시")))?.click()
             SystemClock.sleep(800)
             device.findObject(By.text(Pattern.compile("(?i)downloads?|다운로드")))?.click()
             SystemClock.sleep(1_500)
-            file = device.wait(Until.findObject(By.textStartsWith("ASH-백업-")), 8_000)
+            file = find(By.textStartsWith("ASH-백업-"), 8_000)
         }
         shot("import-picker")
         assertTrue("내보낸 백업 파일을 고르기에서 찾지 못함", file != null)

@@ -677,6 +677,9 @@ jobs:
     name: e2e (${{ matrix.name }})
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    # 결과 브랜치(ci-e2e/<이름>)에 화면·logcat 을 올리기 위한 쓰기 권한(작업 브랜치 push 때만 씀)
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -764,6 +767,24 @@ jobs:
           path: e2e-out/
           if-no-files-found: warn
           retention-days: 14
+
+      # 산출물(Azure blob)을 내려받을 수 없는 환경용: 줄인 화면·logcat(gzip)·결과를 고아 브랜치 ci-e2e/<이름> 에 덮어쓴다.
+      # main 이 아닌 브랜치 push 때만. 다 보면 브랜치는 지워도 된다(git push origin --delete ci-e2e/<이름>).
+      - name: Publish E2E results to ci-e2e branch
+        if: always() && github.event_name == 'push' && github.ref != 'refs/heads/main'
+        continue-on-error: true
+        shell: bash
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          [ -d e2e-out ] || exit 0
+          rm -rf /tmp/pub && mkdir -p /tmp/pub && cp -r e2e-out/. /tmp/pub/
+          cd /tmp/pub
+          [ -f logcat.txt ] && gzip -9 logcat.txt
+          if command -v mogrify >/dev/null; then find shots -name '*.png' -exec mogrify -resize '50%' -strip {} + ; fi
+          git init -q -b r && git config user.name ci && git config user.email ci@users.noreply.github.com
+          git add -A && git commit -qm "e2e ${{ matrix.name }} run ${{ github.run_number }} (${{ github.sha }})"
+          git push -q --force "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git" HEAD:refs/heads/ci-e2e/${{ matrix.name }}
 
       - name: E2E result
         if: always()

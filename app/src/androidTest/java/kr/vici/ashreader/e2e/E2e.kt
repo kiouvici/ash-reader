@@ -10,8 +10,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
-import androidx.compose.ui.test.junit4.ComposeTestRule
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
@@ -49,7 +47,12 @@ import org.junit.runner.Description
  * 화면 글자는 '이북'→'eBook' 이름 바꾸기(7A)와 무관하게 맞도록 정규식([EBOOK])으로 찾는다.
  */
 abstract class E2eTest {
-    @get:Rule val compose: ComposeTestRule = createEmptyComposeRule()
+    /**
+     * Compose 시험 규칙이 걸려 있으면 그 시험 동안 만들어진 모든 Compose 화면의 프레임이 시험 시계로 돌아,
+     * Compose API(waitForIdle 등)를 부를 때만 화면이 바뀐다. UiAutomator 만 쓰는 시험에서는 화면이 멈춘 것처럼 보이므로
+     * 규칙은 Compose API 를 쓰는 시험(설정)에만 걸고, 그 시험은 [pump] 로 프레임을 돌린다.
+     */
+    protected open fun pump() {}
 
     @get:Rule val failShot = object : TestWatcher() {
         override fun failed(e: Throwable?, d: Description) {
@@ -103,6 +106,7 @@ abstract class E2eTest {
         if (clear) i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ctx.startActivity(i)
         check(device.wait(Until.hasObject(By.pkg(PKG).depth(0)), 20_000)) { "앱이 뜨지 않음" }
+        pump()
         device.waitForIdle(3_000)
     }
 
@@ -131,7 +135,7 @@ abstract class E2eTest {
         field.text = title
         SystemClock.sleep(500)
         val p = Pattern.compile(Pattern.quote(title) + ", " + (badge?.let { Pattern.quote(it) } ?: "[^,]+") + ", .*")
-        val tile = device.wait(Until.findObject(By.desc(p)), 20_000)
+        val tile = find(By.desc(p), 20_000)
             ?: run { shot("no-tile-$title"); fail("서재에 '$title' 이(가) 없음"); throw IllegalStateException() }
         tile.click()
     }
@@ -213,7 +217,7 @@ abstract class E2eTest {
         if (device.hasObject(By.desc("쪽 이동"))) return
         repeat(3) {
             tap(0.5f, 0.5f)
-            if (device.wait(Until.hasObject(By.desc("쪽 이동")), 3_000)) return
+            if (has(By.desc("쪽 이동"), 3_000)) return
         }
         shot("menu-not-open")
         fail("읽기 메뉴가 열리지 않음")
@@ -230,14 +234,24 @@ abstract class E2eTest {
 
     // ───────────── 찾기 도우미 ─────────────
 
+    protected fun find(sel: BySelector, timeoutMs: Long): UiObject2? {
+        val end = SystemClock.uptimeMillis() + timeoutMs
+        while (true) {
+            pump()
+            device.findObject(sel)?.let { return it }
+            if (SystemClock.uptimeMillis() > end) return null
+            SystemClock.sleep(250)
+        }
+    }
+
     protected fun obj(sel: BySelector, timeoutMs: Long = 10_000): UiObject2 =
-        device.wait(Until.findObject(sel), timeoutMs) ?: run {
+        find(sel, timeoutMs) ?: run {
             shot("missing")
             fail("화면에서 찾지 못함: $sel")
             throw IllegalStateException()
         }
 
-    protected fun has(sel: BySelector, timeoutMs: Long = 5_000): Boolean = device.wait(Until.hasObject(sel), timeoutMs) == true
+    protected fun has(sel: BySelector, timeoutMs: Long = 5_000): Boolean = find(sel, timeoutMs) != null
 
     protected fun clickText(t: String, timeoutMs: Long = 10_000) = obj(By.text(t), timeoutMs).click().also { SystemClock.sleep(500) }
 
