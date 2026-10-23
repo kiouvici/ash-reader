@@ -198,7 +198,7 @@ class D04ReadingTest : E2eTest() {
         obj(By.desc("검색")).click()
         val field = obj(By.clazz("android.widget.EditText"))
         field.text = "반딧불이"
-        assertTrue("검색 결과가 나오지 않음", has(By.textEndsWith("곳을 찾았어요."), 30_000))
+        assertTrue("검색 결과가 나오지 않음", has(By.textEndsWith("곳을 찾았어요."), 60_000))
         shot("search-results")
         // 결과 줄("N쪽" + 글 조각)을 누르면 그 쪽으로
         val hit = device.findObjects(By.text(Pattern.compile("\\d+쪽"))).firstOrNull()

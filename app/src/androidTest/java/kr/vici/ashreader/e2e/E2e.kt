@@ -247,7 +247,9 @@ abstract class E2eTest {
     protected fun menuItem(label: String) {
         repeat(3) {
             openMenu()
-            find(By.text(label), 2_500)?.let { it.click(); SystemClock.sleep(500); return }
+            // 누르기 전에 메뉴가 닫히면(칸 보기 등) 요소가 사라져 낡은 것이 된다 → 메뉴를 다시 열고 다시
+            val ok = runCatching { find(By.text(label), 2_500)?.click() != null }.getOrDefault(false)
+            if (ok) { SystemClock.sleep(500); return }
         }
         shot("menu-item-$label"); fail("읽기 메뉴에 '$label' 이 없음")
     }
@@ -283,7 +285,7 @@ abstract class E2eTest {
                 try { return f(o) } catch (e: StaleObjectException) {
                     last = e
                     SystemClock.sleep(300); pump()
-                    device.findObject(sel)?.let { o = it }
+                    o = device.findObject(sel) ?: throw e // 화면에서 사라졌으면 바로 알린다
                 }
             }
             throw last ?: IllegalStateException("화면 요소를 다시 찾지 못함: $sel")
