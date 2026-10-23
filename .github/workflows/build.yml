@@ -255,7 +255,10 @@ jobs:
           {
             echo "### 실험 ⑤ :engine-comic"
             R=$(ls engine-comic/build/test-results/testDebugUnitTest/*PanelDetectorTest*.xml)
-            echo '```'; grep -o 'ASH-PANEL total[^<]*' "$R" || true; echo '```'
+            echo '```'; grep -o 'ASH-PANEL total[^<]*' "$R" || true
+            R7=$(ls engine-comic/build/test-results/testDebugUnitTest/*PanelRegressionTest*.xml 2>/dev/null || true)
+            [ -n "$R7" ] && { grep -o 'ASH-PANEL7C total[^<]*' "$R7" || true; }
+            echo '```'
             echo "| ABI | .so | 크기(바이트) | APK 안 압축 크기 | LOAD 정렬 |"; echo "|---|---|---|---|---|"
           } >> "$GITHUB_STEP_SUMMARY"
           fail=0

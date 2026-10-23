@@ -51,6 +51,7 @@ import kotlinx.coroutines.withContext
 import kr.vici.ashreader.doc.ComicReaderDoc
 import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.engine.comic.PagePanels
+import kr.vici.ashreader.engine.comic.PanelFraming
 import kr.vici.ashreader.engine.comic.ReadingDirection
 
 /**
@@ -152,9 +153,11 @@ fun ComicPanelReader(
         LaunchedEffect(turnRequest) { if (turnRequest > 0) go(turnForward) }
 
         val target = rects.getOrNull(sel)
-        val z = if (target == null) 1f else minOf(wPx / target.width, hPx / target.height) * 0.96f
-        val tx = if (target == null) 0f else wPx / 2f - target.center.x * z
-        val ty = if (target == null) 0f else hPx / 2f - target.center.y * z
+        // 칸 맞춤(7C): 가로로 긴 칸은 폭 맞춤(좌우 2% 여백), 세로로 긴 칸은 높이 맞춤. 계산은 PanelFraming(단위 시험)
+        val fit = target?.let { PanelFraming.fit(it.left, it.top, it.right, it.bottom, wPx, hPx) }
+        val z = fit?.scale ?: 1f
+        val tx = fit?.tx ?: 0f
+        val ty = fit?.ty ?: 0f
         val az by animateFloatAsState(z, tween(250), label = "z")
         val atx by animateFloatAsState(tx, tween(250), label = "tx")
         val aty by animateFloatAsState(ty, tween(250), label = "ty")
