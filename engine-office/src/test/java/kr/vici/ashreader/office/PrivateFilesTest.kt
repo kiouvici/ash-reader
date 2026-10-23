@@ -20,6 +20,18 @@ class PrivateFilesTest {
         println("[real-04] 표 ${r.stats.tables}, 그림 ${r.stats.images}, 머리글 ${r.stats.headers}, 바닥글 ${r.stats.footers}")
     }
 
+    /** Word 원본 보기(F-30): 쪽 설정·머리글/바닥글·그림 수(시각 대조 수치는 docs/측정결과/2026-10-23-Word원본-대조.md). */
+    @Test fun originalViewStructure() {
+        val r4 = DocxPaged().convert(TestFiles.private("real-04.docx").readBytes())
+        assertEquals(1, r4.sections.size)
+        assertEquals(595.3f, r4.sections[0].pageW, 0.5f)
+        val r3 = RtfPaged.convert(TestFiles.private("real-03.doc").readBytes())
+        assertEquals(1, r3.sections.size)
+        assertEquals(setOf("default"), r3.sections[0].headers.keys)
+        assertEquals(setOf("default"), r3.sections[0].footers.keys)
+        println("[F-30] real-04 ${r4.stats} / real-03 ${r3.stats}")
+    }
+
     @Test fun real03IsRtfDespiteDocExtension() {
         val f = TestFiles.private("real-03.doc")
         assertEquals(SniffedFormat.RTF, FormatSniffer.sniff(f.readBytes()))

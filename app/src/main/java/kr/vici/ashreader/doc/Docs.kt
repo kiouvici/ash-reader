@@ -126,7 +126,7 @@ object BundledFonts {
 object DocOpener {
     /**
      * [file]을 연다. 이북류는 [pageWdp]×[pageHdp] 쪽 크기(dp=pt)로 다시 배치한다.
-     * [hwpEbook] = 한글 문서를 이북식(다시 배치)으로 연다(F-28). 무거운 작업이므로 백그라운드에서 부른다.
+     * [hwpEbook] = 한글·Word 문서를 이북식(다시 배치)으로 연다(F-28·F-30). 무거운 작업이므로 백그라운드에서 부른다.
      */
     /**
      * [docId] = 문서 식별 해시(DocHash). 변환 캐시(office/·hwp-ebook/·upscale/) 폴더 이름으로 쓴다(닫을 때·시작할 때 정리 — 필수 5).
@@ -161,7 +161,8 @@ object DocOpener {
                 } else HwpReaderDoc(file, format)
             }
             DocFormat.Engine.COMIC -> ComicReaderDoc(ArchivePages(file, ArchivePages.workDir(context, docId)), format, docId, ComicReaderDoc.metaFile(context, docId))
-            DocFormat.Engine.OFFICE -> {
+            // Word: hwpEbook = 이북식. 원본(기본)은 Word 쪽 모양 PDF(F-30, WordOriginal)
+            DocFormat.Engine.OFFICE -> if (!hwpEbook) WordOriginal.open(context, file, format, pageWdp, pageHdp, s, password, docId) else {
                 val x = OfficeXhtml.convert(context, file, format, password, docId)
                 val tmp = x.temp
                 val cleanup: (() -> Unit)? = if (tmp != null) { { tmp.deleteRecursively() } } else null

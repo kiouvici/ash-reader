@@ -334,16 +334,20 @@ class MupdfDoc private constructor(private val doc: Document) : Closeable {
          * 암호는 저장하지 않는다.
          */
         fun open(path: String, spec: LayoutSpec? = null, userCss: String? = null, password: String? = null): MupdfDoc {
-            if (userCss != null) Context.setUserCSS(userCss)
-            val d = Document.openDocument(path)
-            try {
-                if (d.needsPassword()) {
-                    if (password.isNullOrEmpty()) throw PasswordException(wrong = false)
-                    if (!d.authenticatePassword(password)) throw PasswordException(wrong = true)
+            // 사용자 CSS 는 전역이라 바꾸고 조판할 때까지 잠근다(Word 원본 합성기와 공유 — MupdfLock)
+            val d = synchronized(MupdfLock) {
+                if (userCss != null) Context.setUserCSS(userCss)
+                val d = Document.openDocument(path)
+                try {
+                    if (d.needsPassword()) {
+                        if (password.isNullOrEmpty()) throw PasswordException(wrong = false)
+                        if (!d.authenticatePassword(password)) throw PasswordException(wrong = true)
+                    }
+                    if (spec != null && d.isReflowable) d.layout(spec.widthPt, spec.heightPt, spec.emPt)
+                } catch (e: Throwable) {
+                    d.destroy(); throw e
                 }
-                if (spec != null && d.isReflowable) d.layout(spec.widthPt, spec.heightPt, spec.emPt)
-            } catch (e: Throwable) {
-                d.destroy(); throw e
+                d
             }
             return MupdfDoc(d)
         }
