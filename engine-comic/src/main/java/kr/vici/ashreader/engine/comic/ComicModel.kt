@@ -80,6 +80,26 @@ object ComicFormat {
         ra.size - rb.size
     }
 
+    /**
+     * 같은 이름이 여러 번 든 압축(RAR 은 같은 경로 항목을 허용)에서 뒤의 것도 버리지 않도록 이름을 겹치지 않게 만든다.
+     * 두 번째부터 확장자 앞에 " (2)", " (3)"… 을 붙인다(목록 순서·번호는 그대로).
+     */
+    fun uniqueNames(names: List<String>): List<String> {
+        val seen = HashSet<String>(names.size * 2)
+        seen.addAll(names)
+        val used = HashSet<String>(names.size * 2)
+        return names.map { n ->
+            if (used.add(n)) n else {
+                val slash = n.lastIndexOf('/')
+                val dot = n.lastIndexOf('.').takeIf { it > slash + 1 } ?: n.length
+                var k = 2
+                var c: String
+                do { c = n.substring(0, dot) + " ($k)" + n.substring(dot); k++ } while (c in seen || !used.add(c))
+                c
+            }
+        }
+    }
+
     fun pages(names: List<Pair<String, Long>>): List<PageEntry> =
         names.filter { isImage(it.first) }.sortedWith(compareBy(naturalOrder) { it.first })
             .mapIndexed { i, (n, s) -> PageEntry(i, n, s) }

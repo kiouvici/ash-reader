@@ -147,7 +147,7 @@ object DocOpener {
                 ComicReaderDoc(PdfComicPages(file, password), format, docId, ComicReaderDoc.metaFile(context, docId))
             } else if (format == DocFormat.TXT) {
                 val t = TxtUtf8.convert(context, file, docId, textEncoding, s)
-                MupdfReaderDoc(t.file, format, pageWdp, pageHdp, s, context).also { it.textKind = t.kind; it.textAuto = textEncoding == null }
+                MupdfReaderDoc(t.file, format, pageWdp, pageHdp, s, context).also { it.textKind = t.kind; it.textAuto = textEncoding == null; it.tocFallback = t.tocFallback }
             } else MupdfReaderDoc(file, format, pageWdp, pageHdp, s, context, password = password)
             DocFormat.Engine.CONVERT -> {
                 val epub = Converted.epub(context, file, format, docId)
@@ -387,6 +387,8 @@ class MupdfReaderDoc(
     /** TXT 로 열었을 때 쓴 인코딩(F-32)과 자동 판별 여부(읽기 메뉴 표시용). */
     @Volatile var textKind: TextEncoding.Kind? = null
     @Volatile var textAuto: Boolean = true
+    /** TXT 사용자 목차 식이 시간을 넘겨 기본 모양으로만 목차를 만들었음(F-33, 알림 한 번). */
+    @Volatile var tocFallback: Boolean = false
 
     /** 그림만 든 PDF(스캔 만화)인지 — '만화로 보기' 제안용. 닫힌 뒤에는 false. */
     fun isImageOnly(): Boolean = format == DocFormat.PDF && synchronized(lock) { !closed && doc.isImageOnly() }
@@ -498,7 +500,8 @@ object Converted {
 
 /** TXT → UTF-8(F-32). 자동 판별(BOM·UTF-16·UTF-8·CP949) 또는 사용자가 고른 인코딩. 결과는 cache/txt/<docId>/<인코딩>.txt. */
 object TxtUtf8 {
-    class Out(val file: File, val kind: TextEncoding.Kind)
+    /** [tocFallback] = 사용자 목차 식이 너무 느리거나 위험해 기본 모양으로만 목차를 만들었음(알림용). */
+    class Out(val file: File, val kind: TextEncoding.Kind, val tocFallback: Boolean = false)
 
     fun convert(context: Context, file: File, key: String, forced: TextEncoding.Kind?, s: Settings = Settings()): Out {
         if (file.length() > (256L shl 20)) throw OpenFailed("텍스트 파일이 너무 커요(256MB 넘음).")
@@ -512,16 +515,21 @@ object TxtUtf8 {
         val tag = TxtClean.tag(s.txtBlank, s.txtJoin, s.txtTrim) + "-c${s.txtTocMask}" +
             (if (s.txtTocCustom.isBlank()) "" else "u" + Integer.toHexString(s.txtTocCustom.hashCode())) + (if (s.hyphen) "h" else "")
         val outName = "${kind.name}-$tag.xhtml"
-        dir.listFiles()?.forEach { f -> if (f.name.startsWith(kind.name + "-") && f.name != outName) f.delete() }
+        val failMark = outName + ".tocfail"
+        dir.listFiles()?.forEach { f -> if (f.name.startsWith(kind.name + "-") && f.name != outName && f.name != failMark) f.delete() }
         val out = File(dir, outName)
+        val mark = File(dir, failMark)
         if (!out.isFile || out.length() == 0L || out.lastModified() < file.lastModified()) {
+            mark.delete()
             val text = TxtClean.clean(TextEncoding.decode(file.readBytes(), kind), s.txtBlank, s.txtJoin, s.txtTrim)
-            val xhtml = TxtXhtml.convert(text.replace("\r\n", "\n").replace('\r', '\n'), file.nameWithoutExtension, s.txtTocMask, s.txtTocCustom, s.hyphen)
+            val xhtml = TxtXhtml.convert(text.replace("\r\n", "\n").replace('\r', '\n'), file.nameWithoutExtension, s.txtTocMask, s.txtTocCustom, s.hyphen) {
+                runCatching { mark.createNewFile() }
+            }
             val tmp = File(dir, kind.name + ".tmp")
             tmp.writeText(xhtml, Charsets.UTF_8)
             if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
         }
-        return Out(out, kind)
+        return Out(out, kind, s.txtTocCustom.isNotBlank() && mark.isFile)
     }
 }
 

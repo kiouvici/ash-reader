@@ -60,6 +60,8 @@ fun SeriesScreen(
     onUngroup: () -> Unit,
     onRename: (String) -> Unit,
     onAdd: (List<Book>) -> Unit,
+    /** 이 이름의 다른 직접 묶음이 이미 있는지(있으면 합칠지 묻는다). */
+    isTaken: (String) -> Boolean = { false },
 ) {
     val cs = MaterialTheme.colorScheme
     val done = vols.count { it.status == Book.DONE }
@@ -68,6 +70,7 @@ fun SeriesScreen(
     var confirmUngroup by remember { mutableStateOf(false) }
     var rename by remember { mutableStateOf(false) }
     var adding by remember { mutableStateOf(false) }
+    var mergeTo by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(start = 4.dp, top = 12.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) { Icon(Icons.Back, contentDescription = "뒤로") }
@@ -122,7 +125,19 @@ fun SeriesScreen(
         confirmButton = { TextButton(onClick = { confirmUngroup = false; onUngroup() }, modifier = Modifier.heightIn(min = 48.dp)) { Text("풀기") } },
         dismissButton = { TextButton(onClick = { confirmUngroup = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("취소") } },
     )
-    if (rename) NameDialog("이름 바꾸기", name, onDismiss = { rename = false }) { n -> rename = false; onRename(n) }
+    if (rename) NameDialog("이름 바꾸기", name, onDismiss = { rename = false }) { n ->
+        rename = false
+        if (n.trim() != name && isTaken(n.trim())) mergeTo = n.trim() else onRename(n)
+    }
+    mergeTo?.let { target ->
+        AlertDialog(
+            onDismissRequest = { mergeTo = null },
+            title = { Text("같은 이름의 시리즈가 있어요") },
+            text = { Text("'$target' 시리즈가 이미 있어요. 이 시리즈의 ${vols.size}권을 '$target'에 합칠까요?", fontSize = 15.sp) },
+            confirmButton = { TextButton(onClick = { mergeTo = null; onRename(target) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("합치기") } },
+            dismissButton = { TextButton(onClick = { mergeTo = null; rename = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("다른 이름") } },
+        )
+    }
     if (adding) {
         val ids = vols.map { it.id }.toSet()
         PickBooksDialog("'$name'에 넣을 책", all.filter { it.id !in ids }, onDismiss = { adding = false }) { picked -> adding = false; if (picked.isNotEmpty()) onAdd(picked) }

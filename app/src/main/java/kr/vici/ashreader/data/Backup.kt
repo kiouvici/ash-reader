@@ -247,7 +247,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             indent = o.optInt("indent", base.indent).coerceIn(0, 3),
             dialogIndent = o.optInt("dialogIndent", base.dialogIndent).coerceIn(0, 1),
             txtTocMask = o.optInt("txtTocMask", base.txtTocMask) and 15,
-            txtTocCustom = o.optString("txtTocCustom", base.txtTocCustom).take(200),
+            txtTocCustom = kr.vici.ashreader.doc.TxtToc.safeCustom(o.optString("txtTocCustom", base.txtTocCustom)),
             libSort = o.optInt("libSort", base.libSort).coerceAtLeast(0),
             libSortDesc = o.optBoolean("libSortDesc", base.libSortDesc),
         )

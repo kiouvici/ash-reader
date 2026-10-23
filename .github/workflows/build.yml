@@ -73,6 +73,25 @@ jobs:
         shell: bash
         run: .github/scripts/gradle-annotate.sh :app:compileDebugKotlin
 
+      # I-606: Room 스키마(app/schemas)는 저장소에 커밋한다. 컴파일(KSP)이 만든 JSON 이 커밋한 것과 다르거나
+      # 커밋 안 된 판이 있으면 실패(DB 판을 올릴 때 스키마 파일을 같이 커밋하도록). 파일은 reports 산출물에도 올라간다.
+      - name: Room schema committed
+        shell: bash
+        run: |
+          changed="$(git status --porcelain -- app/schemas)"
+          if [ -n "$changed" ]; then
+            echo "$changed"
+            git diff -- app/schemas | head -100
+            # 산출물을 내려받을 수 없는 환경용: 바뀐/새 스키마 파일을 gzip+base64 로 알림(annotation)에 싣는다(REST check-runs 로 읽음)
+            git ls-files --others --modified -- app/schemas | while read -r f; do
+              gzip -9c "$f" | base64 -w0 | fold -w 60000 | nl -ba -w1 -s' ' | while read -r n chunk; do
+                echo "::notice title=ROOM_SCHEMA $f #$n::$chunk"
+              done
+            done
+            echo "::error title=Room schema::app/schemas 가 커밋된 것과 달라요. 빌드가 만든 스키마 JSON 을 커밋하세요(reports 산출물의 app/schemas)."
+            exit 1
+          fi
+
       # 필수 1: minSdk 26 보다 새 API(NewApi)를 쓰면 실패. app·엔진 모듈 모두 (lint 설정은 각 모듈 build.gradle.kts)
       - name: Lint NewApi (app + engines)
         shell: bash

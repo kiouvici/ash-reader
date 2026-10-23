@@ -21,6 +21,13 @@ class Batch6bComicTest {
 
     @Test fun rarNameEmpty() = assertEquals("", ComicFormat.decodeName(ByteArray(0)))
 
+    @Test fun rarDuplicateNamesKept() {
+        val u = ComicFormat.uniqueNames(listOf("a/001.jpg", "a/002.jpg", "a/001.jpg", "a/001 (2).jpg", "a/001.jpg", "noext", "noext"))
+        assertEquals(listOf("a/001.jpg", "a/002.jpg", "a/001 (3).jpg", "a/001 (2).jpg", "a/001 (4).jpg", "noext", "noext (2)"), u)
+        assertEquals(u.size, u.toSet().size)
+        assertEquals(5, ComicFormat.pages(u.map { it to 1L }).size)
+    }
+
     @Test fun copyBoundedStopsAtCap() {
         val src = ByteArray(1000) { it.toByte() }
         assertEquals(1000L, ComicFormat.copyBounded(ByteArrayInputStream(src), ByteArrayOutputStream(), 1000))

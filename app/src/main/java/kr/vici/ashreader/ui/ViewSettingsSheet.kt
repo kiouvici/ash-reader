@@ -256,7 +256,7 @@ fun ViewSettingsSheet(
                             }
                         }
                         var custom by remember(s.txtTocCustom) { mutableStateOf(s.txtTocCustom) }
-                        val ok = TxtToc.validCustom(custom)
+                        val ok = remember(custom) { TxtToc.validCustom(custom) }
                         OutlinedTextField(
                             value = custom, onValueChange = { custom = it.take(200) }, singleLine = true,
                             label = { Text("내 제목 모양(정규식, 예: ^【.+】$)") },
@@ -264,7 +264,7 @@ fun ViewSettingsSheet(
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Hint(if (!ok) "식이 맞지 않아요." else "줄 전체가 아니라 줄 안에서 맞는 곳이 있으면 제목으로 봐요(60자 이하 줄).", Modifier.weight(1f))
+                            Hint(if (!ok) "식이 맞지 않거나, 오래 걸릴 수 있는 모양이에요(괄호 반복 안의 반복 등)." else "줄 전체가 아니라 줄 안에서 맞는 곳이 있으면 제목으로 봐요(60자 이하 줄).", Modifier.weight(1f))
                             Pill("적용", false) { if (ok) onChange { it.copy(txtTocCustom = custom.trim()) } }
                         }
                     }
