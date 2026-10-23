@@ -31,7 +31,8 @@ import kr.vici.ashreader.office.Cfb
  * - DOCX: 첫 내장 그림 → 없으면 첫 쪽(이북식 변환)
  * - HWP·HWPX: 미리보기 그림(PrvImage) → 없으면 첫 쪽(rhwp)
  * - DjVu: 첫 쪽
- * - TXT·MOBI·AZW3·CHM 등: 없음(색 상자 유지)
+ * - MOBI·AZW3·CHM: 합성 EPUB(변환 캐시 convert/<id>, 읽을 때와 같은 것)의 표지
+ * - TXT 등: 없음(색 상자 유지)
  */
 object Covers {
     const val WIDTH = 300
@@ -48,7 +49,8 @@ object Covers {
 
     fun supported(f: DocFormat) = when (f) {
         DocFormat.EPUB, DocFormat.PDF, DocFormat.XPS, DocFormat.CBZ, DocFormat.CBR,
-        DocFormat.DOCX, DocFormat.HWP, DocFormat.HWPX, DocFormat.DJVU -> true
+        DocFormat.DOCX, DocFormat.HWP, DocFormat.HWPX, DocFormat.DJVU,
+        DocFormat.MOBI, DocFormat.AZW3, DocFormat.CHM -> true
         else -> false
     }
 
@@ -73,7 +75,7 @@ object Covers {
             if (!out.exists() && !none.exists()) {
                 // 같은 책의 예전 표지(파일이 바뀐 경우) 지우기
                 d.listFiles()?.forEach { if (it.name.startsWith(b.id + "-") && !it.name.startsWith(k)) it.delete() }
-                val bmp = try { extract(context, src, fmt) } catch (t: Throwable) { null }
+                val bmp = try { extract(context, src, fmt, b.id) } catch (t: Throwable) { null }
                 if (bmp == null) runCatching { none.createNewFile() } else try { save(bmp, out) } finally { bmp.recycle() }
             }
         }
@@ -89,7 +91,7 @@ object Covers {
         dir(context).listFiles()?.forEach { if (it.name.startsWith("$id-")) it.delete() }
     }
 
-    private fun extract(context: Context, file: File, fmt: DocFormat): Bitmap? = when (fmt) {
+    private fun extract(context: Context, file: File, fmt: DocFormat, id: String): Bitmap? = when (fmt) {
         DocFormat.EPUB -> epub(file)
         DocFormat.PDF, DocFormat.XPS -> {
             BundledFonts.install(context)
@@ -100,6 +102,8 @@ object Covers {
         DocFormat.HWPX -> hwpxPreview(file) ?: hwpFirstPage(context, file)
         DocFormat.HWP -> hwpPreview(file) ?: hwpFirstPage(context, file)
         DocFormat.DJVU -> DjvuDoc.open(file.absolutePath).use { d -> if (d.pageCount() > 0) d.renderPage(0, WIDTH) else null }
+        // 서점 보호(DRM)·변환 실패는 예외 → 표지 없음
+        DocFormat.MOBI, DocFormat.AZW3, DocFormat.CHM -> Converted.epub(context, file, fmt, id)?.let { epub(it) }
         else -> null
     }
 

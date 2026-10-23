@@ -181,6 +181,127 @@ class MupdfDoc private constructor(private val doc: Document) : Closeable {
         idx.all { i -> imageInfo(i).let { it.chars == 0 && it.images == 1 && it.cover >= 0.85f } }
     }.getOrDefault(false)
 
+    /**
+     * 쪽 안 그림 영역(쪽 크기 기준 0..1: left, top, right, bottom 차례로 4개씩).
+     * 테마 색 변환에서 그림은 원래 색으로 되돌려 그릴 때 쓴다(F-21 '그림은 반전하지 않기', M-05).
+     */
+    fun imageRects(i: Int): FloatArray {
+        val page = doc.loadPage(i)
+        try {
+            val pb = page.bounds
+            val pw = (pb.x1 - pb.x0).takeIf { it > 0f } ?: 1f
+            val ph = (pb.y1 - pb.y0).takeIf { it > 0f } ?: 1f
+            val out = ArrayList<Float>()
+            val st = page.toStructuredText("preserve-images")
+            try {
+                st.walk(object : StructuredTextWalker {
+                    override fun onImageBlock(bbox: Rect?, transform: Matrix?, image: Image?) {
+                        val r = bbox ?: return
+                        val l = ((r.x0 - pb.x0) / pw).coerceIn(0f, 1f); val t = ((r.y0 - pb.y0) / ph).coerceIn(0f, 1f)
+                        val rr = ((r.x1 - pb.x0) / pw).coerceIn(0f, 1f); val b = ((r.y1 - pb.y0) / ph).coerceIn(0f, 1f)
+                        if (rr > l && b > t) { out += l; out += t; out += rr; out += b }
+                    }
+                    override fun beginTextBlock(bbox: Rect?, flags: Int) {}
+                    override fun endTextBlock() {}
+                    override fun beginLine(bbox: Rect?, wmode: Int, dir: Point?) {}
+                    override fun endLine() {}
+                    override fun onChar(c: Int, origin: Point?, font: Font?, size: Float, q: Quad?, argb: Int, flags: Int, bidi: Int) {}
+                    override fun beginStruct(standard: String?, raw: String?, index: Int) {}
+                    override fun endStruct() {}
+                    override fun onVector(bbox: Rect?, info: StructuredTextWalker.VectorInfo?, argb: Int) {}
+                })
+            } finally {
+                st.destroy()
+            }
+            return out.toFloatArray()
+        } finally {
+            page.destroy()
+        }
+    }
+
+    /** 쪽 링크 하나. 위치는 쪽 크기 기준 0..1. [external] = 웹 주소 등 문서 밖. */
+    class LinkBox(val l: Float, val t: Float, val r: Float, val b: Float, val uri: String, val external: Boolean)
+
+    /** 쪽의 링크(F-46 각주). */
+    fun links(i: Int): List<LinkBox> {
+        val page = doc.loadPage(i)
+        try {
+            val pb = page.bounds
+            val pw = (pb.x1 - pb.x0).takeIf { it > 0f } ?: 1f
+            val ph = (pb.y1 - pb.y0).takeIf { it > 0f } ?: 1f
+            val out = ArrayList<LinkBox>()
+            for (lk in page.links ?: emptyArray()) {
+                try {
+                    val uri = lk.uri ?: continue
+                    if (uri.isEmpty()) continue
+                    val r = lk.bounds ?: continue
+                    out += LinkBox((r.x0 - pb.x0) / pw, (r.y0 - pb.y0) / ph, (r.x1 - pb.x0) / pw, (r.y1 - pb.y0) / ph, uri, com.artifex.mupdf.fitz.Link.isExternal(uri))
+                } finally {
+                    lk.destroy()
+                }
+            }
+            return out
+        } finally {
+            page.destroy()
+        }
+    }
+
+    /** 문서 안 링크가 가리키는 곳: (쪽 0부터, 쪽 안 세로 위치 0..1 — 모르면 0). 못 찾으면 null. */
+    fun linkTarget(uri: String): Pair<Int, Float>? = runCatching {
+        val d = doc.resolveLinkDestination(uri) ?: return null
+        val n = doc.pageNumberFromLocation(d)
+        if (n < 0) return null
+        val page = doc.loadPage(n)
+        val y = try {
+            val pb = page.bounds
+            val ph = (pb.y1 - pb.y0).takeIf { it > 0f } ?: 1f
+            if (d.y.isNaN()) 0f else ((d.y - pb.y0) / ph).coerceIn(0f, 1f)
+        } finally {
+            page.destroy()
+        }
+        n to y
+    }.getOrNull()
+
+    /**
+     * 쪽 [i]의 세로 위치 [y](0..1)부터 나오는 문단 글(각주 팝업). 첫 문단이 아주 짧으면(번호만 등) 다음 문단까지 붙인다.
+     * 최대 [max]자.
+     */
+    fun textFrom(i: Int, y: Float, max: Int = 1200): String {
+        val page = doc.loadPage(i)
+        try {
+            val pb = page.bounds
+            val ph = (pb.y1 - pb.y0).takeIf { it > 0f } ?: 1f
+            val st = page.toStructuredText()
+            try {
+                val sb = StringBuilder()
+                var paras = 0
+                for (block in st.blocks ?: emptyArray()) {
+                    val bb = block.bbox ?: continue
+                    if ((bb.y1 - pb.y0) / ph <= y + 0.002f) continue
+                    val para = StringBuilder()
+                    for (line in block.lines ?: emptyArray()) {
+                        val ls = StringBuilder()
+                        for (ch in line.chars ?: emptyArray()) ls.appendCodePoint(ch.c)
+                        val t = ls.toString().trim()
+                        if (t.isEmpty()) continue
+                        if (para.isNotEmpty()) para.append(' ')
+                        para.append(t)
+                    }
+                    if (para.isEmpty()) continue
+                    if (sb.isNotEmpty()) sb.append('\n')
+                    sb.append(para)
+                    paras++
+                    if (sb.length >= max || (paras >= 1 && sb.length >= 12)) break
+                }
+                return if (sb.length > max) sb.substring(0, max) + "…" else sb.toString()
+            } finally {
+                st.destroy()
+            }
+        } finally {
+            page.destroy()
+        }
+    }
+
     override fun close() = doc.destroy()
 
     companion object {

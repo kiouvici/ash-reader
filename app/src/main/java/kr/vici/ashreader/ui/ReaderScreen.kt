@@ -1,11 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.ui
 
-import android.content.Context
+import android.Manifest
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.os.BatteryManager
-import android.speech.tts.TextToSpeech
+import android.media.AudioManager
+import android.os.Build
+import android.os.SystemClock
+import android.view.WindowManager
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.systemGestureExclusion
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.Dp
+import kotlin.math.abs
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +64,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -69,9 +87,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -87,8 +102,15 @@ import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.FormatGroup
 import kr.vici.ashreader.data.Note
 import kr.vici.ashreader.data.PanelMode
-import kr.vici.ashreader.data.ReadTheme
+import kr.vici.ashreader.data.Rotation
+import kr.vici.ashreader.data.ScreenTimeout
 import kr.vici.ashreader.data.Settings
+import kr.vici.ashreader.doc.DjvuReaderDoc
+import kr.vici.ashreader.engine.mupdf.MupdfDoc
+import kr.vici.ashreader.tts.Listen
+import kr.vici.ashreader.tts.ListenSource
+import kr.vici.ashreader.tts.Sentence
+import kr.vici.ashreader.tts.Sentences
 import kr.vici.ashreader.doc.ComicReaderDoc
 import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.doc.DocOpener
@@ -165,6 +187,71 @@ private class GuardedSource(
     }
 }
 
+/** 닫혔을 수 있는 문서에 대한 엔진 호출(백그라운드). 닫혔거나 실패하면 [fallback]. */
+private fun <T> guarded(doc: ReaderDoc, fallback: T, f: () -> T): T = synchronized(GuardedSource.guard) {
+    if (GuardedSource.closed.contains(doc)) fallback else runCatching(f).getOrDefault(fallback)
+}
+
+/** 듣기(F-13)에 읽을 글을 주는 열린 문서. 글자 위치가 있으면 문장 강조, 없으면(줄 글자만) 소리만. */
+private class DocListenSource(private val doc: ReaderDoc, override val bookId: String, override val title: String) : ListenSource {
+    override val pageCount: Int = doc.pageCount
+    @Volatile private var tocPages: List<Int>? = null
+
+    override fun sentences(page: Int): List<Sentence> = guarded(doc, emptyList()) {
+        val tp = doc.pageText(page)
+        if (tp != null && tp.text.isNotBlank()) Sentences.split(page, tp.text)
+        else Sentences.split(page, doc.pageLines(page).joinToString("\n")).map { it.copy(start = -1, end = -1) }
+    }
+
+    override fun chapterEnd(page: Int): Int {
+        val t = tocPages ?: guarded(doc, emptyList<Int>()) { doc.toc().map { it.page }.filter { it >= 0 }.distinct().sorted() }.also { tocPages = it }
+        return t.firstOrNull { it > page } ?: pageCount
+    }
+}
+
+/** 듣기를 쓸 수 없는 문서면 그 까닭(S-27). null = 들을 수 있음. */
+private fun cannotListen(doc: ReaderDoc, fmt: DocFormat): String? = when {
+    doc is MupdfReaderDoc || doc is DjvuReaderDoc -> null
+    fmt.group == FormatGroup.HWP -> "원본 보기에서는 들을 수 없어요. ‘이북식’으로 바꾸면 들을 수 있어요."
+    fmt.group == FormatGroup.COMIC || doc is ComicReaderDoc -> "만화는 그림이라 들을 수 없어요."
+    else -> "이 문서는 들을 수 없어요."
+}
+
+/** 각주 팝업 상태(S-29). [anchor] = 링크 위치(화면 높이 비율), [below] = 카드를 링크 아래에. */
+private data class FootState(val text: String, val page: Int, val anchor: Float, val below: Boolean)
+
+/**
+ * 왼쪽 가장자리 밝기(F-65): 왼쪽 32dp, 세로 가운데 200dp 띠에서 세로 이동이 가로 이동의 2배 이상이면 밝기.
+ * 부모에서 먼저(Initial) 보고, 밝기로 정해지면 손가락을 가져가 아래 쪽 넘김 화면에는 취소가 간다.
+ */
+private fun Modifier.edgeBrightness(enabled: Boolean, edge: Dp, band: Dp, current: () -> Float, onLive: (Float?) -> Unit, onDone: (Float) -> Unit): Modifier =
+    if (!enabled) this else this.pointerInput(Unit) {
+        val edgePx = edge.toPx(); val halfBand = band.toPx() / 2f
+        val slop = viewConfiguration.touchSlop
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            if (down.position.x > edgePx || abs(down.position.y - size.height / 2f) > halfBand) return@awaitEachGesture
+            var decided = false
+            val start = current()
+            var lv = start
+            while (true) {
+                val ev = awaitPointerEvent(PointerEventPass.Initial)
+                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                if (!ch.pressed) break
+                val dx = ch.position.x - down.position.x
+                val dy = ch.position.y - down.position.y
+                if (!decided) {
+                    if (abs(dy) < slop && abs(dx) < slop) continue
+                    if (abs(dy) >= 2f * abs(dx)) decided = true else return@awaitEachGesture
+                }
+                ch.consume()
+                lv = (start - dy / (size.height * 0.5f) * 1.6f).coerceIn(-0.6f, 1f)
+                onLive(lv)
+            }
+            if (decided) { onDone(lv); onLive(null) }
+        }
+    }
+
 /** S-20·S-21 읽기 화면 (+ S-40 한 번만 보기, 태블릿 두 쪽 펼침, 만화 칸 단위 보기). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -197,7 +284,7 @@ fun ReaderScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
-    val colors = s.theme.colors()
+    val colors = s.readingColors()
     var menu by remember { mutableStateOf(false) }
     // 필수 2: 회전·복원에도 읽던 쪽 유지
     var page by rememberSaveable(target.id) { mutableIntStateOf(target.startPage) }
@@ -217,6 +304,28 @@ fun ReaderScreen(
     var tocTab by remember { mutableIntStateOf(0) }
     var openDoc by remember { mutableStateOf<ReaderDoc?>(null) }
     var exportOpen by remember { mutableStateOf(false) }
+    var showTurn by remember { mutableStateOf(false) }
+    var showLight by remember { mutableStateOf(false) }
+    var showTune by remember { mutableStateOf(false) }
+    /** 밝기를 끄는 동안의 값(가장자리·슬라이더). null = 설정값. */
+    var liveLight by remember { mutableStateOf<Float?>(null) }
+    /** F-44 자동 넘김. 화면을 누르면 멈춤([autoPaused]). */
+    var autoOn by rememberSaveable(target.id) { mutableStateOf(false) }
+    var autoPaused by remember { mutableStateOf(false) }
+    var foot by remember { mutableStateOf<FootState?>(null) }
+    var ttsDialog by remember { mutableStateOf<Listen.Check?>(null) }
+    var notifAsk by remember { mutableStateOf(false) }
+    var notifAsked by rememberSaveable { mutableStateOf(false) }
+    var listenSrc by remember { mutableStateOf<ListenSource?>(null) }
+    /** 화면 꺼짐 5분(F-67): 누르거나 넘길 때마다 다시 센다. */
+    var touchTick by remember { mutableIntStateOf(0) }
+    /** F-45 남은 읽기 시간: 최근 쪽 머문 시간(중앙값). */
+    val dwell = remember(target.id) { ArrayList<Long>() }
+    var enterAt by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    var msPerPage by remember { mutableStateOf<Long?>(null) }
+    val listen by Listen.state.collectAsState()
+    val listening = listen.active && listen.bookId == target.id
+    val activity = context as? Activity
     val fmt = target.format
     /** TXT 인코딩(F-32): "" = 자동. 바꾸면 문서를 다시 연다. */
     var txtEnc by rememberSaveable(target.id) { mutableStateOf(target.textEncoding) }
@@ -241,8 +350,101 @@ fun ReaderScreen(
 
     fun stub(msg: String) { scope.launch { snack.showSnackbar(msg) } }
 
-    BackHandler(enabled = menu || sel != null || hit != null) {
-        when { sel != null -> sel = null; menu -> menu = false; else -> hit = null }
+    BackHandler(enabled = menu || sel != null || hit != null || foot != null) {
+        when { foot != null -> foot = null; sel != null -> sel = null; menu -> menu = false; else -> hit = null }
+    }
+
+    // ── 화면·창 (F-42 밝기, F-65, F-67) ──
+    val effLevel: Float? = liveLight ?: if (s.brightness < 0f && s.dim == 0) null else LightMath.level(s.brightness, s.dim)
+    val dimNow = effLevel?.let { LightMath.split(it).second } ?: 0
+    LaunchedEffect(effLevel) {
+        val w = activity?.window ?: return@LaunchedEffect
+        val lp = w.attributes
+        lp.screenBrightness = if (effLevel == null) WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE else LightMath.split(effLevel).first
+        w.attributes = lp
+    }
+    val keepOn = s.screenTimeout == ScreenTimeout.ALWAYS || (autoOn && !autoPaused)
+    LaunchedEffect(s.screenTimeout, touchTick, keepOn) {
+        val w = activity?.window ?: return@LaunchedEffect
+        when {
+            keepOn -> w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            s.screenTimeout == ScreenTimeout.FIVE_MIN -> {
+                w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                delay(5 * 60_000L)
+                w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+            else -> w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+    LaunchedEffect(s.rotation) {
+        activity?.requestedOrientation = when (s.rotation) {
+            Rotation.AUTO -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            Rotation.PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            Rotation.LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+    }
+    DisposableEffect(listening) {
+        if (listening) activity?.volumeControlStream = AudioManager.STREAM_MUSIC
+        onDispose { activity?.volumeControlStream = AudioManager.USE_DEFAULT_STREAM_TYPE }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val w = activity?.window
+            if (w != null) {
+                w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                val lp = w.attributes; lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE; w.attributes = lp
+            }
+            if (activity?.isChangingConfigurations != true) {
+                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                // 읽기 화면을 떠나면 듣기도 끝(화면 꺼짐·다른 앱으로 가는 것은 계속)
+                if (Listen.state.value.bookId == target.id) Listen.stop()
+            }
+        }
+    }
+    LaunchedEffect(page) {
+        touchTick++
+        val now = SystemClock.elapsedRealtime()
+        val d = now - enterAt
+        enterAt = now
+        if (d in 2_000L..600_000L && !listening && !autoOn) {
+            dwell += d
+            if (dwell.size > 30) dwell.removeAt(0)
+            if (dwell.size >= 3) msPerPage = dwell.sorted()[dwell.size / 2]
+        }
+    }
+    // 듣기 안내(끝까지 읽음·잠자기 타이머)
+    LaunchedEffect(listen.message) {
+        val m = listen.message ?: return@LaunchedEffect
+        Listen.consumeMessage()
+        snack.showSnackbar(m)
+    }
+    LaunchedEffect(listening) {
+        if (listening && !s.ttsVolumeHint) {
+            onSettings { it.copy(ttsVolumeHint = true) }
+            snack.showSnackbar("듣는 동안 볼륨 키는 소리 크기를 조절해요")
+        }
+    }
+
+    fun startListen() {
+        val src = listenSrc ?: return
+        menu = false
+        Listen.start(context, src, page, s.ttsRate, s.ttsPitch, s.ttsSleep)
+    }
+    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { startListen() }
+    fun onListen() {
+        val d = openDoc ?: return
+        cannotListen(d, fmt)?.let { stub(it); return }
+        if (listening) { menu = false; if (!listen.playing) Listen.resumeAt(page); return }
+        Listen.prepare(context) { check ->
+            scope.launch {
+                when {
+                    check != Listen.Check.OK -> ttsDialog = check
+                    Build.VERSION.SDK_INT >= 33 && !notifAsked &&
+                        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED -> notifAsk = true
+                    else -> startListen()
+                }
+            }
+        }
     }
 
     // 독서 기록(S-50)
@@ -252,12 +454,20 @@ fun ReaderScreen(
         onDispose { onSession(start, System.currentTimeMillis() - start, sessionPages) }
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(colors.bgC)) {
+    val curLevel by rememberUpdatedState(effLevel ?: activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.5f)
+    BoxWithConstraints(
+        Modifier.fillMaxSize().background(colors.bgC).edgeBrightness(
+            enabled = s.edgeBrightness, edge = 32.dp, band = 200.dp, current = { curLevel },
+            onLive = { liveLight = it },
+            onDone = { lv -> val (b, d) = LightMath.split(lv); onSettings { it.copy(brightness = b, dim = d) } },
+        ),
+    ) {
         val wDp = maxWidth.value
         val hDp = maxHeight.value
         val spread = wDp > hDp && minOf(wDp, hDp) >= 600f
         val pageWdp = if (spread) wDp / 2f else wDp
-        val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook, txtEnc) else listOf(spread, hwpEbook, pdfComic)
+        val txtKey = if (fmt == DocFormat.TXT) listOf(s.txtBlank, s.txtJoin, s.txtTrim, s.txtDefaultEncoding) else emptyList<Any>()
+        val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook, txtEnc) + txtKey else listOf(spread, hwpEbook, pdfComic)
 
         val load by produceState<Load>(Load.Loading, target.path, layoutKey, pwTry) {
             value = Load.Loading
@@ -266,7 +476,7 @@ fun ReaderScreen(
                 runCatching {
                     DocOpener.open(
                         context, File(target.path), fmt, pageWdp, hDp, s, hwpEbook = isHwp && hwpEbook, password = pw, docId = target.id, comic = pdfComic,
-                        textEncoding = TextEncoding.Kind.of(txtEnc),
+                        textEncoding = TextEncoding.Kind.of(txtEnc.ifEmpty { s.txtDefaultEncoding }),
                     )
                 }
             }
@@ -301,6 +511,29 @@ fun ReaderScreen(
             is Load.Locked -> PasswordDialog(wrong = l.wrong, pdf = fmt == DocFormat.PDF, onSubmit = { password = it; passwords[target.id] = it; pwTry++ }, onCancel = onBack)
             is Load.Ok -> {
                 val doc = l.doc
+                // 듣기(F-13): 이 문서를 읽을 글 공급자로. 다시 배치·회전으로 문서가 바뀌면 듣기는 멈췄다가 새 문서로 잇는다.
+                val src = remember(doc) { DocListenSource(doc, target.id, target.title) }
+                LaunchedEffect(src) { listenSrc = src; Listen.attach(src) }
+                DisposableEffect(src) { onDispose { Listen.detach(src, keep = true) } }
+                // 읽는 문장이 다른 쪽으로 가면 따라 넘긴다
+                LaunchedEffect(listen.cur?.page, listening) {
+                    val cp = listen.cur?.page ?: return@LaunchedEffect
+                    if (listening && cp != page && cp in 0 until doc.pageCount) jumpReq = cp
+                }
+                // F-46 각주: 보이는 쪽의 문서 안 링크를 미리 읽어 둔다(누를 때 화면 스레드에서 엔진을 부르지 않게)
+                var pageLinks by remember(doc) { mutableStateOf<Map<Int, List<MupdfDoc.LinkBox>>>(emptyMap()) }
+                LaunchedEffect(doc, page, spreadNow) {
+                    if (doc is MupdfReaderDoc && reflow) {
+                        val ps = if (spreadNow) listOf(page, page + 1) else listOf(page)
+                        pageLinks = withContext(Dispatchers.IO) { ps.filter { it in 0 until doc.pageCount }.associateWith { p -> guarded(doc, emptyList()) { doc.internalLinks(p) } } }
+                    }
+                }
+                // F-44 자동 넘김: 쪽이 바뀔 때마다 다시 센다
+                LaunchedEffect(autoOn, autoPaused, page, s.autoTurnSec, menu) {
+                    if (!autoOn || autoPaused || menu) return@LaunchedEffect
+                    delay(s.autoTurnSec * 1000L)
+                    if (page >= doc.pageCount - 1) { autoOn = false; stub("마지막 쪽이라 자동 넘김을 껐어요.") } else { turnFwd = true; turnReq++ }
+                }
                 LaunchedEffect(doc) {
                     openDoc = doc; sel = null; hit = null
                     val first = !firstLoadDone
@@ -367,18 +600,24 @@ fun ReaderScreen(
                     )
                 } else {
                     val near = if (reflow) 3 else 0
-                    val source = remember(doc, s.theme, highlights, hit) {
-                        val hl = highlights; val h = hit
+                    val speaking = if (listening) listen.cur?.takeIf { it.start >= 0 } else null
+                    val source = remember(doc, colors, highlights, hit, speaking) {
+                        val hl = highlights; val h = hit; val sp = speaking
+                        val spColor = mix(colors.accent, colors.bg, 0.45f)
                         GuardedSource(doc, colors) { i, tpOf ->
                             // 쪽 수가 바뀌어도(이북식 글꼴·크기) 위치 비율로 근처 쪽을 찾은 뒤 글자로 다시 맞춘다
                             val cand = hl.filter { kotlin.math.abs(locatorPage(it.page, it.frac, count) - i) <= near }
-                            val tp = if (cand.isEmpty() && h?.page != i) null else tpOf()
+                            val tp = if (cand.isEmpty() && h?.page != i && sp?.page != i) null else tpOf()
                             if (tp == null) emptyList<Mark>()
                             else {
                                 cand.mapNotNull { x ->
                                     val r = TextGeo.resolve(tp.text, x.startIdx, x.endIdx, x.text) ?: return@mapNotNull null
                                     Mark(r.first, r.last + 1, HighlightColors[x.color.coerceIn(0, 3)])
-                                } + listOfNotNull(h?.takeIf { it.page == i }?.let { searchMark(it) })
+                                } + listOfNotNull(
+                                    h?.takeIf { it.page == i }?.let { searchMark(it) },
+                                    // 듣기: 읽는 문장 옅은 주색 바탕(S-27)
+                                    sp?.takeIf { it.page == i && it.end <= tp.text.length }?.let { Mark(it.start, it.end, spColor) },
+                                )
                             }
                         }
                     }
@@ -390,7 +629,7 @@ fun ReaderScreen(
                     }
                     val cfg = CurlConfig(
                         direction = if (doc.rtl) TurnDirection.RTL else TurnDirection.LTR,
-                        effect = if (s.curl) TurnEffect.CURL else TurnEffect.SLIDE,
+                        effect = when { s.noTurnEffect -> TurnEffect.NONE; s.curl -> TurnEffect.CURL; else -> TurnEffect.SLIDE },
                         spread = SpreadMode.AUTO,
                         backColor = colors.bg,
                         shadowStrength = colors.shadow,
@@ -417,13 +656,34 @@ fun ReaderScreen(
                                     sel = Selection(slot, tp, w.first, w.last + 1)
                                 }
                             }
-                            v.onTap = { x, _ ->
+                            v.onTap = { x, y ->
+                                touchTick++
                                 when {
                                     sel != null -> sel = null
                                     menu -> menu = false
-                                    x < 0.3f -> v.turn(next = rtl)
-                                    x > 0.7f -> v.turn(next = !rtl)
-                                    else -> menu = true
+                                    foot != null -> foot = null
+                                    autoOn && !autoPaused -> autoPaused = true
+                                    else -> {
+                                        // F-46: 문서 안 링크(각주)를 누르면 팝업, 읽던 쪽은 그대로
+                                        val slot = slotAt(x * pxW, pxW, pxH, page, spreadNow, rtl)
+                                        val nx = (x * pxW - slot.left) / slot.width
+                                        val ny = (y * pxH - slot.top) / slot.height
+                                        val pad = 0.015f
+                                        val link = pageLinks[slot.page]?.firstOrNull { nx >= it.l - pad && nx <= it.r + pad && ny >= it.t - pad && ny <= it.b + pad }
+                                        val md = doc as? MupdfReaderDoc
+                                        if (link != null && md != null) {
+                                            scope.launch {
+                                                val fn = withContext(Dispatchers.IO) { guarded(doc, null) { md.footnote(link.uri) } }
+                                                if (fn == null) { stub("링크가 가리키는 곳을 찾지 못했어요.") }
+                                                else { foot = FootState(fn.text, fn.page, if (y < 0.6f) link.b else link.t, below = y < 0.6f) }
+                                            }
+                                        } else when (TapZones.action(x, y, s.tapLayout, s.tapCustom, s.leftHanded, rtl)) {
+                                            TapAction.PREV -> { v.turn(next = false) }
+                                            TapAction.NEXT -> { v.turn(next = true) }
+                                            TapAction.MENU -> { menu = true }
+                                            TapAction.NONE -> {}
+                                        }
+                                    }
                                 }
                             }
                             v.setConfig(cfg)
@@ -449,15 +709,32 @@ fun ReaderScreen(
                 }
 
                 // 볼륨 키 (화면 설계서 4.5): 메뉴·시트가 열려 있으면 시스템 음량
-                val volOn = s.volumeKeys && !menu && !showAa && !showToc && sel == null && !searchOpen
+                // 듣는 동안은 소리 크기(4.5). 자동 넘김 중 볼륨 키 = 넘김 + 타이머 다시 시작(page 가 바뀌며 다시 셈)
+                val volOn = s.volumeKeys && !menu && !showAa && !showToc && !showTurn && !showLight && sel == null && !searchOpen && !listening
                 DisposableEffect(volOn) {
-                    val h: (Boolean) -> Boolean = { next -> turnFwd = next; turnReq++; true }
+                    val h: (Boolean) -> Boolean = { next -> touchTick++; turnFwd = next; turnReq++; true }
                     VolumeKeys.handler = if (volOn) h else null
                     onDispose { VolumeKeys.handler = null }
                 }
 
-                // 정보줄 (메뉴 숨김일 때)
-                if (!menu && !panelMode) InfoLine(page, count, colors, Modifier.align(Alignment.BottomCenter))
+                // 정보줄(F-45, 메뉴 숨김일 때). 듣기 바가 아래에 있으면 아래 정보줄은 숨긴다.
+                val tocPages by produceState<List<Int>?>(null, doc) {
+                    value = withContext(Dispatchers.IO) { guarded(doc, emptyList<Int>()) { doc.toc().map { it.page }.filter { it >= 0 }.distinct().sorted() } }
+                }
+                val chapterLeft = tocPages?.takeIf { it.isNotEmpty() }?.let { t -> (t.firstOrNull { it > page } ?: count) - page - 1 }
+                if (!menu && !panelMode && !(listening && !s.infoTop)) {
+                    ReaderInfoLine(page, count, chapterLeft, msPerPage, s, colors, Modifier.align(if (s.infoTop) Alignment.TopCenter else Alignment.BottomCenter))
+                }
+                // 자동 넘김 멈춤 띠
+                if (autoOn && autoPaused && !menu) Row(
+                    Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 36.dp)
+                        .background(colors.barC, RoundedCornerShape(24.dp)).padding(start = 16.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("자동 넘김 멈춤", fontSize = 14.sp, color = colors.fgC)
+                    TextButton(onClick = { autoPaused = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("다시 시작", color = colors.accentC, fontWeight = FontWeight.Bold) }
+                    TextButton(onClick = { autoOn = false; autoPaused = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("끄기", color = colors.fgC) }
+                }
 
                 // S-40 한 번만 보기 띠
                 fun toggleHwpView() {
@@ -492,9 +769,16 @@ fun ReaderScreen(
                     modifier = Modifier.align(if (menu) Alignment.Center else Alignment.BottomCenter).padding(bottom = if (menu) 0.dp else 28.dp))
 
                 if (menu) {
+                    val portraitNow = LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
                     TopBar(target.title, colors, bookmarked = curBookmark != null, onBack = onBack,
                         onBookmark = { onToggleBookmark(page, locatorFrac(page, count), curBookmark?.id) },
-                        onSearch = { if (doc is MupdfReaderDoc) { menu = false; searchOpen = true } else stub(noTextMsg(fmt)) },
+                        onSearch = { if (doc is MupdfReaderDoc || doc is DjvuReaderDoc) { menu = false; searchOpen = true } else stub(noTextMsg(fmt)) },
+                        rotationLocked = s.rotation != Rotation.AUTO,
+                        onRotate = {
+                            val r = if (s.rotation != Rotation.AUTO) Rotation.AUTO else if (portraitNow) Rotation.PORTRAIT else Rotation.LANDSCAPE
+                            onSettings { it.copy(rotation = r) }
+                            stub(if (r == Rotation.AUTO) "화면 회전을 풀었어요." else "화면 회전을 잠갔어요.")
+                        },
                         viewToggle = when {
                             isHwp && !target.once -> if (hwpEbook) "원본" else "이북식"
                             pdfToggle -> if (pdfComic) "PDF" else "만화"
@@ -507,13 +791,13 @@ fun ReaderScreen(
                         onViewToggle = { if (isHwp) toggleHwpView() else togglePdfComic() },
                         modifier = Modifier.align(Alignment.TopCenter))
                     BottomMenu(
-                        page, count, colors, s.theme, Modifier.align(Alignment.BottomCenter),
+                        page, count, colors, Modifier.align(Alignment.BottomCenter),
                         onSeek = { p -> jumpReq = p },
                         onToc = { showToc = true },
                         onAa = { showAa = true },
-                        onTheme = { onSettings { it.copy(theme = ReadTheme.entries[(it.theme.ordinal + 1) % 3]) } },
-                        onListen = { speak(context, doc, page) { stub(it) } },
-                        onHighlight = { menu = false; stub(if (doc is MupdfReaderDoc) "칠할 글자를 길게 눌러 고른 뒤 ‘형광펜’을 누르세요." else noTextMsg(fmt)) },
+                        onTurn = { showTurn = true },
+                        onListen = { onListen() },
+                        onLight = { showLight = true },
                         onMemo = { memoOpen = true },
                     )
                 }
@@ -549,8 +833,35 @@ fun ReaderScreen(
                     searchOpen = false; hit = h; jumpReq = h.page
                 }
 
-                if (!s.tapGuideShown && !target.once) TapGuide(rtl = doc.rtl, panelMode = panelMode) { onSettings { it.copy(tapGuideShown = true) } }
+                if (listening && !menu) ListenBar(listen, s.ttsRate, colors,
+                    onPlay = { if (listen.playing) Listen.pause() else Listen.resumeAt(page) },
+                    onTune = { showTune = true },
+                    onSleep = { m -> Listen.setSleep(m); onSettings { it.copy(ttsSleep = m) } },
+                    modifier = Modifier.align(Alignment.BottomCenter))
+
+                foot?.let { f ->
+                    FootnoteCard(f.text, f.below, f.anchor, colors,
+                        onGo = { foot = null; jumpReq = f.page },
+                        onDismiss = { foot = null })
+                }
+
+                if (!s.tapGuideShown && !target.once) TapGuide(
+                    rtl = doc.rtl, panelMode = panelMode,
+                    grid = TapZones.grid(s.tapLayout, s.tapCustom, s.leftHanded, doc.rtl),
+                    onChange = { onSettings { it.copy(tapGuideShown = true) }; showTurn = true },
+                ) { onSettings { it.copy(tapGuideShown = true) } }
             }
+        }
+        // F-42 따뜻한 색·추가 어둡게(본문 위, 누름은 받지 않음)
+        LightOverlay(s, dimNow)
+        // F-65 가장자리 밝기: 시스템 뒤로 가기 제스처에서 뺄 띠(왼쪽 32dp × 세로 가운데 200dp)
+        if (s.edgeBrightness) Box(Modifier.align(Alignment.CenterStart).size(32.dp, 200.dp).systemGestureExclusion())
+        liveLight?.let { lv ->
+            Text(
+                if (lv < LightMath.MIN) "추가 어둡게 ${LightMath.split(lv).second}%" else "밝기 ${Math.round(lv * 100)}%",
+                fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                modifier = Modifier.align(Alignment.Center).background(Color(0xCC000000), RoundedCornerShape(16.dp)).padding(horizontal = 20.dp, vertical = 12.dp),
+            )
         }
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = 140.dp))
     }
@@ -560,6 +871,45 @@ fun ReaderScreen(
         if (!target.once) onTextEncoding(txtEnc)
     } else null
     if (showAa) ViewSettingsSheet(s, reflow, onSettings, onDismiss = { showAa = false }, txt = txtUi)
+    if (showTurn) TurnSheet(
+        s, onSettings, autoOn = autoOn,
+        onAuto = { v -> autoOn = v; autoPaused = false; if (v) { showTurn = false; menu = false } },
+        onGuide = { showTurn = false; menu = false; onSettings { it.copy(tapGuideShown = false) } },
+        onDismiss = { showTurn = false },
+    )
+    if (showLight) {
+        val od = openDoc
+        val fixedDoc = !reflow && od !is ComicReaderDoc
+        // '그림은 반전 안 함'은 글자 있는 PDF·HWP 원본 등에서만(스캔 PDF·DjVu·만화는 숨김, S-26)
+        val keepSwitch = fixedDoc && od !is DjvuReaderDoc && !(fmt == DocFormat.PDF && imageOnly != false)
+        LightSheet(s, onSettings, fixed = !reflow, keepSwitch = keepSwitch, onLive = { liveLight = it }, onDismiss = { showLight = false })
+    }
+    if (showTune) ListenTuneSheet(s, onSettings, onOpenEngine = { openTtsSettings(context) }, onDismiss = { showTune = false })
+    ttsDialog?.let { c ->
+        AlertDialog(
+            onDismissRequest = { ttsDialog = null },
+            title = { Text(if (c == Listen.Check.NO_ENGINE) "읽어 주기 엔진이 없어요" else "한국어 음성이 없어요") },
+            text = {
+                Text(
+                    if (c == Listen.Check.NO_ENGINE) "기기에 음성 읽기(TTS) 엔진이 없어요. 설정에서 엔진을 고르거나 받을 수 있어요."
+                    else "한국어 읽어 주기 음성이 없어요. 설정에서 받을 수 있어요.",
+                )
+            },
+            confirmButton = { TextButton(onClick = { ttsDialog = null; openTtsSettings(context) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("설정 열기") } },
+            dismissButton = { TextButton(onClick = { ttsDialog = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text("닫기") } },
+        )
+    }
+    if (notifAsk) AlertDialog(
+        onDismissRequest = { notifAsk = false; notifAsked = true; startListen() },
+        text = { Text("화면을 꺼도 계속 들으려면 알림을 허용해 주세요.") },
+        confirmButton = {
+            TextButton(onClick = {
+                notifAsk = false; notifAsked = true
+                if (Build.VERSION.SDK_INT >= 33) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) else startListen()
+            }, modifier = Modifier.heightIn(min = 48.dp)) { Text("계속") }
+        },
+        dismissButton = { TextButton(onClick = { notifAsk = false; notifAsked = true; startListen() }, modifier = Modifier.heightIn(min = 48.dp)) { Text("나중에") } },
+    )
     if (exportOpen) ExportSheet(bookId = if (target.once) null else target.id) { exportOpen = false }
     val toc by produceState<List<kr.vici.ashreader.doc.TocEntry>?>(null, openDoc, showToc) {
         val d = openDoc
@@ -652,30 +1002,20 @@ fun ReaderScreen(
             dismissButton = { TextButton(onClick = { selMemo = null }) { Text("취소") } },
         )
     }
-    DisposableEffect(Unit) { onDispose { Tts.stop() } }
 }
 
-@Composable
-private fun InfoLine(page: Int, count: Int, c: ReadingColors, modifier: Modifier) {
-    val context = LocalContext.current
-    val now by produceState(clockText(context)) { while (true) { delay(30_000); value = clockText(context) } }
-    val pct = if (count > 0) ((page + 1) * 100 / count) else 0
-    Row(modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 6.dp)) {
-        Text(now, fontSize = 12.sp, color = c.subC, modifier = Modifier.weight(1f))
-        Text("${page + 1} / ${count}쪽 · $pct%", fontSize = 12.sp, color = c.subC)
+/** 읽어 주기 엔진·음성 받기 설정(S-27). */
+private fun openTtsSettings(context: android.content.Context) {
+    for (i in Listen.settingsIntents()) {
+        try { context.startActivity(i); return } catch (_: ActivityNotFoundException) {} catch (_: SecurityException) {}
     }
-}
-
-private fun clockText(context: Context): String {
-    val time = SimpleDateFormat("HH:mm", Locale.KOREA).format(Date())
-    val bat = (context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager)?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
-    return if (bat in 0..100) "$time · 배터리 $bat%" else time
 }
 
 @Composable
 private fun TopBar(
     title: String, c: ReadingColors, bookmarked: Boolean, onBack: () -> Unit, onBookmark: () -> Unit, onSearch: () -> Unit,
     modifier: Modifier, viewToggle: String? = null, viewToggleDesc: String = "", onViewToggle: () -> Unit = {},
+    rotationLocked: Boolean = false, onRotate: () -> Unit = {},
 ) {
     Column(modifier.fillMaxWidth().background(c.barC).statusBarsPadding()) {
         Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -684,6 +1024,10 @@ private fun TopBar(
             // 한글 문서: 원본 ↔ 이북식, 그림 PDF: PDF ↔ 만화 전환 (라벨 = 바꿀 대상)
             if (viewToggle != null) TextButton(onClick = onViewToggle, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = viewToggleDesc }) {
                 Text(viewToggle, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = c.accentC)
+            }
+            // F-67 회전 잠금
+            IconButton(onClick = onRotate, modifier = Modifier.size(48.dp)) {
+                Icon(if (rotationLocked) Icons.RotateLock else Icons.Rotate, if (rotationLocked) "회전 잠금 풀기" else "회전 잠그기", tint = if (rotationLocked) c.accentC else c.fgC)
             }
             IconButton(onClick = onBookmark, modifier = Modifier.size(48.dp)) { Icon(Icons.Bookmark, if (bookmarked) "책갈피 빼기" else "책갈피", tint = if (bookmarked) Color(0xFF8C5A2B) else c.fgC) }
             IconButton(onClick = onSearch, modifier = Modifier.size(48.dp)) { Icon(Icons.Search, "검색", tint = c.fgC) }
@@ -694,8 +1038,8 @@ private fun TopBar(
 
 @Composable
 private fun BottomMenu(
-    page: Int, count: Int, c: ReadingColors, theme: ReadTheme, modifier: Modifier,
-    onSeek: (Int) -> Unit, onToc: () -> Unit, onAa: () -> Unit, onTheme: () -> Unit, onListen: () -> Unit, onHighlight: () -> Unit, onMemo: () -> Unit,
+    page: Int, count: Int, c: ReadingColors, modifier: Modifier,
+    onSeek: (Int) -> Unit, onToc: () -> Unit, onAa: () -> Unit, onTurn: () -> Unit, onListen: () -> Unit, onLight: () -> Unit, onMemo: () -> Unit,
 ) {
     var drag by remember(page) { mutableFloatStateOf(page.toFloat()) }
     Column(modifier.fillMaxWidth().background(c.barC).navigationBarsPadding()) {
@@ -713,9 +1057,9 @@ private fun BottomMenu(
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).padding(bottom = 8.dp)) {
             MenuButton("목차", c, Modifier.weight(1f), onToc) { Icon(Icons.Toc, null, Modifier.size(20.dp), tint = c.fgC) }
             MenuButton("보기", c, Modifier.weight(1f), onAa) { Text("Aa", fontFamily = Myeongjo, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = c.fgC) }
-            MenuButton(theme.label, c, Modifier.weight(1f), onTheme) { Icon(Icons.Moon, null, Modifier.size(20.dp), tint = c.fgC) }
+            MenuButton("넘김", c, Modifier.weight(1f), onTurn) { Icon(Icons.Turn, null, Modifier.size(20.dp), tint = c.fgC) }
             MenuButton("듣기", c, Modifier.weight(1f), onListen) { Icon(Icons.Speaker, null, Modifier.size(20.dp), tint = c.fgC) }
-            MenuButton("형광펜", c, Modifier.weight(1f), onHighlight) { Icon(Icons.Highlight, null, Modifier.size(20.dp), tint = c.fgC) }
+            MenuButton("밝기", c, Modifier.weight(1f), onLight) { Icon(Icons.Sun, null, Modifier.size(20.dp), tint = c.fgC) }
             MenuButton("메모", c, Modifier.weight(1f), onMemo) { Icon(Icons.Pen, null, Modifier.size(20.dp), tint = c.fgC) }
         }
     }
@@ -753,26 +1097,6 @@ private fun OnceBar(fmt: DocFormat, page: Int, count: Int, c: ReadingColors, ebo
             }
         }
     }
-}
-
-/** 듣기(S-27) 최소판: 지금 쪽 글자를 기기 TTS 로 읽는다. TODO: 쪽 이어 읽기·속도·TTS 바. */
-private object Tts {
-    private var tts: TextToSpeech? = null
-    fun stop() { tts?.stop() }
-    fun say(context: Context, text: String, onError: (String) -> Unit) {
-        val t = tts
-        if (t != null) { if (t.isSpeaking) t.stop() else t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ash"); return }
-        tts = TextToSpeech(context.applicationContext) { st ->
-            if (st == TextToSpeech.SUCCESS) { tts?.language = Locale.KOREAN; tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ash") }
-            else onError("기기에 음성 읽기(TTS) 엔진이 없어요.")
-        }
-    }
-}
-
-private fun speak(context: Context, doc: ReaderDoc, page: Int, onError: (String) -> Unit) {
-    val lines = doc.pageLines(page)
-    if (lines.isEmpty()) { onError("이 쪽에는 읽을 글자가 없어요."); return }
-    Tts.say(context, lines.joinToString(" "), onError)
 }
 
 /** 화면 x(px)가 가리키는 쪽 칸. 두 쪽 펼침이면 왼쪽/오른쪽 반(표지 단독 배치 기준). */
