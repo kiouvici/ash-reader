@@ -82,6 +82,12 @@ jobs:
           if [ -n "$changed" ]; then
             echo "$changed"
             git diff -- app/schemas | head -100
+            # 산출물을 내려받을 수 없는 환경용: 바뀐/새 스키마 파일을 gzip+base64 로 알림(annotation)에 싣는다(REST check-runs 로 읽음)
+            git ls-files --others --modified -- app/schemas | while read -r f; do
+              gzip -9c "$f" | base64 -w0 | fold -w 60000 | nl -ba -w1 -s' ' | while read -r n chunk; do
+                echo "::notice title=ROOM_SCHEMA $f #$n::$chunk"
+              done
+            done
             echo "::error title=Room schema::app/schemas 가 커밋된 것과 달라요. 빌드가 만든 스키마 JSON 을 커밋하세요(reports 산출물의 app/schemas)."
             exit 1
           fi
