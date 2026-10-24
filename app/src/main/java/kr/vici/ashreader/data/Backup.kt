@@ -237,6 +237,9 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("paraSpace", paraSpace).put("marginH", marginH).put("marginV", marginV).put("align", align)
             .put("breakChar", breakChar).put("hyphen", hyphen).put("indent", indent).put("dialogIndent", dialogIndent)
             .put("txtTocMask", txtTocMask).put("txtTocCustom", txtTocCustom).put("libSort", libSort).put("libSortDesc", libSortDesc).put("metaNet", metaNet).put("metaAuto", metaAuto)
+            .put("seriesAuto", seriesAuto).put("libList", libList).put("appTheme", appTheme).put("dynamicColor", dynamicColor).put("pinchFont", pinchFont)
+            .put("menuLabels", menuLabels).put("docDefaultView", docDefaultView).put("cropDefault", cropDefault).put("doubleTapZoom", doubleTapZoom.toDouble())
+            .put("dictPkg", dictPkg).put("webtoonSuggest", webtoonSuggest)
 
         private fun settingsOf(o: JSONObject, base: Settings) = base.copy(
             font = BodyFont.entries.firstOrNull { it.name == o.optString("font") } ?: base.font,
@@ -293,6 +296,12 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             libSort = o.optInt("libSort", base.libSort).coerceAtLeast(0),
             libSortDesc = o.optBoolean("libSortDesc", base.libSortDesc),
         metaNet = o.optBoolean("metaNet", base.metaNet), metaAuto = o.optInt("metaAuto", base.metaAuto).coerceIn(0, 2),
+        seriesAuto = o.optBoolean("seriesAuto", base.seriesAuto), libList = o.optBoolean("libList", base.libList),
+        appTheme = o.optInt("appTheme", base.appTheme).coerceIn(0, 2), dynamicColor = o.optBoolean("dynamicColor", base.dynamicColor),
+        pinchFont = o.optBoolean("pinchFont", base.pinchFont), menuLabels = o.optBoolean("menuLabels", base.menuLabels),
+        docDefaultView = o.optInt("docDefaultView", base.docDefaultView).coerceIn(0, 1), cropDefault = o.optBoolean("cropDefault", base.cropDefault),
+        doubleTapZoom = o.optDouble("doubleTapZoom", base.doubleTapZoom.toDouble()).toFloat().let { if (it.isNaN()) 2f else it.coerceIn(1.5f, 3f) },
+        dictPkg = o.optString("dictPkg", base.dictPkg), webtoonSuggest = o.optBoolean("webtoonSuggest", base.webtoonSuggest),
         )
     }
 }

@@ -291,13 +291,15 @@ fun LibraryPane(
     homeKey: Int = 0,
     navBar: (@Composable () -> Unit)? = null,
     extras: @Composable () -> Unit = {},
+    listMode: Boolean = false,
+    seriesAuto: Boolean = true,
 ) {
     var pathStr by rememberSaveable { mutableStateOf("") }
     var seenHome by rememberSaveable { mutableStateOf(homeKey) }
     if (homeKey != seenHome) { seenHome = homeKey; pathStr = "" }
     val formats = remember(books) { LibGroups.formats(books) }
     val folders = remember(books, folderRoots) { LibGroups.folders(books, folderRoots) }
-    val series = remember(books) { LibGroups.series(books) }
+    val series = remember(books, seriesAuto) { LibGroups.series(books) }
     val recent = remember(books) { books.sortedByDescending { if (it.lastOpenedAt > 0) it.lastOpenedAt else it.addedAt } }
     fun groupsOf(s: LibSection) = when (s) { LibSection.FORMAT -> formats; LibSection.FOLDER -> folders; LibSection.SERIES -> series; else -> emptyList() }
     val path = if (pathStr.isEmpty()) emptyList() else pathStr.split(PATH_SEP)
@@ -325,7 +327,7 @@ fun LibraryPane(
             val sec = p.firstOrNull()?.let { LibSection.of(it) }
             val back = { go(p.dropLast(1)) }
             val detail: @Composable (LibGroup, Boolean, Boolean) -> Unit = { g, filters, search ->
-                GroupDetail(g, c, shared, unavailable, onOpen, onLongBook, onBack = back, onEnter = { k -> go(p + k.id) }, filters = filters, startSearch = search)
+                GroupDetail(g, c, shared, unavailable, onOpen, onLongBook, onBack = back, onEnter = { k -> go(p + k.id) }, filters = filters, startSearch = search, listMode = listMode)
             }
             when (sec) {
                 null -> LibraryHome(
@@ -573,7 +575,7 @@ private fun GroupCard(g: LibGroup, c: ShelfColors, modifier: Modifier, onClick: 
 private fun GroupDetail(
     g: LibGroup, c: ShelfColors, shared: SharedBounds, unavailable: Set<String>,
     onOpen: (Book) -> Unit, onLong: (Book) -> Unit, onBack: () -> Unit, onEnter: (LibGroup) -> Unit,
-    filters: Boolean = false, startSearch: Boolean = false,
+    filters: Boolean = false, startSearch: Boolean = false, listMode: Boolean = false,
 ) {
     var sort by rememberSaveable(g.id) { mutableStateOf(GroupSort.RECENT) }
     var query by rememberSaveable(g.id) { mutableStateOf(if (startSearch) "" else null) }
@@ -645,7 +647,11 @@ private fun GroupDetail(
                     Text("${shown.size}권", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = c.sub2, modifier = Modifier.padding(start = 6.dp, bottom = 2.dp))
                 }
             }
-            items(shown.size, key = { shown[it].id }) { i ->
+            // 서재 기본 보기(작업 06): 표지 격자 / 목록
+            if (listMode) items(shown.size, key = { shown[it].id }, span = { GridItemSpan(maxLineSpan) }) { i ->
+                val b = shown[i]
+                ListBook(b, c, b.id in unavailable, now, onOpen, onLong)
+            } else items(shown.size, key = { shown[it].id }) { i ->
                 val b = shown[i]
                 GridBook(b, c, b.id in unavailable, now, onOpen, onLong)
             }
@@ -760,6 +766,31 @@ private fun GridBook(b: Book, c: ShelfColors, unavailable: Boolean, now: Long, o
     }
 }
 
+/** 목록 보기 한 줄(작업 06 '서재 기본 보기: 목록'): 작은 표지 · 제목 · 지은이·형식 · 상태 칸. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ListBook(b: Book, c: ShelfColors, unavailable: Boolean, now: Long, onOpen: (Book) -> Unit, onLong: (Book) -> Unit) {
+    val st = bookState(b, unavailable, now)
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 64.dp).combinedClickable(onClick = { onOpen(b) }, onLongClick = { onLong(b) })
+            .clearAndSetSemantics { contentDescription = bookLabel(b, unavailable) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ShelfCover(b, Modifier.width(40.dp).aspectRatio(coverRatio(b)), dim = unavailable)
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Text(b.shownTitle, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                listOfNotNull(b.author.ifBlank { null }, DocFormat.of(b.format).badge, if (b.needsReview) "확인 필요" else null).joinToString(" · "),
+                fontSize = 12.sp, color = c.sub2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        val col = if (st.reading) c.blue else c.ink.copy(alpha = 0.8f)
+        Box(
+            Modifier.padding(start = 8.dp).border(1.5.dp, col, RoundedCornerShape(6.dp)).heightIn(min = 22.dp).padding(horizontal = 7.dp),
+            contentAlignment = Alignment.Center,
+        ) { Text(st.text, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = col, maxLines = 1) }
+    }
+}
 /** 책 한 권의 TalkBack·시험 이름: "제목, 형식, 42% 읽음" / "…, 열 수 없음". */
 private fun bookLabel(b: Book, unavailable: Boolean) =
     "${b.shownTitle}, ${DocFormat.of(b.format).badge}, " + if (unavailable) "열 수 없음" else "${(b.progress() * 100).toInt()}% 읽음"

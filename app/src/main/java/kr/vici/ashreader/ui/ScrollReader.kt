@@ -198,7 +198,7 @@ fun ScrollReader(
                 .pointerInput(wPx, hPx, zoomable) {
                     detectTapGestures(
                         onDoubleTap = if (!zoomable) null else ({ o: Offset ->
-                            if (zoom > 1f) { zoom = 1f; panX = 0f } else { zoom = 2f; panX = (wPx / 2f - o.x); clampPan() }
+                            if (zoom > 1f) { zoom = 1f; panX = 0f } else { zoom = ViewDefaults.doubleTap; panX = (wPx / 2f - o.x); clampPan() }
                             zoomShownAt++
                         }),
                         onLongPress = { o ->

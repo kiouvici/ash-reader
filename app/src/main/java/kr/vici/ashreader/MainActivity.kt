@@ -239,7 +239,11 @@ class MainActivity : ComponentActivity() {
             val app = ash
             app.appScope.launch { runCatching { app.library.sweep(app.prefs.settings.first().clearOnceOnExit) } }
         }
-        setContent { AshTheme { AshRoot(nav) } }
+        setContent {
+            // 작업 06: 앱 테마(시스템/밝게/어둡게)·배경화면 색 따르기
+            val st by (application as AshApp).prefs.settings.collectAsState(initial = null)
+            AshTheme(st?.appTheme ?: 0, st?.dynamicColor ?: false) { AshRoot(nav) }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -314,6 +318,10 @@ private fun AshRoot(nav: NavModel) {
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
     val settings by app.prefs.settings.collectAsState(initial = Settings())
+    // 작업 06: 앱 전체 설정 중 화면 여러 곳이 읽는 값(시리즈 자동 묶기·두 번 탭 확대 배율)
+    SeriesGroups.autoEnabled = settings.seriesAuto
+    kr.vici.ashreader.ui.ViewDefaults.doubleTap = settings.doubleTapZoom
+    kr.vici.ashreader.ui.ViewDefaults.suggestWebtoon = settings.webtoonSuggest
     val books by remember { dao.recent() }.collectAsState(initial = emptyList())
     // 필수 2: 화면 상태는 ViewModel(SavedStateHandle)에 — 회전해도 읽기 화면·한 번만 보기 문서가 유지된다
     var nextVol by remember { mutableStateOf<Pair<Book, Book>?>(null) }
@@ -385,14 +393,24 @@ private fun AshRoot(nav: NavModel) {
     var zipPick by remember { mutableStateOf<ZipPick?>(null) }
     var zipEmpty by remember { mutableStateOf(false) }
 
+    /**
+     * 처음 보기 방식: 이미 열어 본 책은 그 책의 방식, 처음 여는 한글·Word 는 설정 '처음 열 때'(작업 06), 그 밖은 원본.
+     */
+    fun startView(b: Book?, f: DocFormat): Int = when {
+        b != null && b.lastOpenedAt > 0 -> b.viewMode
+        f.group == kr.vici.ashreader.data.FormatGroup.HWP || f.group == kr.vici.ashreader.data.FormatGroup.WORD ->
+            if (settings.docDefaultView == 1) Book.VIEW_EBOOK else Book.VIEW_ORIGINAL
+        else -> b?.viewMode ?: Book.VIEW_ORIGINAL
+    }
+
     /** 압축 안 문서를 연다(서재 기록이 있으면 그 기록으로 이어 읽기). */
     fun openInner(z: ZipPick, item: LibraryRepo.ZipItem) {
         zipPick = null
         scope.launch {
             runCatching { app.library.openInner(z.file, z.zipId, item, z.once) }.onSuccess { (o, b) ->
                 nav.screen = if (b != null) Screen.Reader(
-                    ReaderTarget(b.id, b.title, o.file.absolutePath, DocFormat.of(b.format), b.lastPage, false, b.viewMode, b.pageCount, b.textEncoding), null,
-                ) else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true), o)
+                    ReaderTarget(b.id, b.title, o.file.absolutePath, DocFormat.of(b.format), b.lastPage, false, startView(b, DocFormat.of(b.format)), b.pageCount, b.textEncoding), null,
+                ) else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true, viewMode = startView(null, o.format)), o)
             }.onFailure { e -> snack.showSnackbar(e.message ?: "압축 안 문서를 열 수 없어요.") }
         }
     }
@@ -417,7 +435,7 @@ private fun AshRoot(nav: NavModel) {
                 val f = DocFormat.of(b.format)
                 if (f == DocFormat.ZIP) { dao.touch(b.id); openZip(File(p), b.id, b.title, once = false); return@onSuccess }
                 nav.screen = Screen.Reader(
-                    ReaderTarget(b.id, b.title, p, f, b.lastPage, once = false, viewMode = b.viewMode, startCount = b.pageCount, textEncoding = b.textEncoding), null,
+                    ReaderTarget(b.id, b.title, p, f, b.lastPage, once = false, viewMode = startView(b, f), startCount = b.pageCount, textEncoding = b.textEncoding), null,
                 )
             }.onFailure { e -> snack.showSnackbar(e.message ?: "파일을 열 수 없어요.") }
         }
@@ -452,10 +470,10 @@ private fun AshRoot(nav: NavModel) {
             val libPath = existing?.takeIf { it.origin != Book.ORIGIN_SAF }?.let { e -> runCatching { app.library.localPath(e) }.getOrNull() }
             if (existing != null && libPath != null) app.library.discardOnce(o)
             nav.screen = if (existing != null) Screen.Reader(
-                ReaderTarget(existing.id, existing.title, libPath ?: o.file.absolutePath, DocFormat.of(existing.format), existing.lastPage, false, existing.viewMode, existing.pageCount, existing.textEncoding),
+                ReaderTarget(existing.id, existing.title, libPath ?: o.file.absolutePath, DocFormat.of(existing.format), existing.lastPage, false, startView(existing, DocFormat.of(existing.format)), existing.pageCount, existing.textEncoding),
                 if (libPath == null) o else null,
             )
-            else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true), o)
+            else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true, viewMode = startView(null, o.format)), o)
         }.onFailure { e ->
             // 취소(새 문서를 받음·화면 재생성)는 실패가 아니다 — 받은편지함에 남겨 다시 처리한다
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -608,6 +626,7 @@ private fun AshRoot(nav: NavModel) {
                         homeKey = libHome,
                         navBar = if (land) { { HeaderNav(listOf("서재", "독서 기록", "설정"), 0, ::pickTab) } } else null,
                         onBookInfo = { b -> nav.screen = Screen.BookInfo(b.id) },
+                        listMode = settings.libList, seriesAuto = settings.seriesAuto,
                     )
                     Screen.Stats -> {
                         val since = remember { statsSince() }

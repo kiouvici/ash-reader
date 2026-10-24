@@ -13,8 +13,9 @@ data class DocViewPrefs(val fit: Int = ComicBookPrefs.FIT_SCREEN, val crop: Bool
 class DocViewStore(context: Context) {
     private val sp = context.applicationContext.getSharedPreferences("doc_view", Context.MODE_PRIVATE)
 
-    fun load(bookId: String): DocViewPrefs {
-        val v = sp.getString("b:$bookId", null) ?: return DocViewPrefs()
+    /** 이 책 값. 아직 없으면 맞춤은 화면, 여백 자르기는 [defaultCrop](설정 '여백 자르기 기본', 작업 06). */
+    fun load(bookId: String, defaultCrop: Boolean = false): DocViewPrefs {
+        val v = sp.getString("b:$bookId", null) ?: return DocViewPrefs(crop = defaultCrop)
         val parts = v.split(',')
         val fit = parts.getOrNull(0)?.toIntOrNull()?.takeIf { it == ComicBookPrefs.FIT_SCREEN || it == ComicBookPrefs.FIT_WIDTH || it == ComicBookPrefs.FIT_HEIGHT }
         return DocViewPrefs(fit ?: ComicBookPrefs.FIT_SCREEN, parts.getOrNull(1) == "1")

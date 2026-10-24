@@ -68,6 +68,10 @@ fun LibraryScreen(
     navBar: (@Composable () -> Unit)? = null,
     /** 책 정보(작업 06): 문서 메뉴 → '책 정보·표지 바꾸기'. */
     onBookInfo: ((Book) -> Unit)? = null,
+    /** 서재 기본 보기: false = 표지, true = 목록(작업 06). */
+    listMode: Boolean = false,
+    /** 시리즈 자동으로 묶기(작업 06) — 바뀌면 묶음을 다시 만든다. */
+    seriesAuto: Boolean = true,
 ) {
     var menuFor by remember { mutableStateOf<Book?>(null) }
     LibraryPane(
@@ -75,7 +79,7 @@ fun LibraryScreen(
         onOpen = onOpen, onLongBook = { menuFor = it },
         // 시리즈 카드를 길게 누르면 묶음 관리(이름 바꾸기·묶기 풀기·권 더하기, F-62)
         onSeriesManage = onSeries,
-        modifier = modifier, scanning = scanning, homeKey = homeKey, navBar = navBar,
+        modifier = modifier, scanning = scanning, homeKey = homeKey, navBar = navBar, listMode = listMode, seriesAuto = seriesAuto,
         extras = { if (showStores) Box(Modifier.padding(horizontal = 20.dp).padding(top = 20.dp)) { StoreRow(stores, onEdit = onStoreEdit, onAddBook = onAdd) } },
     )
 

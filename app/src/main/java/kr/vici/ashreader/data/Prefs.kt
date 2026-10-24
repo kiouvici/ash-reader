@@ -138,6 +138,28 @@ data class Settings(
     val metaAuto: Int = 0,
     /** 처음 서재를 열 때 한 번 물었나. */
     val metaAsked: Boolean = false,
+    /** 시리즈 자동으로 묶기(같은 폴더·이름 끝 권 번호). 끄면 직접 묶은 것만. (작업 06) */
+    val seriesAuto: Boolean = true,
+    /** 서재 기본 보기: false = 표지, true = 목록. (작업 06) */
+    val libList: Boolean = false,
+    /** 앱 화면 테마: 0 = 시스템, 1 = 밝게, 2 = 어둡게. (작업 06) */
+    val appTheme: Int = 0,
+    /** 배경화면 색 따르기(Android 12+). (작업 06) */
+    val dynamicColor: Boolean = false,
+    /** 두 손가락으로 글자 크기(이북·TXT). (작업 06) */
+    val pinchFont: Boolean = false,
+    /** 읽기 메뉴 단추 이름 보이기. (작업 06) */
+    val menuLabels: Boolean = true,
+    /** 한글·Word 처음 열 때: 0 = 원본, 1 = 이북식. (작업 06) */
+    val docDefaultView: Int = 0,
+    /** PDF·한글·Word 여백 자르기 기본값(책마다 바꾸면 그 책은 그대로). (작업 06) */
+    val cropDefault: Boolean = false,
+    /** 두 번 탭 확대 배율(1.5·2·3). (작업 06) */
+    val doubleTapZoom: Float = 2f,
+    /** 사전 앱 패키지("" = 말글사전, 없으면 고르기). (작업 06) */
+    val dictPkg: String = "",
+    /** 세로로 긴 만화를 웹툰 보기로 제안. (작업 06) */
+    val webtoonSuggest: Boolean = true,
 )
 
 /** F-44 자동 스크롤 속도 눈금(1~10) → 초당 이동 dp. */
@@ -208,6 +230,17 @@ class Prefs(private val context: Context) {
         val metaNet = booleanPreferencesKey("meta_net")
         val metaAuto = intPreferencesKey("meta_auto")
         val metaAsked = booleanPreferencesKey("meta_asked")
+        val seriesAuto = booleanPreferencesKey("series_auto")
+        val libList = booleanPreferencesKey("lib_list")
+        val appTheme = intPreferencesKey("app_theme")
+        val dynamicColor = booleanPreferencesKey("dynamic_color")
+        val pinchFont = booleanPreferencesKey("pinch_font")
+        val menuLabels = booleanPreferencesKey("menu_labels")
+        val docDefaultView = intPreferencesKey("doc_default_view")
+        val cropDefault = booleanPreferencesKey("crop_default")
+        val doubleTapZoom = floatPreferencesKey("double_tap_zoom")
+        val dictPkg = stringPreferencesKey("dict_pkg")
+        val webtoonSuggest = booleanPreferencesKey("webtoon_suggest")
     }
 
     val settings: Flow<Settings> = context.dataStore.data
@@ -275,6 +308,17 @@ class Prefs(private val context: Context) {
         metaNet = p[K.metaNet] ?: false,
         metaAuto = (p[K.metaAuto] ?: 0).coerceIn(0, 2),
         metaAsked = p[K.metaAsked] ?: false,
+        seriesAuto = p[K.seriesAuto] ?: true,
+        libList = p[K.libList] ?: false,
+        appTheme = (p[K.appTheme] ?: 0).coerceIn(0, 2),
+        dynamicColor = p[K.dynamicColor] ?: false,
+        pinchFont = p[K.pinchFont] ?: false,
+        menuLabels = p[K.menuLabels] ?: true,
+        docDefaultView = (p[K.docDefaultView] ?: 0).coerceIn(0, 1),
+        cropDefault = p[K.cropDefault] ?: false,
+        doubleTapZoom = (p[K.doubleTapZoom] ?: 2f).coerceIn(1.5f, 3f),
+        dictPkg = p[K.dictPkg] ?: "",
+        webtoonSuggest = p[K.webtoonSuggest] ?: true,
     )
 
     /**
@@ -344,6 +388,17 @@ class Prefs(private val context: Context) {
             p[K.metaNet] = s.metaNet
             p[K.metaAuto] = s.metaAuto
             p[K.metaAsked] = s.metaAsked
+            p[K.seriesAuto] = s.seriesAuto
+            p[K.libList] = s.libList
+            p[K.appTheme] = s.appTheme
+            p[K.dynamicColor] = s.dynamicColor
+            p[K.pinchFont] = s.pinchFont
+            p[K.menuLabels] = s.menuLabels
+            p[K.docDefaultView] = s.docDefaultView
+            p[K.cropDefault] = s.cropDefault
+            p[K.doubleTapZoom] = s.doubleTapZoom
+            p[K.dictPkg] = s.dictPkg
+            p[K.webtoonSuggest] = s.webtoonSuggest
         }
     }
 

@@ -147,6 +147,17 @@ fun AppSettingsScreen(
     var warmTime by remember { mutableStateOf(false) }
     var tapEditor by remember { mutableStateOf(false) }
     var infoItems by remember { mutableStateOf(false) }
+    // 작업 06: 내 글꼴 관리·내 테마 만들기·독서 기록 지우기·사전 앱 고르기 창
+    var fontsOpen by remember { mutableStateOf(false) }
+    var themeOpen by remember { mutableStateOf(false) }
+    var clearHistory by remember { mutableStateOf(false) }
+    var dictPick by remember { mutableStateOf(false) }
+    // 만화 기본값(새로 여는 만화가 따름 — 만화 보기 시트의 '모든 만화 기본값으로'와 같은 저장소)
+    val comicStore = remember { kr.vici.ashreader.data.ComicPrefsStore(context) }
+    var comicDef by remember { mutableStateOf(comicStore.defaults()) }
+    fun setComic(f: (kr.vici.ashreader.data.ComicBookPrefs) -> kr.vici.ashreader.data.ComicBookPrefs) { comicDef = f(comicDef); comicStore.saveDefaults(comicDef) }
+    // 서재 폴더마다 책 수(목업: 'Download 23권')
+    val libBooks by remember { context.ash.db.books().recent() }.collectAsState(initial = emptyList())
     val upUsed by produceState<Long?>(null, upTick, s.upscaleCacheMb) {
         // 상한을 바꾸면 앱(AshRoot)이 넘치는 만큼 지운다. 잠깐 기다렸다가 쓰는 양을 다시 잰다.
         if (upTick > 0 || s.upscaleCacheMb != 1024) kotlinx.coroutines.delay(300)
@@ -164,6 +175,8 @@ fun AppSettingsScreen(
     val aiCap = remember { AiCapability.cached(context) }
     val aiBad = aiCap?.verdict?.let { it != AiCapability.Verdict.OK } == true
 
+    val dictName = remember(s.dictPkg) { dictLabel(context, s.dictPkg) }
+
     /** 첫 화면 항목 아래 지금 값 요약. */
     fun hint(p: SetPage): String = when (p) {
         SetPage.FOLDERS -> folderNames.joinToString(" · ").ifEmpty { "아직 고른 폴더가 없어요" }
@@ -173,10 +186,10 @@ fun AppSettingsScreen(
         SetPage.THEME -> s.theme.label + if (s.warmAuto) " · 따뜻한 색 자동" else ""
         SetPage.TURN -> "${turnLabel(s)} · ${s.tapLayout.label}"
         SetPage.READING -> "화면 꺼짐 · 회전 · 정보줄"
-        SetPage.COMIC -> "AI 화질 · 보기는 책마다"
+        SetPage.COMIC -> listOf("방향 자동", "왼→오", "오→왼", "웹툰")[comicDef.dir.coerceIn(0, 3)] + " · 두 쪽 " + listOf("자동", "한 쪽", "두 쪽")[comicDef.spread.coerceIn(0, 2)]
         SetPage.DOC -> "야간 그림 반전 " + if (s.nightKeepImages) "안 함" else "함"
         SetPage.AI -> if (aiBad) "이 기기에서는 쓸 수 없어요" else "만화 " + (if (s.aiUpscale) "켬" else "끔") + " · 문서 그림 " + (if (s.epubAiUpscale) "켬" else "끔")
-        SetPage.LISTEN -> "${"%.1f".format(java.util.Locale.ROOT, s.ttsRate)}× · 말글사전"
+        SetPage.LISTEN -> "${"%.1f".format(java.util.Locale.ROOT, s.ttsRate)}× · $dictName"
         SetPage.ABOUT -> AppInfo.VERSION_LABEL
     }
 
@@ -187,9 +200,18 @@ fun AppSettingsScreen(
                 Section("고른 폴더", c) {
                     if (folderNames.isEmpty()) Act("폴더 추가", c, onClick = onFolders)
                     else {
-                        folderNames.forEach { n -> Value(n, "", c, onClick = onFolders) }
+                        val labels = libFolders.filter { it.include }.map { it.label }
+                        folderNames.forEachIndexed { i, n ->
+                            val l = labels.getOrNull(i).orEmpty()
+                            val count = libBooks.count { b -> b.folder == l || b.folder.startsWith("$l/") }
+                            Value(n, "${count}권", c, onClick = onFolders)
+                        }
                         Act("폴더 추가·빼기", c, onClick = onFolders)
                     }
+                }
+                Section("묶기", c) {
+                    Toggle("시리즈 자동으로 묶기", s.seriesAuto, c, sub = "같은 폴더, 이름 끝 권·화 번호만 다른 책 · 끄면 직접 묶은 것만") { v -> onChange { it.copy(seriesAuto = v) } }
+                    Value("서재 기본 보기", if (s.libList) "목록" else "표지", c, sub = "책을 표지 격자로 / 한 줄씩 목록으로") { onChange { it.copy(libList = !it.libList) } }
                 }
                 Section("서재", c) {
                     val access = remember { kr.vici.ashreader.data.StorageAccess.hasFileAccess(context) }
@@ -240,6 +262,7 @@ fun AppSettingsScreen(
                 Section("기록", c) {
                     Act("형광펜·메모 모두 내보내기", c, sub = ".txt 또는 .md 로 저장하거나 공유", onClick = onExportAll)
                     Toggle("한 번만 보기 기록 지우기", s.clearOnceOnExit, c, sub = "앱 닫으면 지워요") { v -> onChange { it.copy(clearOnceOnExit = v) }; if (v) onClearOnce() }
+                    Act("독서 기록 지우기", c, sub = "읽은 시간·날짜 기록(독서 기록 화면). 읽은 위치·책갈피·메모는 그대로") { clearHistory = true }
                 }
             }
             SetPage.TEXT -> {
@@ -250,6 +273,7 @@ fun AppSettingsScreen(
                     Value("글자 크기", "${s.fontSize}", c) {
                         onChange { it.copy(fontSize = if (it.fontSize + 2 > Prefs.MAX_SIZE) Prefs.MIN_SIZE else it.fontSize + 2) }
                     }
+                    Act("내 글꼴 관리", c, sub = if (s.userFont.isNotEmpty()) "지금 ‘${kr.vici.ashreader.doc.UserFonts.label(s.userFont)}’" else "TTF·OTF 글꼴 더하기·고르기·지우기") { fontsOpen = true }
                 }
                 Section("문단", c) {
                     val heights = listOf(1.4f, 1.6f, 1.8f, 2.0f, 2.2f)
@@ -281,9 +305,16 @@ fun AppSettingsScreen(
                         sub = if (s.warmAuto) "이 시간에만 따뜻한 색을 켜요" else "강도는 읽기 화면 '밝기'에서",
                     ) { warmTime = true }
                     if (s.warmAuto) Toggle("따뜻한 색 자동 켜기", true, c) { v -> onChange { it.copy(warmAuto = v) } }
+                    Act("내 테마 만들기", c, sub = "바탕·글자 색을 골라 '내 테마'로") { themeOpen = true }
                 }
                 Section("밝기", c) {
                     Toggle("가장자리로 밝기 조절", s.edgeBrightness, c, sub = "화면 왼쪽 가장자리 가운데를 위아래로 밀어요") { v -> onChange { it.copy(edgeBrightness = v) } }
+                }
+                Section("앱 화면", c, foot = "서재·설정 같은 앱 화면의 색이에요. 읽는 화면의 종이 색은 '읽기 테마'를 따라요.") {
+                    Value("앱 테마", listOf("시스템", "밝게", "어둡게")[s.appTheme.coerceIn(0, 2)], c) { onChange { it.copy(appTheme = (it.appTheme + 1) % 3) } }
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        Toggle("배경화면 색 따르기", s.dynamicColor, c, sub = "단추·강조 색을 기기 배경화면 색에 맞춰요") { v -> onChange { it.copy(dynamicColor = v) } }
+                    } else Value("배경화면 색 따르기", "Android 12 이상", c, chevron = false) {}
                 }
             }
             SetPage.TURN -> {
@@ -291,7 +322,9 @@ fun AppSettingsScreen(
                     Value("넘김 효과", turnLabel(s), c) {
                         onChange { when { it.noTurnEffect -> it.copy(noTurnEffect = false, curl = true); it.curl -> it.copy(curl = false); else -> it.copy(noTurnEffect = true) } }
                     }
-                    Toggle("스크롤 보기", s.scrollView, c, sub = "쪽을 위아래로 이어서 보기(넘김 효과는 쓰지 않아요)") { v -> onChange { it.copy(scrollView = v) } }
+                    // 목업대로 '쪽·스크롤' 값 줄(같은 저장값 scrollView)
+                    Value("쪽·스크롤", if (s.scrollView) "스크롤" else "쪽", c, sub = "스크롤 = 쪽을 위아래로 이어서 보기(넘김 효과는 쓰지 않아요)") { onChange { it.copy(scrollView = !it.scrollView) } }
+                    Toggle("두 손가락으로 글자 크기", s.pinchFont, c, sub = "이북·TXT 를 읽는 중 두 손가락을 벌리면 크게, 오므리면 작게") { v -> onChange { it.copy(pinchFont = v) } }
                 }
                 Section("누르기와 버튼", c) {
                     Value("화면 누르는 곳", s.tapLayout.label, c, sub = "좌우 · L자 · 어디든 다음 · 내 방식") {
@@ -319,16 +352,42 @@ fun AppSettingsScreen(
                     Value("정보줄 항목", "${InfoItem.entries.count { s.infoItems and it.bit != 0 }}개", c, sub = "시계·배터리·이번 장 남은 쪽·진행률·남은 시간") { infoItems = true }
                     Toggle("정보줄을 위에", s.infoTop, c, sub = "끄면 아래") { v -> onChange { it.copy(infoTop = v) } }
                     Toggle("두 쪽 펼침에서 쪽마다 정보줄", s.infoPerPage, c, sub = "태블릿 가로: 각 쪽 아래에 쪽 번호. 끄면 전체 아래 한 줄") { v -> onChange { it.copy(infoPerPage = v) } }
+                    Toggle("메뉴 버튼 이름 보이기", s.menuLabels, c, sub = "읽기 메뉴 아래 단추(목차·보기·넘김…) 이름") { v -> onChange { it.copy(menuLabels = v) } }
                 }
             }
             SetPage.COMIC -> {
-                Section("보기", c, foot = "만화의 읽는 방향·두 쪽·맞춤·확대 방식은 책마다 정해요. 만화를 읽는 중 메뉴의 '보기'에서 바꿔요.") {
-                    if (!aiBad) Toggle("새 만화에 AI 화질 향상 켜기", s.aiUpscale, c, sub = "책마다 바꿀 수 있어요 · 배터리 더 씀") { v -> onChange { it.copy(aiUpscale = v) } }
+                // 작업 06: 모든 만화 기본값(새로 여는 만화가 따름). 읽는 중 만화 보기 시트에서도 책마다 바꾸고 '모든 만화 기본값으로' 저장할 수 있다
+                Section("보기", c) {
+                    val d = comicDef
+                    Value("읽는 방향", listOf("자동", "왼→오", "오→왼", "위→아래 · 웹툰")[d.dir.coerceIn(0, 3)], c) { setComic { it.copy(dir = (it.dir + 1) % 4) } }
+                    Value("두 쪽", listOf("자동", "한 쪽", "두 쪽")[d.spread.coerceIn(0, 2)], c, sub = "태블릿 가로·펼친 화면") { setComic { it.copy(spread = (it.spread + 1) % 3) } }
+                    Toggle("첫 쪽 단독", d.coverAlone, c, sub = "두 쪽 보기에서 표지를 혼자 보여요") { v -> setComic { it.copy(coverAlone = v) } }
+                    Value("가로로 긴 쪽", listOf("반으로 나눔", "회전", "그대로")[d.wide.coerceIn(0, 2)], c) { setComic { it.copy(wide = (it.wide + 1) % 3) } }
+                }
+                Section("화면 맞춤", c, foot = "새로 여는 만화의 기본값이에요. 이미 연 만화는 그 책에 정한 값을 써요(읽는 중 메뉴 '보기').") {
+                    val d = comicDef
+                    Value("맞춤", listOf("화면", "폭", "높이", "원본")[d.fit.coerceIn(0, 3)], c) { setComic { it.copy(fit = (it.fit + 1) % 4) } }
+                    Toggle("테두리 자르기", d.crop, c, sub = "쪽 둘레 흰 여백을 자동으로") { v -> setComic { it.copy(crop = v) } }
+                    Value("확대 방식", (if (d.hq) "고품질" else "빠름") + "·" + listOf("끔", "약", "중", "강")[d.sharpen.coerceIn(0, 3)], c, sub = "빠름 → 고품질·끔 → 고품질·약 … 차례로") {
+                        setComic { cur -> if (!cur.hq) cur.copy(hq = true, sharpen = 0) else if (cur.sharpen < 3) cur.copy(sharpen = cur.sharpen + 1) else cur.copy(hq = false, sharpen = 1) }
+                    }
+                    Toggle("웹툰 제안", s.webtoonSuggest, c, sub = "세로로 긴 만화를 처음 열 때 웹툰 보기로 물어봐요") { v -> onChange { it.copy(webtoonSuggest = v) } }
+                }
+                if (!aiBad) Section("AI 화질 향상", c) {
+                    Toggle("새 만화에 AI 화질 향상 켜기", s.aiUpscale, c, sub = "책마다 바꿀 수 있어요 · 배터리 더 씀") { v -> onChange { it.copy(aiUpscale = v) } }
                 }
             }
             SetPage.DOC -> {
+                Section("한글·Word", c) {
+                    Value("처음 열 때", if (s.docDefaultView == 1) "이북식" else "원본", c, sub = "처음 여는 문서의 보기 방식 · 연 뒤에는 책마다 기억") { onChange { it.copy(docDefaultView = 1 - it.docDefaultView.coerceIn(0, 1)) } }
+                }
                 Section("PDF·한글·Word 공통", c) {
                     Toggle("야간에 그림은 반전 안 함", s.nightKeepImages, c, sub = "글자 있는 PDF 등 고정 쪽 문서") { v -> onChange { it.copy(nightKeepImages = v) } }
+                    Toggle("여백 자르기 기본", s.cropDefault, c, sub = "처음 여는 문서에 쪽 둘레 흰 여백 자르기 · 책마다 Aa 에서 바꿀 수 있어요") { v -> onChange { it.copy(cropDefault = v) } }
+                    val zooms = listOf(1.5f, 2f, 3f)
+                    Value("두 번 탭 확대", "${if (s.doubleTapZoom % 1f == 0f) s.doubleTapZoom.toInt().toString() else s.doubleTapZoom.toString()}배", c, sub = "쪽 고정 문서·만화를 두 번 누르면") {
+                        onChange { cur -> cur.copy(doubleTapZoom = zooms[(zooms.indexOfFirst { z -> z >= cur.doubleTapZoom - 0.01f }.let { i -> if (i < 0) 0 else i + 1 }) % zooms.size]) }
+                    }
                 }
             }
             SetPage.AI -> {
@@ -369,17 +428,21 @@ fun AppSettingsScreen(
                         onChange { cur -> cur.copy(ttsSleep = SLEEP_CHOICES[(SLEEP_CHOICES.indexOfFirst { it.first == cur.ttsSleep } + 1).mod(SLEEP_CHOICES.size)].first) }
                     }
                 }
-                Section("사전", c) {
-                    Value("사전", "말글사전", c, sub = "단어 길게 눌러 찾기") {
-                        info = if (Links.isInstalled(context, Links.MALGEUL)) "말글사전이 설치되어 있어요. 본문 글자 선택에서 '사전'을 누르면 바로 찾아요."
-                        else "말글사전이 설치되어 있지 않아요. 말글사전 APK를 설치하세요. 그동안은 다른 사전 앱을 고를 수 있어요."
-                    }
+                Section("사전", c, foot = "본문 글자를 길게 눌러 고른 뒤 '사전'을 누르면 이 앱으로 찾아요. 앱이 없으면 고를 수 있는 앱을 보여 줘요.") {
+                    Value("사전 앱", dictName, c) { dictPick = true }
                 }
             }
             SetPage.ABOUT -> {
                 Section("앱", c) {
                     Value("버전", AppInfo.VERSION_LABEL, c, chevron = false) {}
                     Act("오픈소스 라이선스", c, sub = "AGPL-3.0 · 사용한 라이브러리", onClick = onLicenses)
+                    Act("소스 코드 받는 법", c) {
+                        info = "이 앱은 GNU AGPL 3.0 이상으로 배포돼요. 누구나 소스 코드를 받아 고치고 다시 배포할 수 있어요.\n\n소스 코드: ${AppInfo.SOURCE_URL}\n\n함께 넣은 오픈소스 구성 요소의 소스도 같은 곳에서 판마다 따로 묶어 드려요."
+                    }
+                    Act("처음 안내 다시 보기", c, sub = "파일 접근 안내 · 탭 영역 안내 · 책 정보 찾기 묻기") {
+                        onChange { it.copy(tapGuideShown = false, metaAsked = false) }
+                        onStorage()
+                    }
                 }
             }
         }
@@ -433,7 +496,68 @@ fun AppSettingsScreen(
         },
         confirmButton = { TextButton(onClick = { infoItems = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("닫기") } },
     )
+    // 작업 06: 읽기 Aa 시트와 같은 내 글꼴 관리
+    if (fontsOpen) AlertDialog(
+        onDismissRequest = { fontsOpen = false },
+        title = { Text("내 글꼴") },
+        text = { Column(Modifier.verticalScroll(rememberScrollState())) { UserFontsManager(s, onChange) } },
+        confirmButton = { TextButton(onClick = { fontsOpen = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("닫기") } },
+    )
+    // 작업 06: 읽기 화면 '밝기'의 내 테마와 같은 색 고르기
+    if (themeOpen) CustomThemeDialog(
+        s.customBg, s.customFg,
+        onSave = { bg, fg -> themeOpen = false; onChange { it.copy(customBg = bg, customFg = fg, theme = ReadTheme.CUSTOM) } },
+        onDismiss = { themeOpen = false },
+    )
+    if (clearHistory) AlertDialog(
+        onDismissRequest = { clearHistory = false },
+        title = { Text("독서 기록을 지울까요?") },
+        text = { Text("읽은 시간·날짜 기록(독서 기록 화면의 그래프·연속 일수)을 모두 지워요. 읽은 위치·책갈피·메모·형광펜은 그대로예요. 되돌릴 수 없어요.") },
+        confirmButton = {
+            TextButton(onClick = {
+                clearHistory = false
+                context.ash.appScope.launch { context.ash.db.books().clearSessions() }
+                info = "독서 기록을 지웠어요."
+            }, modifier = Modifier.heightIn(min = 48.dp)) { Text("지우기") }
+        },
+        dismissButton = { TextButton(onClick = { clearHistory = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("취소") } },
+    )
+    if (dictPick) {
+        val apps = remember { dictApps(context) }
+        AlertDialog(
+            onDismissRequest = { dictPick = false },
+            title = { Text("사전 앱") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    // 말글사전(기본) + 글자를 받을 수 있는 앱(PROCESS_TEXT)
+                    (listOf("" to "말글사전" + if (Links.isInstalled(context, Links.MALGEUL)) "" else " (설치 안 됨)") + apps.filter { it.first != Links.MALGEUL }).forEach { (pkg, label) ->
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { onChange { it.copy(dictPkg = pkg) }; dictPick = false },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            androidx.compose.material3.RadioButton(selected = s.dictPkg == pkg, onClick = null)
+                            Text(label, fontSize = 15.sp, modifier = Modifier.padding(start = 12.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { dictPick = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("닫기") } },
+        )
+    }
 }
+
+/** 글자를 받아 찾는 앱(ACTION_PROCESS_TEXT) — (패키지, 이름). 이 앱 자신은 뺀다. */
+private fun dictApps(context: android.content.Context): List<Pair<String, String>> = runCatching {
+    val pm = context.packageManager
+    val i = android.content.Intent(android.content.Intent.ACTION_PROCESS_TEXT).setType("text/plain")
+    @Suppress("DEPRECATION")
+    pm.queryIntentActivities(i, 0).map { it.activityInfo.packageName to it.loadLabel(pm).toString() }
+        .filter { it.first != context.packageName }.distinctBy { it.first }.sortedBy { it.second }
+}.getOrDefault(emptyList())
+
+/** 사전 앱 이름("" = 말글사전). */
+private fun dictLabel(context: android.content.Context, pkg: String): String =
+    if (pkg.isBlank()) "말글사전" else dictApps(context).firstOrNull { it.first == pkg }?.second ?: pkg
 
 /** 책 정보 자동으로 찾는 때(Settings.metaAuto 순서). */
 private val META_AUTO = listOf("와이파이에서만", "와이파이 + 모바일 데이터", "직접 찾을 때만")

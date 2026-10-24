@@ -36,27 +36,39 @@ class F06SettingsTest : E2eTest() {
 
     /** 하위 화면 → 줄(지금 S-51 표의 모든 줄이 어디로 옮겨졌는지도 이 표가 보여 준다). */
     private val pages = linkedMapOf(
-        "서재 폴더" to Page(switches = listOf("서점 바로가기 줄 보이기"), screens = listOf("파일 접근 권한", "서점 바로가기 편집", "폴더 추가·빼기")),
+        "서재 폴더" to Page(
+            switches = listOf("서점 바로가기 줄 보이기", "시리즈 자동으로 묶기"), cycles = listOf("서재 기본 보기"),
+            screens = listOf("파일 접근 권한", "서점 바로가기 편집", "폴더 추가·빼기"),
+        ),
         "책 정보" to Page(switches = listOf("인터넷에서 책 정보 찾기"), dialogs = listOf("지금 모든 책 정보 다시 찾기")),
-        "백업과 기록" to Page(switches = listOf("한 번만 보기 기록 지우기"), screens = listOf("형광펜·메모 모두 내보내기")),
+        "백업과 기록" to Page(switches = listOf("한 번만 보기 기록 지우기"), dialogs = listOf("독서 기록 지우기"), screens = listOf("형광펜·메모 모두 내보내기")),
         "글자와 화면" to Page(
             switches = listOf("TXT 끊긴 줄 합치기", "TXT 줄 앞 공백 정리"),
             cycles = listOf("본문 글꼴", "글자 크기", "줄 간격", "여백", "정렬", "줄 바꿈 단위", "TXT 기본 인코딩", "TXT 빈 줄"),
+            dialogs = listOf("내 글꼴 관리"),
         ),
-        "테마와 밝기" to Page(switches = listOf("가장자리로 밝기 조절"), cycles = listOf("테마"), dialogs = listOf("따뜻한 색 자동 시각")),
+        "테마와 밝기" to Page(
+            switches = listOf("가장자리로 밝기 조절", "배경화면 색 따르기"), cycles = listOf("테마", "앱 테마", "앱 테마", "앱 테마"),
+            dialogs = listOf("따뜻한 색 자동 시각", "내 테마 만들기"),
+        ),
         "넘김과 조작" to Page(
-            switches = listOf("스크롤 보기", "왼손잡이(좌우 바꾸기)", "볼륨 버튼으로 넘기기"),
-            cycles = listOf("넘김 효과", "화면 누르는 곳", "자동 넘김 간격", "자동 스크롤 속도"),
+            switches = listOf("두 손가락으로 글자 크기", "왼손잡이(좌우 바꾸기)", "볼륨 버튼으로 넘기기"),
+            cycles = listOf("넘김 효과", "쪽·스크롤", "쪽·스크롤", "화면 누르는 곳", "자동 넘김 간격", "자동 스크롤 속도"),
             dialogs = listOf("탭 영역 안내 다시 보기", "내 방식 편집"),
         ),
-        "읽는 동안" to Page(switches = listOf("정보줄을 위에", "두 쪽 펼침에서 쪽마다 정보줄"), cycles = listOf("화면 꺼짐 시간", "화면 회전"), dialogs = listOf("정보줄 항목")),
-        "만화" to Page(switches = listOf("새 만화에 AI 화질 향상 켜기")),
-        "문서" to Page(switches = listOf("야간에 그림은 반전 안 함")),
+        "읽는 동안" to Page(
+            switches = listOf("정보줄을 위에", "두 쪽 펼침에서 쪽마다 정보줄", "메뉴 버튼 이름 보이기"),
+            cycles = listOf("화면 꺼짐 시간", "화면 회전"), dialogs = listOf("정보줄 항목"),
+        ),
+        "만화" to Page(
+            switches = listOf("첫 쪽 단독", "테두리 자르기", "웹툰 제안", "새 만화에 AI 화질 향상 켜기"),
+            cycles = listOf("읽는 방향", "두 쪽", "가로로 긴 쪽", "맞춤", "확대 방식"),
+        ),
+        "문서" to Page(switches = listOf("야간에 그림은 반전 안 함", "여백 자르기 기본"), cycles = listOf("처음 열 때", "두 번 탭 확대")),
         "AI 화질 향상" to Page(switches = listOf("새 만화에 기본으로 켜기", "문서 그림 AI 화질 향상"), cycles = listOf("저장 공간 상한")),
-        "듣기와 사전" to Page(cycles = listOf("기본 속도", "잠자기 타이머 기본"), dialogs = listOf("사전"), screens = listOf("읽어 주기 엔진 설정 열기")),
-        "앱 정보" to Page(screens = listOf("오픈소스 라이선스")),
+        "듣기와 사전" to Page(cycles = listOf("기본 속도", "잠자기 타이머 기본"), dialogs = listOf("사전 앱"), screens = listOf("읽어 주기 엔진 설정 열기")),
+        "앱 정보" to Page(dialogs = listOf("소스 코드 받는 법"), screens = listOf("오픈소스 라이선스", "처음 안내 다시 보기")),
     )
-
     private fun count(text: String) = runCatching { compose.onAllNodesWithText(text).fetchSemanticsNodes().size }.getOrDefault(0)
     private fun backCount() = runCatching { compose.onAllNodesWithContentDescription("뒤로").fetchSemanticsNodes().size }.getOrDefault(0)
 
@@ -141,6 +153,8 @@ class F06SettingsTest : E2eTest() {
             closePage()
         }
         resetPrefs()
+        // 만화 기본값(만화 화면의 값)도 처음으로 — 다른 시험이 기본값을 기대한다
+        kr.vici.ashreader.data.ComicPrefsStore(ctx).saveDefaults(kr.vici.ashreader.data.ComicBookPrefs())
         assertAlive()
         // 이름이 바뀌어 못 찾은 줄이 많으면 시험 목록을 고쳐야 한다
         assertTrue("설정 줄을 많이 찾지 못함: $missing", missing.size <= 4)
