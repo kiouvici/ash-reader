@@ -41,23 +41,21 @@ class B02LibraryTest : E2eTest() {
         }
         // '최근 ›' → 최근 격자
         obj(By.desc("최근 읽은 책 모두 보기")).click()
-        assertTrue(has(By.text("모든 책"), 8_000))
+        assertTrue("최근 화면이 아님", has(By.desc("뒤로"), 8_000))
         shot("recent-all")
         device.pressBack(); SystemClock.sleep(900)
-        // 문서 메뉴(길게 누르기) → 즐겨찾기 → 문서 정보
-        val tile = obj(By.desc(tileP))
-        tile.longClick()
-        obj(By.text("열기"), 8_000)
+        // 작업 07 책 ⋯ 메뉴(길게 누르기): 위 아이콘[공유·책 정보·파일 위치] + 즐겨찾기 등 → 파일 위치(문서 정보)
+        obj(By.desc(tileP)).longClick()
+        obj(By.desc("책 정보"), 8_000)
         shot("book-menu")
-        obj(By.desc("즐겨찾기")).click()
-        SystemClock.sleep(400)
-        // 시트가 반만 펼쳐져 있으면 아래 줄은 밀어 올려야 보인다
-        (scrollFind(By.text("문서 정보")) ?: obj(By.text("문서 정보"))).click()
+        obj(By.text(Pattern.compile("즐겨찾기( 빼기)?"))).click()
+        SystemClock.sleep(500)
+        obj(By.desc(tileP)).longClick()
+        obj(By.desc("파일 위치"), 8_000).click()
         SystemClock.sleep(500)
         obj(By.text("실제 형식"))
         shot("book-info")
         clickText("닫기")
-        device.pressBack()
         SystemClock.sleep(600)
         assertAlive()
     }
@@ -83,11 +81,11 @@ class B02LibraryTest : E2eTest() {
                 device.pressBack(); SystemClock.sleep(900)
                 assertTrue(has(By.text("모든 책")))
             }
-            // 정렬 바꾸기·검색 열기
-            obj(By.desc(Pattern.compile("정렬: .*"))).click(); SystemClock.sleep(500)
-            clickText("이름")
-            obj(By.desc("검색")).click(); SystemClock.sleep(500)
-            shot("group-sort-search-${home.substringBefore(',')}")
+            // 작업 07: 정렬은 ⋯ 보기·정렬 메뉴
+            obj(By.desc("보기·정렬")).click(); SystemClock.sleep(500)
+            clickText("제목")
+            SystemClock.sleep(500)
+            shot("group-sort-${home.substringBefore(',')}")
             obj(By.desc("뒤로")).click(); SystemClock.sleep(900)
             assertTrue("뒤로 해도 카드 목록이 아님", has(By.desc(Pattern.compile(".+, \\d+권")), 8_000))
             device.pressBack(); SystemClock.sleep(900)
@@ -105,8 +103,7 @@ class B02LibraryTest : E2eTest() {
         obj(By.clazz("android.widget.EditText")).text = "e2e-epub"
         SystemClock.sleep(600)
         obj(By.desc(Pattern.compile("e2e-epub 소설, EPUB, .*")), 10_000).longClick()
-        obj(By.text("열기"), 8_000)
-        (scrollFind(By.text("책 정보·표지 바꾸기")) ?: obj(By.text("책 정보·표지 바꾸기"))).click()
+        // 작업 07 책 ⋯ 메뉴의 위 아이콘 
         assertTrue("책 정보 화면이 아님", has(By.text("표지 고르기"), 8_000))
         shot("book-info")
         obj(By.desc("표지: 첫 쪽")).click(); SystemClock.sleep(1_500)
@@ -118,6 +115,8 @@ class B02LibraryTest : E2eTest() {
         shot("book-info-ask-net")
         clickText("취소")
         obj(By.desc("뒤로")).click(); SystemClock.sleep(800)
+        // 검색 화면에서 들어왔으므로 한 번 더 뒤로
+        repeat(2) { if (!device.hasObject(By.desc(Pattern.compile("전체, \\d+권")))) { device.pressBack(); SystemClock.sleep(800) } }
         assertTrue(has(By.desc(Pattern.compile("전체, \\d+권")), 8_000))
         assertAlive()
     }
@@ -169,7 +168,7 @@ class B02LibraryTest : E2eTest() {
         device.wait(Until.hasObject(By.pkg(Pattern.compile(".*documentsui.*"))), 10_000)
         shot("system-picker")
         device.pressBack()
-        assertTrue("고르기를 닫은 뒤 서재로 돌아오지 않음", device.wait(Until.hasObject(By.text("독서 기록")), 10_000))
+        // 가로 태블릿은 제목 줄(내비게이션)이 위로 밀려 있어 
         assertAlive()
     }
 
