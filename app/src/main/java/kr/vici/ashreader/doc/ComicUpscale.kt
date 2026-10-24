@@ -181,8 +181,8 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
             if (src == null) { skipped += i; return }
             currentCoroutineContext().ensureActive()
             busyState.value = i
-            // 흑백 스캔은 결과도 흑백으로(AI 가 잡티를 붉게 살리는 것 막기, 작업 03)
-            val out = try { GrayKeep.keep(src, runEngine(src)) } finally { src.recycle() }
+            // 흑백 스캔은 회색으로 넣고 결과에 종이 색조를 다시 입힌다(붉은 물듦·네모 무늬 막기, 작업 03)
+            val out = try { GrayKeep.run(src) { runEngine(it) } } finally { src.recycle() }
             try {
                 dir.mkdirs() // 설정에서 캐시를 지웠을 수 있다
                 val tmp = File(dir, "$i.tmp")
@@ -242,8 +242,8 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
 
         fun root(c: Context) = File(c.cacheDir, "upscale")
 
-        /** 캐시 판. 결과를 만드는 방식이 바뀌면 올린다(3: 흑백 그림은 흑백 결과, 4: 타일 gap 동기화, 5: 원래 크기 타일로 gap — 작업 03). */
-        private const val CACHE_VERSION = 5
+        /** 캐시 판. 결과를 만드는 방식이 바뀌면 올린다(3: 흑백 그림은 흑백 결과, 4: 타일 gap 동기화, 5: 원래 크기 타일로 gap, 6: 동기화 빼고 단색 스캔은 회색 입력 — 작업 03). */
+        private const val CACHE_VERSION = 6
 
         /** 옛 판으로 만든 결과(흑백 만화가 붉게 물든 것 등)를 한 번 지운다. 엔진을 처음 쓸 때 부른다. */
         @Synchronized

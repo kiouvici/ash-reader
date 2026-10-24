@@ -68,17 +68,30 @@ object GrayKeep {
         return monoTint(out.toIntArray())
     }
 
-    /** AI 결과 [out] 을, 원본 [src] 가 단색 스캔이면 같은 색조의 단색으로 되돌린다([out] 이 바꿀 수 없으면 복사본). */
-    fun keep(src: Bitmap, out: Bitmap): Bitmap {
-        val tint = monoTint(src) ?: return out
-        val m = if (out.isMutable) out else out.copy(Bitmap.Config.ARGB_8888, true).also { out.recycle() }
-        val w = m.width
+    /** [bmp](바꿀 수 있는 비트맵)의 화소를 제자리에서 밝기 × [tint] 로. */
+    private fun paint(bmp: Bitmap, tint: Tint) {
+        val w = bmp.width
         val row = IntArray(w)
-        for (yy in 0 until m.height) {
-            m.getPixels(row, 0, w, 0, yy, w, 1)
+        for (yy in 0 until bmp.height) {
+            bmp.getPixels(row, 0, w, 0, yy, w, 1)
             for (i in 0 until w) row[i] = apply(row[i], tint)
-            m.setPixels(row, 0, w, 0, yy, w, 1)
+            bmp.setPixels(row, 0, w, 0, yy, w, 1)
         }
+    }
+
+    private val GRAY = Tint(1f, 1f, 1f)
+
+    /**
+     * AI 를 단색 스캔에 맞게 돌린다: 원본 [src] 가 단색 스캔이면 AI 에 넣기 전에 회색으로 바꾸고(스캔 JPEG 의 눈에 안 보이는
+     * 색 얼룩 덩어리를 AI 가 붉게·다른 무늬로 키우던 것 — 대표님 확인), 결과에 원래 종이 색조를 다시 입힌다.
+     * 컬러 그림이면 [engine] 결과 그대로. [src] 는 바꾸지 않는다.
+     */
+    fun run(src: Bitmap, engine: (Bitmap) -> Bitmap): Bitmap {
+        val tint = monoTint(src) ?: return engine(src)
+        val gray = src.copy(Bitmap.Config.ARGB_8888, true)
+        val out = try { paint(gray, GRAY); engine(gray) } finally { gray.recycle() }
+        val m = if (out.isMutable) out else out.copy(Bitmap.Config.ARGB_8888, true).also { out.recycle() }
+        paint(m, tint)
         return m
     }
 }

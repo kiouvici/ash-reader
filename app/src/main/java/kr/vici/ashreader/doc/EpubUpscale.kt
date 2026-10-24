@@ -125,7 +125,7 @@ class EpubImageUpscale(context: Context, private val doc: MupdfReaderDoc) : Clos
                 if (!(f.isFile && f.length() > 0)) {
                     UpscaleGate.awaitIdle()
                     if (closed || powerSave()) return
-                    val up = GrayKeep.keep(src, runEngine(src)) // 흑백 그림은 결과도 흑백(작업 03)
+                    val up = GrayKeep.run(src) { runEngine(it) } // 흑백 그림은 회색 입력·종이 색조 되살리기(작업 03)
                     try {
                         dir.mkdirs()
                         val tmp = File(dir, f.name + ".tmp")
