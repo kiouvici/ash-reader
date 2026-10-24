@@ -23,7 +23,7 @@ class B02LibraryTest : E2eTest() {
         launchApp()
         assertTrue(has(By.desc(tileP), 30_000))
         shot("library")
-        for (s in listOf("전체", "형식별", "폴더별", "시리즈", "최근")) {
+        for (s in listOf("전체", "형식", "폴더", "시리즈", "최근")) {
             clickText(s)
             assertAlive()
             shot("shelf-$s")
@@ -57,6 +57,40 @@ class B02LibraryTest : E2eTest() {
         clickText("닫기")
         device.pressBack()
         SystemClock.sleep(600)
+        assertAlive()
+    }
+
+    /** 작업 05: 형식·폴더 탭 = 묶음 카드 → 눌러 들어가기 → (하위 폴더) → 뒤로. 카드 이름은 TalkBack "이름, n권". */
+    @Test
+    fun groupCards_enter_subfolder_back() {
+        launchApp()
+        assertTrue(has(By.desc(tileP), 30_000))
+        for (tab in listOf("형식", "폴더")) {
+            clickText(tab)
+            val card = obj(By.desc(Pattern.compile(".+, \\d+권")), 10_000)
+            shot("cards-$tab")
+            card.click()
+            assertTrue("$tab 카드를 눌렀는데 묶음 화면이 아님", has(By.text("모든 책"), 8_000))
+            assertTrue(has(By.desc("뒤로")))
+            shot("group-$tab")
+            // 하위 폴더 줄이 있으면 그 안으로 한 단계 더
+            device.findObject(By.desc(Pattern.compile(".+, 폴더 열기")))?.let { sub ->
+                sub.click()
+                assertTrue("하위 폴더 안으로 들어가지 않음", has(By.text("모든 책"), 8_000))
+                shot("subgroup-$tab")
+                device.pressBack(); SystemClock.sleep(900)
+                assertTrue(has(By.text("모든 책")))
+            }
+            // 정렬 바꾸기·검색 열기
+            obj(By.desc(Pattern.compile("정렬: .*"))).click(); SystemClock.sleep(500)
+            clickText("이름")
+            obj(By.desc("검색")).click(); SystemClock.sleep(500)
+            shot("group-sort-search-$tab")
+            obj(By.desc("뒤로")).click(); SystemClock.sleep(900)
+            assertTrue("뒤로 해도 카드 목록이 아님", has(By.desc(Pattern.compile(".+, \\d+권")), 8_000))
+            assertAlive()
+        }
+        clickText("최근")
         assertAlive()
     }
 
