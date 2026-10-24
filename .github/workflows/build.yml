@@ -15,9 +15,9 @@ env:
   # :engine-comic 의 ncnn 소스 빌드 결과 위치 (actions/cache 대상, 체크아웃 밖)
   ASH_NCNN_DIR: /home/runner/ncnn-cache
   # 작업 06: 책 정보 찾기 Open API 키(없으면 빈 값 = 구글 북스만). 저장소에는 넣지 않는다.
-  # 저장소 시크릿 이름: KAKAO_REST_KEY(카카오 REST API 키), NL_CERT_KEY(국립중앙도서관 서지 API 인증키)
+  # 저장소 시크릿 이름: KAKAO_REST_KEY(카카오 REST API 키), NLK_API_KEY(국립중앙도서관 서지 API 인증키)
   ASH_KAKAO_KEY: ${{ secrets.KAKAO_REST_KEY }}
-  ASH_NL_KEY: ${{ secrets.NL_CERT_KEY }}
+  ASH_NL_KEY: ${{ secrets.NLK_API_KEY }}
 
 concurrency:
   group: build-${{ github.ref }}

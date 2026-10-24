@@ -834,6 +834,7 @@ fun ReaderScreen(
                             columnMaxDp = if (reflow) pageWdp else wDp,
                             zoomable = !reflow,
                             colors = colors, startPage = page,
+                            onPinchFont = if (reflow && s.pinchFont) ({ scale -> onSettings { cur -> cur.copy(fontSize = Math.round(cur.fontSize * scale).coerceIn(kr.vici.ashreader.data.Prefs.MIN_SIZE, kr.vici.ashreader.data.Prefs.MAX_SIZE)) } }) else null,
                             onPage = { if (it != page) { page = it; pagesTurned++ } },
                             onTap = { xf, yf ->
                                 touchTick++

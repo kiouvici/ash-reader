@@ -105,10 +105,10 @@ android {
     }
 
     // 작업 06: 책 정보 찾기 Open API 키(국립중앙도서관 인증키·카카오 REST API 키). 저장소에 넣지 않는다 — 노트북은 local.properties
-    // (ash.kakaoKey / ash.nlKey, 커밋 금지), CI 는 시크릿 → 환경변수(ASH_KAKAO_KEY / ASH_NL_KEY). 없으면 빈 값 = 구글 북스만.
+    // (kakao.restKey / nlk.apiKey, 커밋 금지), CI 는 시크릿 → 환경변수(ASH_KAKAO_KEY / ASH_NL_KEY). 없으면 빈 값 = 구글 북스만.
     defaultConfig {
-        buildConfigField("String", "KAKAO_KEY", "\"${ashSecret("ash.kakaoKey", "ASH_KAKAO_KEY")}\"")
-        buildConfigField("String", "NL_KEY", "\"${ashSecret("ash.nlKey", "ASH_NL_KEY")}\"")
+        buildConfigField("String", "KAKAO_KEY", "\"${ashSecret("kakao.restKey", "ASH_KAKAO_KEY")}\"")
+        buildConfigField("String", "NL_KEY", "\"${ashSecret("nlk.apiKey", "ASH_NL_KEY")}\"")
     }
 }
 

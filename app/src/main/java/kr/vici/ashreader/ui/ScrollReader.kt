@@ -76,6 +76,8 @@ fun ScrollReader(
     zoomable: Boolean,
     colors: ReadingColors,
     startPage: Int,
+    /** 이북·TXT 두 손가락 글자 크기(배율 → 글자 크기). null 이면 하지 않음(작업 06). */
+    onPinchFont: ((Float) -> Unit)? = null,
     onPage: (Int) -> Unit,
     /** 누름: 화면 비율 좌표. */
     onTap: (xf: Float, yf: Float) -> Unit,
@@ -175,7 +177,23 @@ fun ScrollReader(
         Box(
             Modifier.fillMaxSize()
                 .then(
-                    if (!zoomable) Modifier else Modifier.pointerInput(wPx) {
+                    if (!zoomable) {
+                        // 이북·TXT: 두 손가락 벌리기·오므리기 = 글자 크게·작게(설정 '두 손가락으로 글자 크기', 작업 06). 목록 스크롤에는 취소가 간다
+                        val pinch = onPinchFont
+                        if (pinch == null) Modifier else Modifier.pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                var scale = 1f
+                                var pinching = false
+                                do {
+                                    val ev = awaitPointerEvent(PointerEventPass.Initial)
+                                    if (ev.changes.count { it.pressed } >= 2) { pinching = true; scale *= ev.calculateZoom() }
+                                    if (pinching) ev.changes.forEach { it.consume() }
+                                } while (ev.changes.any { it.pressed })
+                                if (pinching && (scale > 1.08f || scale < 0.93f)) pinch(scale)
+                            }
+                        }
+                    } else Modifier.pointerInput(wPx) {
                         awaitEachGesture {
                             awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                             do {

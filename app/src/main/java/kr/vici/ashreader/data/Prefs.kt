@@ -144,8 +144,6 @@ data class Settings(
     val libList: Boolean = false,
     /** 앱 화면 테마: 0 = 시스템, 1 = 밝게, 2 = 어둡게. (작업 06) */
     val appTheme: Int = 0,
-    /** 배경화면 색 따르기(Android 12+). (작업 06) */
-    val dynamicColor: Boolean = false,
     /** 두 손가락으로 글자 크기(이북·TXT). (작업 06) */
     val pinchFont: Boolean = false,
     /** 읽기 메뉴 단추 이름 보이기. (작업 06) */
@@ -233,7 +231,6 @@ class Prefs(private val context: Context) {
         val seriesAuto = booleanPreferencesKey("series_auto")
         val libList = booleanPreferencesKey("lib_list")
         val appTheme = intPreferencesKey("app_theme")
-        val dynamicColor = booleanPreferencesKey("dynamic_color")
         val pinchFont = booleanPreferencesKey("pinch_font")
         val menuLabels = booleanPreferencesKey("menu_labels")
         val docDefaultView = intPreferencesKey("doc_default_view")
@@ -311,7 +308,6 @@ class Prefs(private val context: Context) {
         seriesAuto = p[K.seriesAuto] ?: true,
         libList = p[K.libList] ?: false,
         appTheme = (p[K.appTheme] ?: 0).coerceIn(0, 2),
-        dynamicColor = p[K.dynamicColor] ?: false,
         pinchFont = p[K.pinchFont] ?: false,
         menuLabels = p[K.menuLabels] ?: true,
         docDefaultView = (p[K.docDefaultView] ?: 0).coerceIn(0, 1),
@@ -391,7 +387,6 @@ class Prefs(private val context: Context) {
             p[K.seriesAuto] = s.seriesAuto
             p[K.libList] = s.libList
             p[K.appTheme] = s.appTheme
-            p[K.dynamicColor] = s.dynamicColor
             p[K.pinchFont] = s.pinchFont
             p[K.menuLabels] = s.menuLabels
             p[K.docDefaultView] = s.docDefaultView

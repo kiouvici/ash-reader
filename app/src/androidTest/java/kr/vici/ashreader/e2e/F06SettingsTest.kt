@@ -48,7 +48,7 @@ class F06SettingsTest : E2eTest() {
             dialogs = listOf("내 글꼴 관리"),
         ),
         "테마와 밝기" to Page(
-            switches = listOf("가장자리로 밝기 조절", "배경화면 색 따르기"), cycles = listOf("테마", "앱 테마", "앱 테마", "앱 테마"),
+            switches = listOf("가장자리로 밝기 조절"), cycles = listOf("테마", "앱 테마", "앱 테마", "앱 테마"),
             dialogs = listOf("따뜻한 색 자동 시각", "내 테마 만들기"),
         ),
         "넘김과 조작" to Page(

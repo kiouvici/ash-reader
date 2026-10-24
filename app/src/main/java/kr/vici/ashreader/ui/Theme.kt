@@ -51,17 +51,13 @@ private val Dark = darkColorScheme(
 )
 
 /**
- * 앱 화면 테마(작업 06): [mode] 0 = 시스템, 1 = 밝게, 2 = 어둡게. [dynamic] = 배경화면 색 따르기(Android 12+, 아니면 무시).
- * 읽기 화면 종이 색(ReadTheme)과는 따로다.
+ * 앱 화면 테마(작업 06): [mode] 0 = 시스템, 1 = 밝게, 2 = 어둡게. 읽기 화면 종이 색(ReadTheme)과는 따로다.
+ * ('배경화면 색 따르기'는 대표님 결정으로 뺌. 어둡게의 화면별 색은 다크 모드 목업을 받은 뒤 맞춘다.)
  */
 @Composable
-fun AshTheme(mode: Int = 0, dynamic: Boolean = false, content: @Composable () -> Unit) {
+fun AshTheme(mode: Int = 0, content: @Composable () -> Unit) {
     val dark = when (mode) { 1 -> false; 2 -> true; else -> isSystemInDarkTheme() }
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    val scheme = if (dynamic && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-        if (dark) androidx.compose.material3.dynamicDarkColorScheme(ctx) else androidx.compose.material3.dynamicLightColorScheme(ctx)
-    } else if (dark) Dark else Light
-    MaterialTheme(colorScheme = scheme, content = content)
+    MaterialTheme(colorScheme = if (dark) Dark else Light, content = content)
 }
 
 /** 나눔명조(번들) — 서재 제목·Aa 미리보기에 쓴다. */

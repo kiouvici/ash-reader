@@ -312,9 +312,6 @@ fun AppSettingsScreen(
                 }
                 Section("앱 화면", c, foot = "서재·설정 같은 앱 화면의 색이에요. 읽는 화면의 종이 색은 '읽기 테마'를 따라요.") {
                     Value("앱 테마", listOf("시스템", "밝게", "어둡게")[s.appTheme.coerceIn(0, 2)], c) { onChange { it.copy(appTheme = (it.appTheme + 1) % 3) } }
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                        Toggle("배경화면 색 따르기", s.dynamicColor, c, sub = "단추·강조 색을 기기 배경화면 색에 맞춰요") { v -> onChange { it.copy(dynamicColor = v) } }
-                    } else Value("배경화면 색 따르기", "Android 12 이상", c, chevron = false) {}
                 }
             }
             SetPage.TURN -> {

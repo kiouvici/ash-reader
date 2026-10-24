@@ -240,9 +240,9 @@ class MainActivity : ComponentActivity() {
             app.appScope.launch { runCatching { app.library.sweep(app.prefs.settings.first().clearOnceOnExit) } }
         }
         setContent {
-            // 작업 06: 앱 테마(시스템/밝게/어둡게)·배경화면 색 따르기
+            // 작업 06: 앱 테마(시스템/밝게/어둡게)
             val st by (application as AshApp).prefs.settings.collectAsState(initial = null)
-            AshTheme(st?.appTheme ?: 0, st?.dynamicColor ?: false) { AshRoot(nav) }
+            AshTheme(st?.appTheme ?: 0) { AshRoot(nav) }
         }
     }
 
