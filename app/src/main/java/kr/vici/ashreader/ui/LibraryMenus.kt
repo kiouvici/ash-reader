@@ -98,7 +98,7 @@ fun glassBg(): Color = if (LocalAshDark.current) Color(0xFF2C2C2E).copy(alpha = 
  * 흐림은 API 31 이상(기기에서 창 흐림을 꺼 두면 어둡게만), 그 아래는 어둡게만. [dim] 0 = 어둡게 하지 않음(바텀시트는 자체 가림막이 있음).
  */
 @Composable
-fun BlurBehind(radius: Dp = 24.dp, dim: Float = 0.10f) {
+fun BlurBehind(radius: Dp = 40.dp, dim: Float = 0.10f) { // 대표님 2026-10-25: 더 뭉개지게(24 → 40dp)
     val view = androidx.compose.ui.platform.LocalView.current
     val px = with(LocalDensity.current) { radius.roundToPx() }
     // 시스템은 어둡게 깃발이 켜진 창 아래에만 흐림을 그린다 — 흐림 세기도 그 진하기를 따르므로 흐릴 때는 모든 메뉴·시트를 같은 10%로(대표님 01:35 확인: 블러 통일)
