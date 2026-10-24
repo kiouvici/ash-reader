@@ -14,6 +14,9 @@ import kr.vici.ashreader.engine.comic.ComicFormat
 object SeriesGroups {
     private const val SEP = '\u001F'
 
+    /** 설정 '시리즈 자동으로 묶기'(작업 06). 끄면 직접 묶은 것만 묶음이다. 앱이 설정을 읽을 때 맞춘다. */
+    @Volatile var autoEnabled: Boolean = true
+
     /** 문서가 있는 폴더(같은 폴더 판정). 폴더 수집 = 실제 상위 경로, SAF = 문서 주소의 상위, 앱 안 사본 = 가져온 폴더 이름. */
     fun folderKey(b: Book): String = when (b.origin) {
         Book.ORIGIN_FILE -> File(b.path).parent.orEmpty()
@@ -25,7 +28,7 @@ object SeriesGroups {
     fun keyOf(b: Book): String? = when (b.seriesManual) {
         Book.SERIES_MANUAL -> if (b.seriesKey.isBlank()) null else "m$SEP${b.seriesKey}"
         Book.SERIES_EXCLUDED -> null
-        else -> if (b.seriesKey.isBlank()) null else "a$SEP${folderKey(b)}$SEP${b.seriesKey}"
+        else -> if (!autoEnabled || b.seriesKey.isBlank()) null else "a$SEP${folderKey(b)}$SEP${b.seriesKey}"
     }
 
     /** 화면에 보일 묶음 이름. */

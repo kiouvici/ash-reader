@@ -94,7 +94,7 @@ androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(bundleTestFiles, BundleTestFilesTask::outputDir)
         // N-05 ①: 측정 앱에도 같은 INTERNET 권한 검사 적용
-        registerNoInternetCheck(variant.name, variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+        registerPermissionCheck(variant.name, variant.artifacts.get(SingleArtifact.MERGED_MANIFEST), allowInternet = false)
     }
 }
-wireNoInternetChecks()
+wirePermissionChecks()

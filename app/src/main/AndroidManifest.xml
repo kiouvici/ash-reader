@@ -3,8 +3,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- N-05: INTERNET 권한 없음. 라이브러리가 끌어오면 :app:check*NoInternetPermission 이 빌드를 실패시킨다.
+    <!-- N-05(작업 06·D-024 로 바뀜): INTERNET 은 책 정보 찾기(표지·지은이·출판사)에만 쓴다. 기본 꺼짐, 처음 한 번 묻는다.
+         네트워크 코드는 kr.vici.ashreader.net 한 곳에만(:app:checkNetworkConfined), HTTPS 만(network_security_config),
+         보내는 것은 정리한 제목·권수뿐(책 내용·폴더 경로·파일 전체 이름 안 보냄). 그 밖의 위험 권한은 :app:check*Permissions 가 막는다.
          (tools:node="remove" 로 몰래 지우지 말고, 원인 라이브러리를 검토할 것) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- '와이파이에서만 자동으로 찾기' 판단(일반 권한) -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- F-01 저장소 접근(기술 설계서 7.2): Android 8~10 은 읽기 권한(10 은 requestLegacyExternalStorage),
          Android 11+ 는 '모든 파일 접근'(사이드로드 배포라 Play 정책 대상 아님). 거부하면 SAF 폴더 고르기로 대신한다.
@@ -15,7 +20,7 @@
         tools:ignore="ScopedStorage" />
 
     <!-- F-13 듣기: 화면이 꺼져도 계속 읽는 미디어 포그라운드 서비스와 그 알림(Android 13+ 알림 권한은 처음 들을 때 묻는다).
-         TTS 는 기기에 깔린 엔진을 쓰며 인터넷 권한은 여전히 없다(N-05). -->
+         TTS 는 기기에 깔린 엔진을 쓴다(네트워크 안 씀). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -44,6 +49,7 @@
     </queries>
 
     <application
+        android:networkSecurityConfig="@xml/network_security_config"
         android:name=".AshApp"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"

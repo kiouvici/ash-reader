@@ -213,7 +213,7 @@ fun ComicWebtoonReader(
                 .pointerInput(menuVisible, hPx, strips) {
                     detectTapGestures(
                         onDoubleTap = { o ->
-                            if (zoom > 1f) { zoom = 1f; panX = 0f } else { zoom = 2f; panX = (wPx / 2f - o.x) * 1f; clampPan() }
+                            if (zoom > 1f) { zoom = 1f; panX = 0f } else { zoom = ViewDefaults.doubleTap; panX = (wPx / 2f - o.x) * 1f; clampPan() }
                             zoomTick++
                         },
                         onLongPress = { o ->

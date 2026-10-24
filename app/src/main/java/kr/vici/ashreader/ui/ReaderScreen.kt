@@ -16,6 +16,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -402,7 +403,7 @@ fun ReaderScreen(
     var pwTry by remember(target.id) { mutableIntStateOf(0) }
     /** 고정 쪽 문서 맞춤(F-23)·여백 자르기(F-24) — 책마다. 한 번만 보기는 저장하지 않는다. */
     val viewStore = remember { DocViewStore(context) }
-    var fixedView by rememberSaveable(target.id, stateSaver = DocViewSaver) { mutableStateOf(if (target.once) DocViewPrefs() else viewStore.load(target.id)) }
+    var fixedView by rememberSaveable(target.id, stateSaver = DocViewSaver) { mutableStateOf(if (target.once) DocViewPrefs(crop = s.cropDefault) else viewStore.load(target.id, s.cropDefault)) }
     fun setFixedView(v: DocViewPrefs) { fixedView = v; if (!target.once) viewStore.save(target.id, v) }
 
     fun stub(msg: String) { scope.launch { snack.showSnackbar(msg) } }
@@ -833,6 +834,7 @@ fun ReaderScreen(
                             columnMaxDp = if (reflow) pageWdp else wDp,
                             zoomable = !reflow,
                             colors = colors, startPage = page,
+                            onPinchFont = if (reflow && s.pinchFont) ({ scale -> onSettings { cur -> cur.copy(fontSize = Math.round(cur.fontSize * scale).coerceIn(kr.vici.ashreader.data.Prefs.MIN_SIZE, kr.vici.ashreader.data.Prefs.MAX_SIZE)) } }) else null,
                             onPage = { if (it != page) { page = it; pagesTurned++ } },
                             onTap = { xf, yf ->
                                 touchTick++
@@ -931,7 +933,7 @@ fun ReaderScreen(
                                     val pj = t.job
                                     if (pj != null && pj.isActive && now - t.at < 300L && abs(x - t.x) < 0.08f && abs(y - t.y) < 0.08f) {
                                         pj.cancel(); t.job = null
-                                        openZoom(x, y, 2f)
+                                        openZoom(x, y, ViewDefaults.doubleTap)
                                     } else {
                                         t.at = now; t.x = x; t.y = y
                                         t.job = scope.launch { delay(250L); handleTap(v, x, y) }
@@ -947,7 +949,29 @@ fun ReaderScreen(
                         onRelease = { it.release() },
                         modifier = Modifier.fillMaxSize()
                             .then(
-                                if (!zoomable) Modifier else Modifier.pointerInput(page, spreadNow) {
+                                if (!zoomable) {
+                                    // 두 손가락 벌리기·오므리기 = 글자 크게·작게(설정 '두 손가락으로 글자 크기', 작업 06). 넘김 화면에는 취소가 간다
+                                    if (!s.pinchFont) Modifier else Modifier.pointerInput(Unit) {
+                                        awaitEachGesture {
+                                            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                            var scale = 1f
+                                            var pinching = false
+                                            while (true) {
+                                                val ev = awaitPointerEvent(PointerEventPass.Initial)
+                                                if (ev.changes.none { it.pressed }) break
+                                                if (ev.changes.count { it.pressed } >= 2) {
+                                                    if (!pinching) tapState.job?.cancel()
+                                                    pinching = true
+                                                    scale *= ev.calculateZoom()
+                                                }
+                                                if (pinching) ev.changes.forEach { it.consume() }
+                                            }
+                                            if (pinching && (scale > 1.08f || scale < 0.93f)) onSettings { cur ->
+                                                cur.copy(fontSize = Math.round(cur.fontSize * scale).coerceIn(kr.vici.ashreader.data.Prefs.MIN_SIZE, kr.vici.ashreader.data.Prefs.MAX_SIZE))
+                                            }
+                                        }
+                                    }
+                                } else Modifier.pointerInput(page, spreadNow) {
                                     // 두 손가락을 대면 확대 덧화면으로(넘김 화면에는 취소가 간다)
                                     awaitEachGesture {
                                         awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
@@ -1144,6 +1168,7 @@ fun ReaderScreen(
                         onListen = { onListen() },
                         onLight = { showLight = true },
                         onMemo = { memoOpen = true },
+                        labels = s.menuLabels,
                     )
                 }
 
@@ -1176,7 +1201,7 @@ fun ReaderScreen(
                         onChange = { sel = it },
                         onDismiss = { sel = null },
                         onCopy = { if (cur.text.isNotBlank()) { copyText(context, cur.text); stub("복사했어요.") }; sel = null },
-                        onDict = { if (cur.text.isNotBlank()) lookUp(context, cur.text) { stub(it) }; sel = null },
+                        onDict = { if (cur.text.isNotBlank()) lookUp(context, cur.text, s.dictPkg) { stub(it) }; sel = null },
                         onHighlight = { color ->
                             // 7G: 빈칸만 고른 형광펜은 만들지 않는다
                             if (cur.text.isBlank()) Unit
@@ -1427,6 +1452,8 @@ private fun TopBar(
 private fun BottomMenu(
     page: Int, count: Int, c: ReadingColors, modifier: Modifier,
     onSeek: (Int) -> Unit, onToc: () -> Unit, onAa: () -> Unit, onTurn: () -> Unit, onListen: () -> Unit, onLight: () -> Unit, onMemo: () -> Unit,
+    /** 단추 아래 이름 보이기(설정 '메뉴 버튼 이름 보이기', 작업 06). */
+    labels: Boolean = true,
     /** F-60 슬라이더를 끄는 동안 띄울 미리보기(쪽, 0..1 위치). */
     preview: (@Composable (Int, Float) -> Unit)? = null,
     /** F-60 만화 쪽 목록 그리드 열기(만화일 때만, '듣기' 자리). */
@@ -1449,26 +1476,27 @@ private fun BottomMenu(
             Text("${drag.toInt() + 1} / ${count}쪽", fontSize = 12.sp, color = c.subC)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).padding(bottom = 8.dp)) {
-            MenuButton("목차", c, Modifier.weight(1f), onToc) { Icon(Icons.Toc, null, Modifier.size(20.dp), tint = c.fgC) }
-            MenuButton("보기", c, Modifier.weight(1f), onAa) { Text("Aa", fontFamily = Myeongjo, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = c.fgC) }
-            MenuButton("넘김", c, Modifier.weight(1f), onTurn) { Icon(Icons.Turn, null, Modifier.size(20.dp), tint = c.fgC) }
-            if (onGrid != null) MenuButton("쪽 목록", c, Modifier.weight(1f), onGrid) { Icon(Icons.Grid, null, Modifier.size(20.dp), tint = c.fgC) }
-            else MenuButton("듣기", c, Modifier.weight(1f), onListen) { Icon(Icons.Speaker, null, Modifier.size(20.dp), tint = c.fgC) }
-            MenuButton("밝기", c, Modifier.weight(1f), onLight) { Icon(Icons.Sun, null, Modifier.size(20.dp), tint = c.fgC) }
-            MenuButton("메모", c, Modifier.weight(1f), onMemo) { Icon(Icons.Pen, null, Modifier.size(20.dp), tint = c.fgC) }
+            MenuButton("목차", c, labels, Modifier.weight(1f), onToc) { Icon(Icons.Toc, null, Modifier.size(20.dp), tint = c.fgC) }
+            MenuButton("보기", c, labels, Modifier.weight(1f), onAa) { Text("Aa", fontFamily = Myeongjo, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = c.fgC) }
+            MenuButton("넘김", c, labels, Modifier.weight(1f), onTurn) { Icon(Icons.Turn, null, Modifier.size(20.dp), tint = c.fgC) }
+            if (onGrid != null) MenuButton("쪽 목록", c, labels, Modifier.weight(1f), onGrid) { Icon(Icons.Grid, null, Modifier.size(20.dp), tint = c.fgC) }
+            else MenuButton("듣기", c, labels, Modifier.weight(1f), onListen) { Icon(Icons.Speaker, null, Modifier.size(20.dp), tint = c.fgC) }
+            MenuButton("밝기", c, labels, Modifier.weight(1f), onLight) { Icon(Icons.Sun, null, Modifier.size(20.dp), tint = c.fgC) }
+            MenuButton("메모", c, labels, Modifier.weight(1f), onMemo) { Icon(Icons.Pen, null, Modifier.size(20.dp), tint = c.fgC) }
         }
     }
     }
 }
 
 @Composable
-private fun MenuButton(label: String, c: ReadingColors, modifier: Modifier, onClick: () -> Unit, icon: @Composable () -> Unit) {
+private fun MenuButton(label: String, c: ReadingColors, labels: Boolean, modifier: Modifier, onClick: () -> Unit, icon: @Composable () -> Unit) {
     Column(
-        modifier.heightIn(min = 56.dp).clickable(onClick = onClick).padding(vertical = 6.dp),
+        // 이름을 숨겨도 TalkBack 은 이름을 읽는다
+        modifier.heightIn(min = 56.dp).clickable(onClickLabel = label, onClick = onClick).semantics(mergeDescendants = true) { contentDescription = label }.padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         icon()
-        Text(label, fontSize = 12.sp, color = c.fgC)
+        if (labels) Text(label, fontSize = 12.sp, color = c.fgC)
     }
 }
 

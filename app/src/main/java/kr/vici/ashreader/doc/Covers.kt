@@ -10,6 +10,7 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipFile
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -54,6 +55,59 @@ object Covers {
         else -> false
     }
 
+    /** 읽는 동안에는 표지를 새로 뽑지 않는다(읽기 화면과 CPU 를 다투지 않게 — 작업 06). 읽기 화면이 켜고 끈다. */
+    val reading = kotlinx.coroutines.flow.MutableStateFlow(false)
+
+    /** 고른 표지가 바뀔 때마다 1씩 커진다(화면이 표지를 다시 읽는다). */
+    val rev = kotlinx.coroutines.flow.MutableStateFlow(0)
+
+    /** 작업 06: 고른 표지(인터넷·사진·첫 쪽). files/covers-chosen/<id>.webp — 백업에 담긴다. 책 파일은 건드리지 않는다. */
+    fun chosenFile(context: Context, id: String) = File(File(context.filesDir, "covers-chosen"), "$id.webp")
+
+    fun chosenBytes(context: Context, id: String): ByteArray? = chosenFile(context, id).takeIf { it.isFile }?.readBytes()
+
+    /** 받은 그림 바이트를 고른 표지로(폭 [WIDTH] 로 줄여 WebP). 그림이 아니면 false. */
+    fun saveChosenBytes(context: Context, id: String, bytes: ByteArray): Boolean {
+        val bmp = decode(bytes) ?: return false
+        try { saveChosen(context, id, bmp) } finally { bmp.recycle() }
+        return true
+    }
+
+    fun saveChosen(context: Context, id: String, bmp: Bitmap) {
+        val f = chosenFile(context, id)
+        f.parentFile?.mkdirs()
+        save(bmp, f)
+        forget(id)
+    }
+
+    fun deleteChosen(context: Context, id: String) {
+        chosenFile(context, id).delete()
+        forget(id)
+    }
+
+    private fun forget(id: String) {
+        lastKey.remove(id)?.let { mem.remove(it) }
+        rev.value++
+    }
+
+    /** '첫 쪽' 표지: 문서·만화의 첫 쪽 그림(이북은 조판한 첫 쪽). 못 그리면 null. */
+    suspend fun renderFirstPage(context: Context, b: Book): Bitmap? = withContext(Dispatchers.IO) {
+        val fmt = DocFormat.of(b.format)
+        val src = File(b.path)
+        if (!src.isFile) return@withContext null
+        runCatching {
+            when (fmt) {
+                DocFormat.CBZ, DocFormat.CBR -> ComicArchive.open(src).use { a -> if (a.pages.isEmpty()) null else decode(a.readPage(0)) }
+                DocFormat.DJVU -> DjvuDoc.open(src.absolutePath).use { d -> if (d.pageCount() > 0) d.renderPage(0, WIDTH) else null }
+                DocFormat.PDF, DocFormat.EPUB -> {
+                    BundledFonts.install(context)
+                    MupdfDoc.open(src.absolutePath, if (fmt == DocFormat.EPUB) MupdfDoc.LayoutSpec(300f, 420f, 11f) else null).use { d -> if (d.pageCount() > 0) d.renderPage(0, WIDTH) else null }
+                }
+                else -> extract(context, src, fmt, b.id)
+            }
+        }.getOrNull()
+    }
+
     /** 메모리에 있는 표지(없으면 null). 화면 스레드에서 불러도 된다. */
     fun peek(b: Book): Bitmap? = lastKey[b.id]?.let { mem.get(it) }
 
@@ -61,6 +115,17 @@ object Covers {
     suspend fun load(context: Context, b: Book): Bitmap? = withContext(Dispatchers.IO) { loadBlocking(context, b) }
 
     private suspend fun loadBlocking(context: Context, b: Book): Bitmap? {
+        // 작업 06: 고른 표지가 있으면 그것(형식과 상관없이)
+        if (b.coverSource != Book.COVER_AUTO) {
+            val f = chosenFile(context, b.id)
+            if (f.isFile) {
+                val ck = "c-${b.id}-${f.lastModified().toString(16)}"
+                mem.get(ck)?.let { lastKey[b.id] = ck; return it }
+                val bmp = BitmapFactory.decodeFile(f.path) ?: return null
+                mem.put(ck, bmp); lastKey[b.id] = ck
+                return bmp
+            }
+        }
         val fmt = DocFormat.of(b.format)
         if (!supported(fmt)) return null
         val src = File(b.path)
@@ -71,6 +136,7 @@ object Covers {
         val out = File(d, "$k.webp")
         val none = File(d, "$k.none")
         if (none.exists()) return null
+        if (!out.exists()) reading.first { !it }
         if (!out.exists()) gate.withLock {
             if (!out.exists() && !none.exists()) {
                 // 같은 책의 예전 표지(파일이 바뀐 경우) 지우기
