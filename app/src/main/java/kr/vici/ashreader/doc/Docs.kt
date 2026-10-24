@@ -326,7 +326,11 @@ class MupdfReaderDoc(
     }
     override val pageCount: Int = synchronized(lock) { doc.pageCount() }
 
-    override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap {
+    override fun render(index: Int, w: Int, h: Int, colors: ReadingColors): Bitmap = render(index, w, h, colors, ai = true)
+
+    /** 문서 그림 AI 전후 비교(작업 04): [ai] = false 면 처리된 그림을 덧그리지 않은 원본. */
+    fun render(index: Int, w: Int, h: Int, colors: ReadingColors, ai: Boolean): Bitmap {
+        val up = if (ai) imageUpscale else null
         val box = cropBox(index)
         if (box != null) {
             // 잘린 상자가 [w]×[h] 에 맞을 만큼 크게 그린 뒤 상자만 잘라 맞춘다
@@ -335,13 +339,13 @@ class MupdfReaderDoc(
             val rawW = (dw / (box.r - box.l)).toInt().coerceIn(1, 4096)
             val full = synchronized(lock) { doc.renderPage(index, rawW) }
             // 문서 그림 AI(작업 03): 여백을 자르는 PDF 도 자르기 전 쪽 전체에 덧그린다(그림 위치가 쪽 전체 기준)
-            imageUpscale?.let { up -> runCatching { up.decorate(index, full) } }
+            up?.let { u -> runCatching { u.decorate(index, full) } }
             val keep = if (colors.keepImages && themeFilter(colors) != null) MarginCrop.mapRects(keepRects(index), box) else null
             return fitInto(MarginCrop.cut(full, box), w, h, colors, applyTheme = true, keep = keep)
         }
         val raw = synchronized(lock) { doc.renderPage(index, w) }
         // F-73 확장(D-021): 처리된 EPUB 그림을 바꿔 그린다(엔진 잠금 밖). 테마 색 변환 전이라 그림 영역은 원래 색으로 남는다.
-        imageUpscale?.let { up -> runCatching { up.decorate(index, raw) } }
+        up?.let { u -> runCatching { u.decorate(index, raw) } }
         val keep = if ((reflow || colors.keepImages) && themeFilter(colors) != null) keepRects(index) else null
         return fitInto(raw, w, h, colors, applyTheme = true, keep = keep)
     }

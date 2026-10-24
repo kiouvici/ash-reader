@@ -75,8 +75,10 @@ class FixedViewUi(val fit: Int, val crop: Boolean, val cropAvailable: Boolean, v
 fun ViewSettingsSheet(
     s: Settings, reflowable: Boolean, onChange: ((Settings) -> Settings) -> Unit, onDismiss: () -> Unit,
     txt: TxtEncodingUi? = null, fixed: FixedViewUi? = null,
-    /** 이북·PDF 처럼 문서 그림 AI 화질 향상 대상인가(작업 03: 읽는 중에 켜고 끈다. 값은 설정과 같다). */
-    aiImages: Boolean = false,
+    /** 작업 04: 이북·PDF 면 맨 위 AI 화질 향상 칸의 종류(값은 앱 설정 '문서 그림 AI 화질 향상'과 같다). null 이면 칸 없음. */
+    aiKind: AiKind? = null,
+    /** AI 칸의 [전후 비교]: 시트를 닫고 비교 화면을 연다. */
+    onAiCompare: (() -> Unit)? = null,
 ) {
     var tab by remember { mutableStateOf(AaTab.TEXT) }
     val cs = MaterialTheme.colorScheme
@@ -97,6 +99,8 @@ fun ViewSettingsSheet(
     }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
+            // 작업 04: 맨 위 AI 화질 향상 칸(만화 설정과 같은 모양). 이북·PDF 는 앱 전체 한 값
+            if (aiKind != null) AiQualityCard(aiKind, s.epubAiUpscale, onToggle = { v -> onChange { it.copy(epubAiUpscale = v) } }, onCompare = onAiCompare, modifier = Modifier.padding(bottom = 12.dp), limitMb = s.upscaleCacheMb)
             // 미리보기
             val c = s.readingColors()
             val userFile = if (s.userFont.isNotEmpty()) UserFonts.file(context, s.userFont) else null
@@ -130,10 +134,6 @@ fun ViewSettingsSheet(
                 }
                 if (fixed.fit != ComicBookPrefs.FIT_SCREEN) Hint("폭·높이 맞춤에서는 화면을 밀어 쪽 안을 보고, 끝에 닿으면 다음 쪽으로 가요. 글자 선택은 쪽 맞춤에서 돼요.")
                 if (fixed.cropAvailable) SwitchLine("여백 자르기 (이 책)", "쪽 둘레 흰 여백을 잘라 글자를 크게 보여요", fixed.crop) { v -> fixed.onCrop(v) }
-            }
-            // 작업 03: 서재 설정까지 나가지 않고 읽는 중에 켜고 끈다(이 기기에서 쓸 수 없다고 판정됐으면 숨김)
-            if (aiImages && kr.vici.ashreader.doc.AiCapability.cached(context)?.verdict.let { it == null || it == kr.vici.ashreader.doc.AiCapability.Verdict.OK }) {
-                SwitchLine("그림 AI 화질 향상", "그림·사진을 선명하게 · 글자에는 적용 안 함 · 모든 이북·PDF", s.epubAiUpscale) { v -> onChange { it.copy(epubAiUpscale = v) } }
             }
             Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AaTab.entries.forEach { t -> Pill(t.label, t == tab) { tab = t } }

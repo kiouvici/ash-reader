@@ -317,8 +317,8 @@ fun ReaderScreen(
     // 필수 2: 회전·복원에도 읽던 쪽 유지
     var page by rememberSaveable(target.id) { mutableIntStateOf(target.startPage) }
     var showAa by remember { mutableStateOf(false) }
-    // 만화 'AI 화질' 표시를 눌러 열면 만화 설정을 [화질] 탭으로 연다
-    var aaQuality by remember { mutableStateOf(false) }
+    // 작업 04: 이북·PDF 문서 그림 AI 전후 비교
+    var docCompareOpen by remember { mutableStateOf(false) }
     var showToc by remember { mutableStateOf(false) }
     var memoOpen by remember { mutableStateOf(false) }
     var turnReq by remember { mutableIntStateOf(0) }
@@ -748,7 +748,7 @@ fun ReaderScreen(
                         reloadKey = listOf(comicDoc.look, comic?.prefs?.fit, readySet?.contains(comicDoc.sourceOf(page)), extState?.done?.let { comicDoc.ready(comicDoc.sourceOf(page)) }),
                     )
                     ComicExtractOverlay(comicDoc, listOf(comicDoc.sourceOf(page)), colors, menuVisible = menu) {}
-                    if (upscale != null && !menu) UpscaleChip(upscale, comicDoc.sourceOf(page), Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 12.dp)) { aaQuality = true; showAa = true }
+                    if (upscale != null && !menu) UpscaleChip(upscale, comicDoc.sourceOf(page), Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 12.dp)) { showAa = true }
                 } else {
                     val near = if (reflow || isWord) 3 else 0 // Word 원본↔eBook은 쪽 수가 달라 근처 쪽까지 찾는다
                     val speaking = if (listening) listen.cur?.takeIf { it.start >= 0 } else null
@@ -1004,6 +1004,8 @@ fun ReaderScreen(
                     }
                     // F-73 확장(D-021·작업 03): 문서(이북·PDF) 그림 AI 화질 향상 — 처리된 그림이 생기면 지금 쪽을 다시 그린다. 넘김 중에는 쉰다.
                     EpubUpscaleHook(doc, s.epubAiUpscale, curlView) { curlView?.let { v -> v.tag = source; v.setPageSource(source, page) } }
+                    // 작업 04: 이북·PDF 도 그림을 바꾼 쪽이면 'AI 화질' 표시, 누르면 보기 시트(맨 위 AI 칸)
+                    if (doc is MupdfReaderDoc && !menu) DocAiChip(doc, page, Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 12.dp)) { showAa = true }
                     if (upscale != null && doc is ComicReaderDoc) {
                         val readySet by upscale.ready.collectAsState()
                         LaunchedEffect(upscale, page, pxW, pxH, comic?.layoutVersion) { upscale.request(doc.sourceOf(page), pxW.toInt(), pxH.toInt()) }
@@ -1015,7 +1017,7 @@ fun ReaderScreen(
                                 curlView?.let { v -> v.tag = source; v.setPageSource(source, page) }
                             }
                         }
-                        if (!menu) UpscaleChip(upscale, doc.sourceOf(page), Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 12.dp)) { aaQuality = true; showAa = true }
+                        if (!menu) UpscaleChip(upscale, doc.sourceOf(page), Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 12.dp)) { showAa = true }
                     }
                     }
                 }
@@ -1137,7 +1139,7 @@ fun ReaderScreen(
                         onGrid = if (comicDoc != null) ({ menu = false; gridOpen = true }) else null,
                         onSeek = { p -> jumpReq = p },
                         onToc = { showToc = true },
-                        onAa = { aaQuality = false; showAa = true },
+                        onAa = { showAa = true },
                         onTurn = { showTurn = true },
                         onListen = { onListen() },
                         onLight = { showLight = true },
@@ -1208,7 +1210,6 @@ fun ReaderScreen(
                 if (comic != null && showAa) ComicSettingsSheet(
                     comic, s.aiUpscale, upscale, s.upscaleCacheMb, onDismiss = { showAa = false }, side = spread,
                     onCompare = { showAa = false; menu = false; compareOpen = true },
-                    startQuality = aaQuality,
                 )
                 if (!s.tapGuideShown && !target.once) TapGuide(
                     rtl = doc.rtl,
@@ -1243,7 +1244,18 @@ fun ReaderScreen(
             onCrop = { v -> setFixedView(fixedView.copy(crop = v)) },
         )
     }
-    if (showAa && openDoc !is ComicReaderDoc) ViewSettingsSheet(s, reflow, onSettings, onDismiss = { showAa = false }, txt = txtUi, fixed = fixedUi, aiImages = (openDoc as? MupdfReaderDoc)?.aiImages == true)
+    if (showAa && openDoc !is ComicReaderDoc) ViewSettingsSheet(
+        s, reflow, onSettings, onDismiss = { showAa = false }, txt = txtUi, fixed = fixedUi,
+        aiKind = (openDoc as? MupdfReaderDoc)?.takeIf { it.aiImages }?.let { if (reflow) AiKind.EBOOK else AiKind.PDF },
+        onAiCompare = { showAa = false; menu = false; docCompareOpen = true },
+    )
+    (openDoc as? MupdfReaderDoc)?.takeIf { docCompareOpen }?.let { md ->
+        DocAiCompareScreen(
+            md, s.readingColors(), page,
+            onExit = { p -> docCompareOpen = false; if (p != page) jumpReq = p },
+            onMode = { m -> if (m == 0) onSettings { it.copy(epubAiUpscale = false) }; docCompareOpen = false },
+        )
+    }
     if (showTurn) TurnSheet(
         s, onSettings, autoOn = autoOn,
         onAuto = { v -> autoOn = v; autoPaused = false; if (v) { showTurn = false; menu = false } },

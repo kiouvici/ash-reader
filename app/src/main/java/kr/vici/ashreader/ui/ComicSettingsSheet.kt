@@ -59,10 +59,10 @@ import kr.vici.ashreader.data.ComicBookPrefs
 import kr.vici.ashreader.doc.AiCapability
 import kr.vici.ashreader.doc.ComicUpscale
 
-private enum class ComicTab(val label: String) { TURN("넘김"), VIEW("보기"), QUALITY("화질") }
+private enum class ComicTab(val label: String) { TURN("넘김"), VIEW("보기") }
 
 /**
- * S-33 만화 설정(바텀시트, 탭 3개: 넘김 / 보기 / 화질). 이 책에만 기억하고, 아래 [모든 만화 기본값으로]로 기본값을 바꾼다.
+ * S-33 만화 설정(바텀시트). 맨 위 AI 화질 향상 칸(작업 04, 이북·PDF 와 같은 모양) + 탭 2개(넘김 / 보기). 이 책에만 기억하고, 아래 [모든 만화 기본값으로]로 기본값을 바꾼다.
  * 바꾸는 즉시 읽기 화면에 반영된다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,12 +75,10 @@ fun ComicSettingsSheet(
     onDismiss: () -> Unit,
     /** 태블릿 가로: 바텀시트 대신 오른쪽 측면 시트. */
     side: Boolean = false,
-    /** [화질] 탭 '전후 비교'(F-73): 시트를 닫고 비교 화면을 연다. null 이면 비교 단추를 흐리게. */
+    /** AI 칸 '전후 비교'(F-73): 시트를 닫고 비교 화면을 연다. null 이면 비교 단추를 흐리게. */
     onCompare: (() -> Unit)? = null,
-    /** 처음 보일 탭이 [화질]인가(읽기 화면의 'AI 화질' 표시를 눌러 열 때). */
-    startQuality: Boolean = false,
 ) {
-    var tab by remember { mutableStateOf(if (startQuality) ComicTab.QUALITY else ComicTab.TURN) }
+    var tab by remember { mutableStateOf(ComicTab.TURN) }
     val p = cs.prefs
     val cs3 = MaterialTheme.colorScheme
     var savedNote by remember { mutableStateOf(false) }
@@ -89,13 +87,14 @@ fun ComicSettingsSheet(
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             Text("만화 설정", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = if (side) 16.dp else 0.dp))
             Text("이 책에만 적용돼요.", fontSize = 12.sp, color = cs3.onSurfaceVariant)
+            // 작업 04: AI 화질 향상은 탭 대신 맨 위 같은 칸(만화는 책마다)
+            ComicAiCard(cs, globalAi, upscale, upscaleLimitMb, onCompare, Modifier.padding(top = 12.dp))
             Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ComicTab.entries.forEach { t -> Pill(t.label, t == tab) { tab = t } }
             }
             when (tab) {
                 ComicTab.TURN -> TurnTab(cs, p)
                 ComicTab.VIEW -> ViewTab(cs, p)
-                ComicTab.QUALITY -> QualityTab(cs, globalAi, upscale, upscaleLimitMb, onCompare)
             }
             HorizontalDivider(Modifier.padding(top = 16.dp))
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -223,66 +222,27 @@ private fun ViewTab(cs: ComicSession, p: ComicBookPrefs) {
 }
 
 @Composable
-private fun QualityTab(cs: ComicSession, globalAi: Boolean, upscale: ComicUpscale?, limitMb: Int, onCompare: (() -> Unit)?) {
+private fun ComicAiCard(cs: ComicSession, globalAi: Boolean, upscale: ComicUpscale?, limitMb: Int, onCompare: (() -> Unit)?, modifier: Modifier) {
     val context = LocalContext.current
-    val cap by produceState(AiCapability.cached(context)) {
-        if (value == null) value = AiCapability.measureWithin(context)
-    }
+    val cap by produceState(AiCapability.cached(context)) { if (value == null) value = AiCapability.measureWithin(context) }
     LaunchedEffect(cap) { cap?.let { cs.aiVerdict = it.verdict } }
     val sub = MaterialTheme.colorScheme.onSurfaceVariant
-    val c = cap
-    when {
-        c == null -> Text("이 기기에서 쓸 수 있는지 확인하는 중이에요… (약 10초)", fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
-        c.verdict == AiCapability.Verdict.LOW_MEMORY -> Text("이 기기는 메모리가 부족해서 AI 화질 향상을 쓸 수 없어요.", fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
-        c.verdict == AiCapability.Verdict.TOO_SLOW -> Text("이 기기에서는 처리가 너무 느려서 AI 화질 향상을 쓸 수 없어요.", fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
-        else -> {
-            // S-36: 처음 'AI 향상'·'전후 비교'를 고르면 확인창. 값 = 확인 뒤 갈 방식(1 AI 향상, 2 전후 비교)
-            var confirm by remember { mutableStateOf<Int?>(null) }
-            val on = cs.aiOn(globalAi)
-            // 웹툰에서는 비교할 수 없다(화면이 쪽 단위가 아님)
-            val blocked = cs.webtoon
-            fun go(mode: Int) {
-                cs.update { it.copy(ai = 1) }
-                if (mode == 2) onCompare?.invoke()
-            }
-            Label("AI 화질 향상", "작은 그림을 2배로 선명하게 키워요. 기기 안에서 처리해요.")
-            AiModeSegmented(
-                selected = if (on) 1 else 0, compareEnabled = !blocked && onCompare != null, modifier = Modifier.padding(top = 8.dp),
-                onPick = { m ->
-                    when {
-                        m == 0 -> cs.update { it.copy(ai = 0) }
-                        !AiConsent.given(context) -> confirm = m
-                        else -> go(m)
-                    }
-                },
-            )
-            if (blocked) Text("칸 보기·웹툰에서는 비교할 수 없어요", fontSize = 14.sp, color = sub, modifier = Modifier.padding(top = 6.dp))
-            if (!c.gpu) Text("이 기기에서는 쪽마다 시간이 조금 걸려요(약 ${c.secPerPage}초).", fontSize = 14.sp, color = sub, modifier = Modifier.padding(top = 6.dp))
-            val paused = upscale?.paused?.collectAsState()?.value
-            if (on && paused != null) Text("기기가 뜨겁거나 배터리가 적어서 잠시 멈췄어요. 식거나 충전하면 다시 시작해요.", fontSize = 14.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 6.dp))
-            val ready = upscale?.ready?.collectAsState()?.value
-            val stats by produceState<Pair<Int, Long>?>(null, ready?.size) {
-                value = withContext(Dispatchers.IO) { ComicUpscale.doneCount(context, cs.doc.cacheKey) to ComicUpscale.usedBytes(context) }
-            }
-            stats?.let { (n, used) ->
-                Text("처리한 쪽: $n / ${cs.doc.sourceCount}   저장 공간 ${used shr 20}MB / ${if (limitMb >= 1024) "${limitMb / 1024}GB" else "${limitMb}MB"}", fontSize = 14.sp, color = sub, modifier = Modifier.padding(top = 8.dp))
-            }
-            confirm?.let { mode ->
-                AlertDialog(
-                    onDismissRequest = { confirm = null },
-                    text = { Text("AI 화질 향상을 켤까요? 처리하는 동안 배터리를 더 쓰고 기기가 따뜻해질 수 있어요. 처리한 그림은 최대 ${if (limitMb >= 1024) "${limitMb / 1024}GB" else "${limitMb}MB"}까지 저장해 둡니다.") },
-                    confirmButton = {
-                        TextButton(onClick = { AiConsent.give(context); confirm = null; go(mode) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("켜기") }
-                    },
-                    dismissButton = { TextButton(onClick = { confirm = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text("취소") } },
-                )
-            }
+    val on = cs.aiOn(globalAi)
+    // 웹툰에서는 비교할 수 없다(화면이 쪽 단위가 아님)
+    AiQualityCard(
+        AiKind.COMIC, on, onToggle = { v -> cs.update { it.copy(ai = if (v) 1 else 0) } },
+        onCompare = if (cs.webtoon) null else onCompare, modifier = modifier, limitMb = limitMb,
+    ) {
+        if (cs.webtoon) Text("웹툰 보기에서는 비교할 수 없어요", fontSize = 13.sp, color = sub, modifier = Modifier.padding(top = 4.dp))
+        val paused = upscale?.paused?.collectAsState()?.value
+        if (on && paused != null) Text("기기가 뜨겁거나 배터리가 적어서 잠시 멈췄어요. 식거나 충전하면 다시 시작해요.", fontSize = 13.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))
+        val ready = upscale?.ready?.collectAsState()?.value
+        val stats by produceState<Pair<Int, Long>?>(null, ready?.size) {
+            value = withContext(Dispatchers.IO) { ComicUpscale.doneCount(context, cs.doc.cacheKey) to ComicUpscale.usedBytes(context) }
+        }
+        if (on) stats?.let { (n, used) ->
+            Text("처리한 쪽: $n / ${cs.doc.sourceCount}   저장 공간 ${used shr 20}MB / ${if (limitMb >= 1024) "${limitMb / 1024}GB" else "${limitMb}MB"}", fontSize = 13.sp, color = sub, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }
 
-/** S-36 처음 켤 때 확인창을 봤나(앱 전체 한 번). */
-private object AiConsent {
-    fun given(c: android.content.Context) = c.getSharedPreferences("comic_prefs", android.content.Context.MODE_PRIVATE).getBoolean("ai_consent", false)
-    fun give(c: android.content.Context) { c.getSharedPreferences("comic_prefs", android.content.Context.MODE_PRIVATE).edit().putBoolean("ai_consent", true).apply() }
-}

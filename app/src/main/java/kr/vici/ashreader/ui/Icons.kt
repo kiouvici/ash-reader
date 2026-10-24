@@ -58,5 +58,12 @@ object Icons {
     val Timer = line("timer", "M19 13a7 7 0 1 1 -14 0a7 7 0 1 1 14 0z", "M12 13V9", "M10 2h4")
     val Share = line("share", "M12 3v12", "M7 8l5-5 5 5", "M5 14v6h14v-6")
     val Save = line("save", "M12 4v11", "M7 10l5 5 5-5", "M5 19h14")
+    /** AI 화질 향상(작업 04, Material auto_awesome 모양을 선으로): 큰 별 + 작은 별 둘. */
+    val Sparkle = line(
+        "auto_awesome",
+        "M10 4l1.6 4.4L16 10l-4.4 1.6L10 16l-1.6-4.4L4 10l4.4-1.6z",
+        "M18 3l.7 1.8L20.5 5.5l-1.8.7L18 8l-.7-1.8-1.8-.7 1.8-.7z",
+        "M18 15l.7 1.8 1.8.7-1.8.7L18 20l-.7-1.8-1.8-.7 1.8-.7z",
+    )
     val Scroll = line("scroll", "M7 3h10v18H7z", "M10 8h4M10 12h4M10 16h4")
 }
