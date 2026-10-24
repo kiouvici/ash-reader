@@ -17,6 +17,9 @@ add_subdirectory(${TP}/libarchive ${CMAKE_BINARY_DIR}/libarchive EXCLUDE_FROM_AL
 
 # --- ncnn 20261020 (scripts/build-ncnn.sh 가 NDK r28 로 빌드, ABI별) ---
 set(ncnn_DIR ${ASH_NCNN}/${ANDROID_ABI}/lib/cmake/ncnn)
+# simpleomp 로 빌드한 ncnn 은 연결 목록에 'pthread' 를 넣는다(안드로이드 구분 없음). 안드로이드는 pthread 가 libc 안에 있어
+# -lpthread 를 찾지 못한다 → 같은 이름의 빈 대상을 두어 아무것도 연결하지 않게 한다(작업 04).
+add_library(pthread INTERFACE)
 find_package(ncnn REQUIRED)
 
 add_library(ash_comic SHARED ash_archive_jni.cpp ash_upscale_jni.cpp)

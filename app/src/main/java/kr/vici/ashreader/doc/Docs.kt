@@ -9,6 +9,9 @@ import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import java.io.Closeable
 import java.io.File
 import java.util.UUID
@@ -359,8 +362,8 @@ class MupdfReaderDoc(
      */
     val aiImages: Boolean get() = (reflow && format.group == FormatGroup.EBOOK) || format == DocFormat.PDF
 
-    /** 문서 그림 AI 화질 향상(붙어 있을 때만). 읽기 화면이 붙이고 뗀다. */
-    @Volatile var imageUpscale: EpubImageUpscale? = null
+    /** 문서 그림 AI 화질 향상(붙어 있을 때만). 읽기 화면이 붙이고 뗀다. Compose 상태라 붙는 순간 'AI 화질' 표시가 다시 그려진다. */
+    var imageUpscale: EpubImageUpscale? by mutableStateOf(null)
 
     /** 쪽 안 그림들(EPUB 그림 AI). 닫혔으면 빈 목록. */
     fun imageBlocks(index: Int): List<MupdfDoc.ImageBlock> = synchronized(lock) {

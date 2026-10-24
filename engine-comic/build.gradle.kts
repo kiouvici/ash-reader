@@ -81,7 +81,8 @@ val buildNcnn by tasks.registering(Exec::class) {
     val outDir: String = ncnnDir.absolutePath
     val abiList: List<String> = abis.toList()
     val ndk = androidComponents.sdkComponents.ndkDirectory
-    outputs.upToDateWhen { abiList.all { File(outDir, "$it/lib/cmake/ncnn/ncnnConfig.cmake").exists() } }
+    // 표식 파일 = 지금 빌드 설정(simpleomp)으로 만든 결과 — 옛 결과(libomp)는 다시 빌드
+    outputs.upToDateWhen { abiList.all { File(outDir, "$it/.ash-simpleomp").exists() } }
     executable("bash")
     argumentProviders.add(CommandLineArgumentProvider {
         listOf(script.absolutePath, outDir, ndk.get().asFile.absolutePath) + abiList
