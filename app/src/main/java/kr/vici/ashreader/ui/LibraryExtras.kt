@@ -113,7 +113,7 @@ fun StorageIntroScreen(onGranted: () -> Unit, onFolders: () -> Unit) {
         listOf(
             "고른 폴더(서재 폴더)의 책을 서재에 모아요. 다음 화면에서 폴더를 골라요.",
             "파일은 읽기만 하고 고치지 않아요.",
-            "인터넷 권한이 없어 어디로도 보내지 않아요.",
+            "책 파일·내용은 어디로도 보내지 않아요. 인터넷은 '책 정보 찾기'를 켤 때만 써요(정리한 제목만).",
         ).forEach { t ->
             Row(Modifier.padding(bottom = 10.dp)) {
                 Text("✓", color = cs.primary, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.width(24.dp))
