@@ -324,10 +324,17 @@ fun AppSettingsScreen(
                 onChange { cur -> cur.copy(ttsSleep = SLEEP_CHOICES[(SLEEP_CHOICES.indexOfFirst { it.first == cur.ttsSleep } + 1).mod(SLEEP_CHOICES.size)].first) }
             }
         }
-        Group("만화") {
-            // F-73: 책마다 켜고 끈다(기본 끔). 여기서는 아직 정하지 않은 새 만화의 기본값만.
-            SwitchRow("새 만화에 AI 화질 향상 기본으로 켜기", "책마다 만화 설정 [화질]에서 켜고 꺼요 · 기기 안에서 처리 · 배터리 더 씀", s.aiUpscale) { v -> onChange { it.copy(aiUpscale = v) } }
-            // F-73: 저장 공간 상한(300MB / 1GB / 2GB, 만화·EPUB 그림 함께)과 [지우기]
+        // 작업 04: AI 화질 향상 한 묶음(만화 새 책 기본값 · 이북·PDF 문서 그림 · 저장 공간). 읽는 중에는 보기 메뉴 맨 위 같은 칸.
+        Group("AI 화질 향상") {
+            val bad = aiCap?.verdict?.let { it != kr.vici.ashreader.doc.AiCapability.Verdict.OK } == true
+            if (bad) ValueRow("AI 화질 향상", "이 기기에서는 쓸 수 없어요(메모리·처리 속도)", "쓸 수 없음") {}
+            else {
+                // F-73: 만화는 책마다 켜고 끈다(기본 끔). 여기서는 아직 정하지 않은 새 만화의 기본값만.
+                SwitchRow("새 만화에 기본으로 켜기", "만화는 책마다 · 보기 메뉴 맨 위에서 켜고 꺼요 · 배터리 더 씀", s.aiUpscale) { v -> onChange { it.copy(aiUpscale = v) } }
+                // F-73 확장(D-021): 이북·PDF 속 그림·사진만 2배로. 글자에는 적용 안 함. 앱 전체 한 값. 기본 끔.
+                SwitchRow("문서 그림 AI 화질 향상", "이북·PDF 속 그림·사진을 선명하게 · 글자·한글·Word 에는 적용 안 함", s.epubAiUpscale) { v -> onChange { it.copy(epubAiUpscale = v) } }
+            }
+            // F-73: 저장 공간 상한(300MB / 1GB / 2GB, 만화·문서 그림 함께)과 [지우기]
             StorageLimitRow(
                 limit = mbLabel(s.upscaleCacheMb.toLong() shl 20), used = upUsed?.let { mbLabel(it) },
                 onCycle = {
@@ -344,12 +351,6 @@ fun AppSettingsScreen(
                     }
                 },
             )
-        }
-        Group("eBook") {
-            // F-73 확장(D-021): EPUB 안의 작은 그림·삽화만 2배로. 글자에는 적용 안 함. 기본 끔.
-            val bad = aiCap?.verdict?.let { it != kr.vici.ashreader.doc.AiCapability.Verdict.OK } == true
-            if (bad) ValueRow("문서 그림 AI 화질 향상", "이 기기에서는 쓸 수 없어요(메모리·처리 속도)", "쓸 수 없음") {}
-            else SwitchRow("문서 그림 AI 화질 향상", "이북·PDF 속 그림·사진을 선명하게 · 글자·한글·Word 에는 적용 안 함", s.epubAiUpscale) { v -> onChange { it.copy(epubAiUpscale = v) } }
         }
         Group("연결") {
             ValueRow("사전", "단어 길게 눌러 찾기", "말글사전") {
@@ -429,7 +430,7 @@ private fun StorageLimitRow(limit: String, used: String?, onCycle: () -> Unit, o
         Row(Modifier.weight(1f).clickable(onClick = onCycle).heightIn(min = 56.dp).padding(start = 16.dp, top = 10.dp, bottom = 10.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("저장 공간 상한", fontSize = 15.sp)
-                Text("AI 화질 향상으로 처리한 그림(만화·EPUB)" + (used?.let { " · 지금 $it" } ?: ""), fontSize = 14.sp, lineHeight = 19.sp,
+                Text("AI 화질 향상으로 처리한 그림(만화·문서)" + (used?.let { " · 지금 $it" } ?: ""), fontSize = 14.sp, lineHeight = 19.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Text(limit, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp))

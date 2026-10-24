@@ -96,6 +96,9 @@ class EpubImageUpscale(context: Context, private val doc: MupdfReaderDoc) : Clos
         }
     }
 
+    /** 쪽 [index] 의 처리 상태(작업 04 전후 비교·'AI 화질' 표시): null 아직 모름, 0 바꿀 그림 없음, n 바꾼 그림 수. */
+    fun itemsOn(index: Int): Int? = pages[index]?.size
+
     private fun request(index: Int, w: Int, h: Int) {
         if (closed || index !in 0 until doc.pageCount || pages.containsKey(index) || !queued.add(index)) return
         scope.launch {

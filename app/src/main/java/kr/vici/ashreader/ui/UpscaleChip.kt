@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,6 +38,24 @@ fun UpscaleChip(up: ComicUpscale, page: Int, modifier: Modifier = Modifier, onTa
     ) {
         Text(
             text, fontSize = 12.sp, color = Color.White,
+            modifier = Modifier.background(Color(0x80000000), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
+        )
+    }
+}
+
+/**
+ * 작업 04: 이북·PDF 쪽에 AI 로 바꾼 그림이 있으면 같은 'AI 화질' 표시. 누르면 [onTap](보기 시트 — 맨 위 AI 칸).
+ * 문서 그림 AI 가 꺼져 있거나 그 쪽에 바꾼 그림이 없으면 아무것도 그리지 않는다.
+ */
+@Composable
+fun DocAiChip(doc: kr.vici.ashreader.doc.MupdfReaderDoc, page: Int, modifier: Modifier = Modifier, onTap: () -> Unit) {
+    val up = doc.imageUpscale ?: return
+    val version by up.version.collectAsState()
+    val n = remember(version, page) { up.itemsOn(page) ?: 0 }
+    if (n <= 0) return
+    Box(modifier.heightIn(min = 48.dp).clickable(onClickLabel = "AI 화질 설정 열기", onClick = onTap), contentAlignment = Alignment.Center) {
+        Text(
+            "AI 화질", fontSize = 12.sp, color = Color.White,
             modifier = Modifier.background(Color(0x80000000), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
         )
     }

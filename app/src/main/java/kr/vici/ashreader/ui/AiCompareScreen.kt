@@ -99,28 +99,85 @@ internal fun AiModeSegmented(selected: Int, compareEnabled: Boolean, onPick: (In
     }
 }
 
-/** 이 쪽의 비교 상태. */
-private enum class PageState { READY, WAITING, SHARP, FAILED }
+/** 비교할 한 쪽: [orig] 원본, [ai] AI 결과(없으면 null), [state], [busy] 지금 이 쪽을 처리 중. */
+internal class ComparePage(val orig: Bitmap?, val ai: Bitmap?, val state: Int, val busy: Boolean = false) {
+    companion object { const val READY = 0; const val WAITING = 1; const val SHARP = 2; const val FAILED = 3; const val NONE = 4 }
+}
 
 /**
- * AI 화질 전후 비교(S-33 [화질] '전후 비교', F-73). 읽기 화면의 도구 막대 자리를 차지하는 전체 화면.
- * - 왼쪽 원본 / 오른쪽 AI. 노란 손잡이(48dp, 1dp 어두운 테두리)만 끌어서 나누는 선을 옮긴다. 쪽 밀기는 막는다.
- * - 쪽은 위 [◀][▶] 단추로만 바꾼다. 뒤로 가기 = 비교 끝.
- * - 아직 처리하지 않은 쪽 → "이 쪽은 아직 처리 중이에요" + 진행 표시(비교 흐리게), 건너뛴 쪽 → "이 쪽은 이미 선명해서 처리하지 않았어요".
- * - 태블릿 펼침은 지금 쪽(왼쪽 쪽) 하나만 비교한다.
+ * AI 화질 전후 비교(S-33 '전후 비교', F-73) — 만화. 읽기 화면의 도구 막대 자리를 차지하는 전체 화면.
  * [startSource] = 처음 볼 원본 쪽. [onExit] = 끝낼 때 보고 있던 원본 쪽. [onMode] = 아래 나눔 단추에서 원본(0)·AI 향상(1)을 고름.
  */
 @Composable
 fun AiCompareScreen(doc: ComicReaderDoc, upscale: ComicUpscale?, startSource: Int, onExit: (Int) -> Unit, onMode: (Int) -> Unit) {
-    var src by remember { mutableIntStateOf(startSource.coerceIn(0, (doc.sourceCount - 1).coerceAtLeast(0))) }
+    val ready = upscale?.ready?.collectAsState()?.value.orEmpty()
+    val busy = upscale?.busy?.collectAsState()?.value
+    val paused = upscale?.paused?.collectAsState()?.value
+    AiCompareFrame(
+        pageCount = doc.sourceCount, start = startSource, refresh = ready,
+        notReadyText = when {
+            upscale == null -> "AI 화질 향상을 준비하고 있어요"
+            paused != null -> "기기가 뜨겁거나 배터리가 적어서 잠시 멈췄어요"
+            else -> null
+        },
+        request = { src, w, h -> upscale?.request(src, w, h) },
+        load = { src, w ->
+            val state = when {
+                src in ready -> ComparePage.READY
+                upscale?.isAlreadySharp(src) == true -> ComparePage.SHARP
+                upscale?.isFailed(src) == true -> ComparePage.FAILED
+                else -> ComparePage.WAITING
+            }
+            val o = runCatching { doc.pageBitmap(src, w) }.getOrNull()
+            val a = if (state == ComparePage.READY) upscale?.load(src, w) else null
+            ComparePage(o, a, state, busy == src)
+        },
+        showProgress = paused == null,
+        onExit = onExit, onMode = onMode,
+    )
+}
+
+/**
+ * 작업 04: 이북·PDF 문서 그림 AI 전후 비교. 만화와 같은 손잡이 방식, 쪽 단위.
+ * 왼쪽 = 처리된 그림을 덧그리지 않은 쪽, 오른쪽 = 덧그린 쪽. 그림이 없는 쪽은 "이 쪽에는 바꿀 그림이 없어요".
+ */
+@Composable
+fun DocAiCompareScreen(doc: kr.vici.ashreader.doc.MupdfReaderDoc, colors: ReadingColors, start: Int, onExit: (Int) -> Unit, onMode: (Int) -> Unit) {
+    val up = doc.imageUpscale
+    val version = up?.version?.collectAsState()?.value
+    AiCompareFrame(
+        pageCount = doc.pageCount, start = start, refresh = version,
+        notReadyText = if (up == null) "AI 화질 향상을 준비하고 있어요" else null,
+        request = { _, _, _ -> },
+        load = { p, w ->
+            val h = (w * (doc.pageAspect(p) ?: 1.414f)).toInt().coerceAtLeast(1)
+            // 덧그린 쪽을 먼저 그려 처리를 요청하게 한다
+            val a = runCatching { doc.render(p, w, h, colors, ai = true) }.getOrNull()
+            val n = up?.itemsOn(p)
+            val o = runCatching { doc.render(p, w, h, colors, ai = false) }.getOrNull()
+            when {
+                n == null -> ComparePage(o, null, ComparePage.WAITING, true).also { a?.recycle() }
+                n == 0 -> ComparePage(o, null, ComparePage.NONE).also { a?.recycle() }
+                else -> ComparePage(o, a, ComparePage.READY)
+            }
+        },
+        showProgress = true,
+        onExit = onExit, onMode = onMode,
+    )
+}
+
+@Composable
+private fun AiCompareFrame(
+    pageCount: Int, start: Int, refresh: Any?, notReadyText: String?,
+    request: (Int, Int, Int) -> Unit, load: (Int, Int) -> ComparePage, showProgress: Boolean,
+    onExit: (Int) -> Unit, onMode: (Int) -> Unit,
+) {
+    var src by remember { mutableIntStateOf(start.coerceIn(0, (pageCount - 1).coerceAtLeast(0))) }
     var split by remember { mutableFloatStateOf(0.5f) }
     Dialog(
         onDismissRequest = { onExit(src) },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false, dismissOnClickOutside = false),
     ) {
-        val ready = upscale?.ready?.collectAsState()?.value.orEmpty()
-        val busy = upscale?.busy?.collectAsState()?.value
-        val paused = upscale?.paused?.collectAsState()?.value
         Column(Modifier.fillMaxSize().background(Color(0xFF111214))) {
             // 위: 도구 막대 자리(뒤로 · 제목 · 쪽 단추)
             Row(
@@ -128,39 +185,32 @@ fun AiCompareScreen(doc: ComicReaderDoc, upscale: ComicUpscale?, startSource: In
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = { onExit(src) }, modifier = Modifier.size(48.dp)) { Icon(Icons.Back, "비교 끝내기", tint = Color.White) }
-                Text("전후 비교 · ${src + 1} / ${doc.sourceCount}쪽", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f), maxLines = 1)
+                Text("전후 비교 · ${src + 1} / ${pageCount}쪽", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f), maxLines = 1)
                 IconButton(onClick = { if (src > 0) src-- }, enabled = src > 0, modifier = Modifier.size(48.dp)) {
                     Text("◀", color = Color.White.copy(alpha = if (src > 0) 1f else 0.38f), fontSize = 18.sp, modifier = Modifier.semantics { contentDescription = "이전 쪽" })
                 }
-                IconButton(onClick = { if (src < doc.sourceCount - 1) src++ }, enabled = src < doc.sourceCount - 1, modifier = Modifier.size(48.dp)) {
-                    Text("▶", color = Color.White.copy(alpha = if (src < doc.sourceCount - 1) 1f else 0.38f), fontSize = 18.sp, modifier = Modifier.semantics { contentDescription = "다음 쪽" })
+                IconButton(onClick = { if (src < pageCount - 1) src++ }, enabled = src < pageCount - 1, modifier = Modifier.size(48.dp)) {
+                    Text("▶", color = Color.White.copy(alpha = if (src < pageCount - 1) 1f else 0.38f), fontSize = 18.sp, modifier = Modifier.semantics { contentDescription = "다음 쪽" })
                 }
             }
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp)) {
                 val wPx = constraints.maxWidth; val hPx = constraints.maxHeight
-                LaunchedEffect(upscale, src, wPx, hPx) { upscale?.request(src, wPx, hPx) }
-                val state = when {
-                    src in ready -> PageState.READY
-                    upscale?.isAlreadySharp(src) == true -> PageState.SHARP
-                    upscale?.isFailed(src) == true -> PageState.FAILED
-                    else -> PageState.WAITING
+                LaunchedEffect(src, wPx, hPx) { request(src, wPx, hPx) }
+                val page by produceState<ComparePage?>(null, src, refresh, wPx) {
+                    value = withContext(Dispatchers.IO) { load(src, wPx) }
                 }
-                val pair by produceState<Pair<ImageBitmap?, ImageBitmap?>>(null to null, src, state, wPx) {
-                    value = withContext(Dispatchers.IO) {
-                        val o = runCatching { doc.pageBitmap(src, wPx) }.getOrNull()
-                        val a = if (state == PageState.READY) upscale?.load(src, wPx) else null
-                        o?.asImage() to a?.asImage()
-                    }
-                }
-                val (orig, ai) = pair
+                val pg = page
+                val orig = pg?.orig?.asImage()
+                val ai = pg?.ai?.asImage()
+                val state = pg?.state ?: ComparePage.WAITING
                 val img = ai ?: orig
                 if (img != null) {
                     // 쪽을 칸 안에 비율대로 맞춘 자리
                     val k = minOf(wPx.toFloat() / img.width, hPx.toFloat() / img.height)
                     val dw = img.width * k; val dh = img.height * k
                     val left = (wPx - dw) / 2f; val top = (hPx - dh) / 2f
-                    val compare = state == PageState.READY && ai != null && orig != null
-                    Canvas(Modifier.fillMaxSize().alpha(if (compare) 1f else 0.45f).semantics {
+                    val compare = state == ComparePage.READY && ai != null && orig != null
+                    Canvas(Modifier.fillMaxSize().alpha(if (compare || state == ComparePage.NONE) 1f else 0.45f).semantics {
                         contentDescription = if (compare) "왼쪽 원본, 오른쪽 AI 향상" else "원본"
                     }) {
                         val dst = IntSize(dw.roundToInt(), dh.roundToInt())
@@ -196,23 +246,22 @@ fun AiCompareScreen(doc: ComicReaderDoc, upscale: ComicUpscale?, startSource: In
                         ) { Text("⇔", color = Color(0xFF1F1F1F), fontSize = 18.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
-                if (state != PageState.READY || img == null) {
+                if (state != ComparePage.READY || img == null) {
                     Column(
                         Modifier.align(Alignment.Center).clip(RoundedCornerShape(16.dp)).background(Color(0xE61C1D20)).padding(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
-                            when {
-                                upscale == null -> "AI 화질 향상을 준비하고 있어요"
-                                paused != null -> "기기가 뜨겁거나 배터리가 적어서 잠시 멈췄어요"
-                                state == PageState.SHARP -> "이 쪽은 이미 선명해서 처리하지 않았어요"
-                                state == PageState.FAILED -> "이 쪽은 처리하지 못했어요"
+                            notReadyText ?: when (state) {
+                                ComparePage.SHARP -> "이 쪽은 이미 선명해서 처리하지 않았어요"
+                                ComparePage.FAILED -> "이 쪽은 처리하지 못했어요"
+                                ComparePage.NONE -> "이 쪽에는 바꿀 그림이 없어요"
                                 else -> "이 쪽은 아직 처리 중이에요"
                             },
                             color = Color.White, fontSize = 16.sp, textAlign = TextAlign.Center,
                         )
-                        if ((state == PageState.WAITING || upscale == null) && paused == null) {
-                            LinearProgressIndicator(Modifier.padding(top = 12.dp).width(200.dp).semantics { contentDescription = if (busy == src) "이 쪽 처리 중" else "처리 차례 기다리는 중" })
+                        if (state == ComparePage.WAITING && showProgress) {
+                            LinearProgressIndicator(Modifier.padding(top = 12.dp).width(200.dp).semantics { contentDescription = if (pg?.busy == true) "이 쪽 처리 중" else "처리 차례 기다리는 중" })
                         }
                     }
                 }
@@ -236,7 +285,6 @@ fun AiCompareScreen(doc: ComicReaderDoc, upscale: ComicUpscale?, startSource: In
         }
     }
 }
-
 @Composable
 private fun Tag(t: String, modifier: Modifier) {
     Box(modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xB3000000)).padding(horizontal = 10.dp, vertical = 4.dp)) {

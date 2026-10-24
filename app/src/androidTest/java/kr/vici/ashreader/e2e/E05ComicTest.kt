@@ -88,9 +88,10 @@ class E05ComicTest : E2eTest() {
     fun viewTab_filters_noCrash() {
         openComic()
         openComicSheet()
-        // 시트의 '보기' 탭(아래 메뉴의 '보기'와 이름이 같다 → '화질' 탭과 같은 줄에 있는 것)
-        val y = obj(By.text("화질")).visibleBounds.centerY()
-        stale { device.findObjects(By.text("보기")).minByOrNull { kotlin.math.abs(it.visibleBounds.centerY() - y) }!!.click() }
+        // 시트의 '보기' 탭(아래 메뉴의 '보기'와 이름이 같다 → 시트 부제 아래에서 가장 가까운 것). 작업 04: [화질] 탭은 없어짐
+        val y = obj(By.text("이 책에만 적용돼요.")).visibleBounds.centerY()
+        assertTrue("만화 설정에 [화질] 탭이 남아 있음", !device.hasObject(By.text("화질")))
+        stale { device.findObjects(By.text("보기")).filter { it.visibleBounds.centerY() > y }.minByOrNull { it.visibleBounds.centerY() - y }!!.click() }
         SystemClock.sleep(500)
         for (t in listOf("폭", "화면")) { device.findObject(By.text(t))?.click(); SystemClock.sleep(400) }
         switchNear("흑백")?.click(); SystemClock.sleep(400)
@@ -112,7 +113,7 @@ class E05ComicTest : E2eTest() {
     fun aiQuality_toggle_noCrash() {
         openComic()
         openComicSheet()
-        clickText("화질")
+        // 작업 04: AI 칸은 만화 설정 맨 위(탭 없음)
         // 기기 확인(약 10초, 에뮬레이터는 더 걸릴 수 있음)
         val end = SystemClock.uptimeMillis() + 60_000
         var state = ""
@@ -140,11 +141,48 @@ class E05ComicTest : E2eTest() {
             shot("ai-on")
             assertAlive()
             openComicSheet()
-            clickText("화질")
             switchNear("AI 화질 향상")?.let { if (it.isChecked) it.click() }
             SystemClock.sleep(600)
             closeSheet()
         } else closeSheet()
+        assertAlive()
+    }
+
+    /** 작업 04: PDF 보기 시트 맨 위 AI 칸 → [전후 비교] 화면이 열린다(이 기기에서 AI 를 쓸 수 있을 때). */
+    @Test
+    fun pdfAiCard_opensCompare() {
+        launchApp()
+        openFromLibrary("e2e-pdf 그림", "PDF")
+        waitPage()
+        dismissTapGuide()
+        menuItem("보기")
+        val end = SystemClock.uptimeMillis() + 60_000
+        var state = ""
+        while (SystemClock.uptimeMillis() < end && state.isEmpty()) {
+            when {
+                device.hasObject(By.textContains("AI 화질 향상을 쓸 수 없어요")) -> state = "unavailable"
+                device.hasObject(By.text("전후 비교")) -> state = "available"
+            }
+            SystemClock.sleep(500)
+        }
+        shot("pdf-ai-card-$state")
+        assertTrue("PDF 보기 시트에 AI 칸이 없음", state.isNotEmpty())
+        if (state == "available") {
+            val sw = switchNear("AI 화질 향상")!!
+            val wasOn = sw.isChecked
+            if (!wasOn) { sw.click(); device.wait(Until.findObject(By.text("켜기")), 3_000)?.click(); SystemClock.sleep(600) }
+            clickText("전후 비교")
+            assertTrue("PDF 전후 비교가 열리지 않음", has(By.textStartsWith("전후 비교 ·"), 10_000))
+            shot("pdf-compare")
+            device.findObject(By.desc("비교 끝내기"))?.click()
+            SystemClock.sleep(800)
+            if (!wasOn) {
+                menuItem("보기")
+                switchNear("AI 화질 향상")?.let { if (it.isChecked) it.click() }
+                SystemClock.sleep(400)
+            }
+        }
+        device.pressBack(); SystemClock.sleep(600)
         assertAlive()
     }
 
