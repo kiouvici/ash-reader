@@ -16,9 +16,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarResult
@@ -37,7 +34,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.SavedStateHandle
@@ -80,6 +76,7 @@ import kr.vici.ashreader.ui.LicensesScreen
 import kr.vici.ashreader.ui.NextVolumeSheet
 import kr.vici.ashreader.ui.ReaderScreen
 import kr.vici.ashreader.ui.ReaderTarget
+import kr.vici.ashreader.ui.FloatingNavBar
 import kr.vici.ashreader.ui.SeriesScreen
 import kr.vici.ashreader.ui.StatsScreen
 import kr.vici.ashreader.ui.VolumeKeys
@@ -558,10 +555,10 @@ private fun AshRoot(nav: NavModel) {
         else -> Scaffold(
             snackbarHost = { SnackbarHost(snack) },
             bottomBar = {
-                NavigationBar {
-                    NavItem("서재", Icons.Library, nav.tab == Screen.Library) { nav.tab = Screen.Library; nav.screen = Screen.Library }
-                    NavItem("독서 기록", Icons.Chart, nav.tab == Screen.Stats) { nav.tab = Screen.Stats; nav.screen = Screen.Stats }
-                    NavItem("설정", Icons.Gear, nav.tab == Screen.Settings) { nav.tab = Screen.Settings; nav.screen = Screen.Settings }
+                // 작업 05: 위 탭과 같은 모양의 떠 있는 막대
+                val tabs = listOf(Screen.Library, Screen.Stats, Screen.Settings)
+                FloatingNavBar(listOf("서재" to Icons.Library, "독서 기록" to Icons.Chart, "설정" to Icons.Gear), tabs.indexOf(nav.tab)) { i ->
+                    nav.tab = tabs[i]; nav.screen = tabs[i]
                 }
             },
         ) { pad ->
@@ -579,6 +576,7 @@ private fun AshRoot(nav: NavModel) {
                         showStores = settings.showStores,
                         sort = settings.libSort, sortDesc = settings.libSortDesc,
                         onSort = { o, d -> change { it.copy(libSort = o, libSortDesc = d) } },
+                        folderRoots = allFolders.filter { it.include }.map { it.label },
                     )
                     Screen.Stats -> {
                         val since = remember { statsSince() }
@@ -674,11 +672,6 @@ private fun streakOf(days: List<Long>): Int {
     var n = 0
     for (d in days) { if (d == expect) { n++; expect-- } else if (d < expect) break }
     return n
-}
-
-@Composable
-private fun androidx.compose.foundation.layout.RowScope.NavItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
-    NavigationBarItem(selected = selected, onClick = onClick, icon = { Icon(icon, contentDescription = null) }, label = { Text(label) })
 }
 
 /** 한 번만 보기 문서 정리 시점(7G). */
