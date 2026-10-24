@@ -37,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -86,6 +87,22 @@ private fun BenchScreen() {
         device = DeviceInfoCollector.collect(context)
         assetFiles = withContext(Dispatchers.IO) { TestFiles.listAssets(context) }
         reloadTree(TestFiles.savedTree(context))
+    }
+
+    // 결과가 늘 때마다 다운로드 폴더에 CSV 자동 저장(작업 03, adb pull 용). 기기 정보는 그때 다시 읽는다(방향·배터리).
+    var autoSaved by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { ResultStore.results.size }.collect { n ->
+            if (n == 0) { CsvExporter.resetAuto(); autoSaved = null; return@collect }
+            val rows = ResultStore.results.toList()
+            autoSaved = withContext(Dispatchers.IO) {
+                runCatching {
+                    val d = DeviceInfoCollector.collect(context, refresh = true)
+                    device = d
+                    "자동 저장: " + CsvExporter.autoSave(context, d, rows)
+                }.getOrElse { "자동 저장 실패: ${it.message}" }
+            }
+        }
     }
 
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -223,6 +240,7 @@ private fun BenchScreen() {
                     ) { Text("CSV 공유") }
                     OutlinedButton(enabled = results.isNotEmpty(), onClick = { ResultStore.clear() }) { Text("지우기") }
                 }
+                autoSaved?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 Spacer(Modifier.height(8.dp))
                 if (results.isEmpty()) {
                     Text("아직 측정 결과가 없습니다.", style = MaterialTheme.typography.bodySmall)

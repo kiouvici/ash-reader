@@ -67,7 +67,6 @@ import kr.vici.ashreader.data.Backup
 import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.InfoItem
-import kr.vici.ashreader.data.PanelMode
 import kr.vici.ashreader.data.Rotation
 import kr.vici.ashreader.data.ScreenTimeout
 import kr.vici.ashreader.data.TapLayout
@@ -326,9 +325,6 @@ fun AppSettingsScreen(
             }
         }
         Group("만화") {
-            ValueRow("칸 단위 보기", "칸 누르면 확대 / 자동 순서", s.panelMode.label) {
-                onChange { it.copy(panelMode = PanelMode.entries[(it.panelMode.ordinal + 1) % PanelMode.entries.size]) }
-            }
             // F-73: 책마다 켜고 끈다(기본 끔). 여기서는 아직 정하지 않은 새 만화의 기본값만.
             SwitchRow("새 만화에 AI 화질 향상 기본으로 켜기", "책마다 만화 설정 [화질]에서 켜고 꺼요 · 기기 안에서 처리 · 배터리 더 씀", s.aiUpscale) { v -> onChange { it.copy(aiUpscale = v) } }
             // F-73: 저장 공간 상한(300MB / 1GB / 2GB, 만화·EPUB 그림 함께)과 [지우기]
@@ -352,8 +348,8 @@ fun AppSettingsScreen(
         Group("eBook") {
             // F-73 확장(D-021): EPUB 안의 작은 그림·삽화만 2배로. 글자에는 적용 안 함. 기본 끔.
             val bad = aiCap?.verdict?.let { it != kr.vici.ashreader.doc.AiCapability.Verdict.OK } == true
-            if (bad) ValueRow("EPUB 그림 AI 화질 향상", "이 기기에서는 쓸 수 없어요(메모리·처리 속도)", "쓸 수 없음") {}
-            else SwitchRow("EPUB 그림 AI 화질 향상", "작은 그림·삽화를 선명하게 · 글자에는 적용 안 함", s.epubAiUpscale) { v -> onChange { it.copy(epubAiUpscale = v) } }
+            if (bad) ValueRow("문서 그림 AI 화질 향상", "이 기기에서는 쓸 수 없어요(메모리·처리 속도)", "쓸 수 없음") {}
+            else SwitchRow("문서 그림 AI 화질 향상", "이북·PDF 속 그림·사진을 선명하게 · 글자·한글·Word 에는 적용 안 함", s.epubAiUpscale) { v -> onChange { it.copy(epubAiUpscale = v) } }
         }
         Group("연결") {
             ValueRow("사전", "단어 길게 눌러 찾기", "말글사전") {
@@ -473,16 +469,16 @@ fun NextVolumeSheet(done: Book, next: Book, onLibrary: () -> Unit, onOpenNext: (
 
 /**
  * S-31 탭 영역 안내: 지금 적용되는 실제 배치(F-64: 좌우·L자·어디든·내 방식, 왼손잡이·오→왼 반영)를 3×3 칸으로 보여 준다.
- * [grid] = 칸별 뜻(행 우선 9개). 칸 단위 보기([panelMode])는 따로 그린다. 아무 곳이나 누르면 닫힘.
+ * [grid] = 칸별 뜻(행 우선 9개). 아무 곳이나 누르면 닫힘.
  */
 @Composable
-fun TapGuide(rtl: Boolean, panelMode: Boolean, grid: List<TapAction> = emptyList(), onChange: (() -> Unit)? = null, onOk: () -> Unit) {
+fun TapGuide(rtl: Boolean, grid: List<TapAction> = emptyList(), onChange: (() -> Unit)? = null, onOk: () -> Unit) {
     val prevLeft = !rtl
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable(onClick = onOk)) {
-        if (panelMode || grid.size != 9) Row(Modifier.fillMaxSize()) {
-            Zone(if (prevLeft) "이전 쪽" else "다음 쪽", Modifier.weight(if (panelMode) 0.15f else 0.3f), Color(0x552E4A6B))
-            Zone("메뉴", Modifier.weight(if (panelMode) 0.7f else 0.4f), Color(0x338C5A2B))
-            Zone(if (prevLeft) "다음 쪽" else "이전 쪽", Modifier.weight(if (panelMode) 0.15f else 0.3f), Color(0x552E4A6B))
+        if (grid.size != 9) Row(Modifier.fillMaxSize()) {
+            Zone(if (prevLeft) "이전 쪽" else "다음 쪽", Modifier.weight(0.3f), Color(0x552E4A6B))
+            Zone("메뉴", Modifier.weight(0.4f), Color(0x338C5A2B))
+            Zone(if (prevLeft) "다음 쪽" else "이전 쪽", Modifier.weight(0.3f), Color(0x552E4A6B))
         } else Column(Modifier.fillMaxSize()) {
             for (row in 0 until 3) Row(Modifier.weight(1f).fillMaxWidth()) {
                 for (col in 0 until 3) {
@@ -499,13 +495,12 @@ fun TapGuide(rtl: Boolean, panelMode: Boolean, grid: List<TapAction> = emptyList
         ) {
             Text("화면을 누르는 곳에 따라 쪽을 넘겨요", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text(
-                if (panelMode) "칸을 누르면 크게 보여요. 메뉴는 화면 맨 위를 누르세요. 양쪽 끝을 누르면 이전·다음 칸으로 가요."
-                else "밀어서 넘길 수도 있어요. 볼륨 아래 버튼도 다음 쪽이에요(설정에서 끌 수 있어요). 왼쪽 가장자리를 위아래로 밀면 밝기가 바뀌어요.",
+                "밀어서 넘길 수도 있어요. 볼륨 아래 버튼도 다음 쪽이에요(설정에서 끌 수 있어요). 왼쪽 가장자리를 위아래로 밀면 밝기가 바뀌어요.",
                 fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = onOk, modifier = Modifier.weight(1f).heightIn(min = 48.dp), colors = ButtonDefaults.buttonColors()) { Text("알겠어요") }
-                if (onChange != null && !panelMode) OutlinedButton(onClick = onChange, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("바꾸기 ▸") }
+                if (onChange != null) OutlinedButton(onClick = onChange, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("바꾸기 ▸") }
             }
         }
     }

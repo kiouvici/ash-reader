@@ -37,7 +37,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kr.vici.ashreader.data.ComicBookPrefs
 import kr.vici.ashreader.data.ComicPrefsStore
-import kr.vici.ashreader.data.PanelMode
 import kr.vici.ashreader.doc.AiCapability
 import kr.vici.ashreader.doc.ComicLook
 import kr.vici.ashreader.doc.ComicReaderDoc
@@ -63,7 +62,6 @@ class ComicSession(
     aiVerdict: AiCapability.Verdict?,
     autoSpread: Boolean = false,
     landscape: Boolean = false,
-    globalPanel: PanelMode = PanelMode.OFF,
 ) {
     var prefs by mutableStateOf(store.load(bookId))
         private set
@@ -74,7 +72,7 @@ class ComicSession(
     init {
         applyToDoc(prefs)
         // 처음 배치는 지난번에 기록한 쪽 크기로 바로 정한다(저장된 읽던 쪽 번호가 같은 배치 기준이므로). 나머지는 ComicSessionEffects 가 뒤에서.
-        if (!webtoon && panelMode(globalPanel) == PanelMode.OFF) {
+        if (!webtoon) {
             val sp = when (prefs.spread) { 1 -> false; 2 -> true; else -> autoSpread }
             doc.commitLayout(SpreadLayout.build(doc.cachedSizes(), sp, landscape, WideMode.entries[prefs.wide.coerceIn(0, 2)], doc.rtl, prefs.coverAlone, prefs.shift), sp)
         }
@@ -112,14 +110,6 @@ class ComicSession(
 
     val webtoon: Boolean get() = prefs.webtoon
 
-    /** 칸 단위 보기(책마다 지정이 없으면 앱 설정). 웹툰에서는 쓰지 않는다. */
-    fun panelMode(global: PanelMode): PanelMode = if (webtoon) PanelMode.OFF else when (prefs.panel) {
-        0 -> PanelMode.OFF
-        1 -> PanelMode.TAP_ZOOM
-        2 -> PanelMode.AUTO
-        else -> global
-    }
-
     /** AI 화질 향상(책마다, 기본은 앱 설정). 이 기기에서 쓸 수 없다고 판정됐으면 끈다(F-73). */
     fun aiOn(global: Boolean): Boolean {
         val want = when (prefs.ai) { 0 -> false; 1 -> true; else -> global }
@@ -132,11 +122,11 @@ class ComicSession(
 
 /** 만화 문서면 [ComicSession], 아니면 null. */
 @Composable
-fun rememberComicSession(doc: ReaderDoc, bookId: String, once: Boolean, autoSpread: Boolean, landscape: Boolean, globalPanel: PanelMode): ComicSession? {
+fun rememberComicSession(doc: ReaderDoc, bookId: String, once: Boolean, autoSpread: Boolean, landscape: Boolean): ComicSession? {
     val context = LocalContext.current
     return remember(doc) {
         (doc as? ComicReaderDoc)?.let {
-            ComicSession(it, bookId, !once, ComicPrefsStore(context), AiCapability.cached(context)?.verdict, autoSpread, landscape, globalPanel)
+            ComicSession(it, bookId, !once, ComicPrefsStore(context), AiCapability.cached(context)?.verdict, autoSpread, landscape)
         }
     }
 }
@@ -150,7 +140,7 @@ fun ComicSessionEffects(
     cs: ComicSession,
     autoSpread: Boolean,
     landscape: Boolean,
-    /** 칸 단위 보기·웹툰 = 쪽마다 한 자리(배치 없음). */
+    /** 웹툰·맞춤 보기 = 쪽마다 한 자리(배치 없음). */
     plainPages: Boolean,
     upscale: ComicUpscale?,
     onRelayout: ((Int) -> Int) -> Unit,

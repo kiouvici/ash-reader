@@ -19,8 +19,6 @@ data class ComicBookPrefs(
     val shift: Boolean = false,
     /** 가로로 긴 쪽(F-51, 한 쪽 모드): 0 반으로 나눔 · 1 회전 · 2 그대로. */
     val wide: Int = 0,
-    /** 칸 단위 보기(F-72): -1 앱 설정 따름 · 0 끔 · 1 눌러서 확대 · 2 자동 순서. */
-    val panel: Int = -1,
     /** 웹툰 그림 사이 간격(F-53): 0 없음 · 1 작게. */
     val gap: Int = 0,
     /** 웹툰 좌우 여백(화면 폭의 %, 0~15). */
@@ -47,7 +45,7 @@ data class ComicBookPrefs(
     val webtoon: Boolean get() = dir == DIR_TTB
 
     fun toJson(): JSONObject = JSONObject()
-        .put("dir", dir).put("spread", spread).put("cover", coverAlone).put("shift", shift).put("wide", wide).put("panel", panel)
+        .put("dir", dir).put("spread", spread).put("cover", coverAlone).put("shift", shift).put("wide", wide)
         .put("gap", gap).put("margin", margin).put("crop", crop).put("cropSens", cropSens)
         .put("bri", brightness.toDouble()).put("con", contrast.toDouble()).put("gam", gamma.toDouble())
         .put("gray", gray).put("inv", invert).put("hq", hq).put("sharp", sharpen).put("ai", ai).put("asked", webtoonAsked).put("fit", fit)
@@ -68,7 +66,6 @@ data class ComicBookPrefs(
             coverAlone = o.optBoolean("cover", base.coverAlone),
             shift = o.optBoolean("shift", false),
             wide = o.optInt("wide", base.wide).coerceIn(0, 2),
-            panel = o.optInt("panel", base.panel).coerceIn(-1, 2),
             gap = o.optInt("gap", base.gap).coerceIn(0, 1),
             margin = o.optInt("margin", base.margin).coerceIn(0, 15),
             crop = o.optBoolean("crop", base.crop),

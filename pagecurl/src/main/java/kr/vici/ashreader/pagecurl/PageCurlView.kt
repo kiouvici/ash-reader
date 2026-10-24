@@ -607,8 +607,8 @@ class PageCurlView @JvmOverloads constructor(
         val gx = viewW
         val radius = CurlMath.radiusFor(t, pw * 0.18f)
         val fx = CurlMath.fingerX(gx, pw, t)
-        // I-716: 손가락 위아래는 조금만 따라가고(최대 쪽 높이의 8%) 넘어갈수록 0 으로
-        val lift = CurlMath.dampLift(py - gy, h * 0.08f) * (1f - t)
+        // I-716: 손가락 위아래는 조금만 따라가고(최대 쪽 높이의 8%) 평평할 때·다 넘어갈 때 0 으로(작업 03: 되감기 끝 꺾임·깜빡임)
+        val lift = CurlMath.dampLift(py - gy, h * 0.08f) * CurlMath.liftWeight(t)
         val fy = gy + lift - (h * 0.06f) * 4f * t * (1f - t)
         val curl = CurlMath.curlFor(gx, gy, fx, fy, radius)
         if (spread) {

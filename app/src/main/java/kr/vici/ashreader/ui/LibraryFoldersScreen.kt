@@ -268,7 +268,7 @@ fun LibraryFoldersScreen(intro: Boolean, onBack: () -> Unit, onScan: () -> Unit)
         }
         item {
             Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-                Text("'폴더 추가'를 누르면 휴대폰의 폴더 고르기 화면이 열려요. 고른 폴더만 읽고, 다른 폴더는 보지 않아요.",
+                Text("'폴더 추가'를 누르면 기기의 폴더 고르기 화면이 열려요. 고른 폴더만 읽고, 다른 폴더는 보지 않아요.",
                     fontSize = 14.sp, lineHeight = 21.sp, color = cs.onSurfaceVariant)
                 if (Build.VERSION.SDK_INT >= 30 && !hasAccess) Text(
                     "Android 11부터는 Download 폴더 자체는 고를 수 없어요. 그 안의 폴더를 골라 주세요.",

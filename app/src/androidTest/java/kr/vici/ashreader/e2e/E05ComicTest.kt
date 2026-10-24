@@ -11,7 +11,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 만화: CBZ(합성) 칸 단위 보기·쪽 넘김 보기·웹툰 보기·쪽 목록·만화 설정 탭, AI 화질(에뮬레이터는 CPU 라 켜지기만 보고 짧게 기다림),
+ * 만화: CBZ(합성) 쪽 넘김 보기·웹툰 보기·쪽 목록·만화 설정 탭, AI 화질(에뮬레이터는 CPU 라 켜지기만 보고 짧게 기다림),
  * 그림으로 된 PDF → '만화로 보기' → 다시 PDF.
  */
 @RunWith(AndroidJUnit4::class)
@@ -41,23 +41,12 @@ class E05ComicTest : E2eTest() {
     }
 
     @Test
-    fun panelView_pageView_grid() {
+    fun pageView_grid() {
         openComic()
-        shot("comic-open") // 기본: 칸 단위 보기(누르면 확대)
-        val p0 = currentPage()
-        tap(0.5f, 0.5f) // 칸 확대
-        shot("panel-tap")
-        tap(0.95f, 0.5f) // 다음 칸
-        tap(0.95f, 0.5f)
-        shot("panel-next")
-        assertAlive()
-        // 칸 단위 보기 끄기 → 쪽 넘김
+        shot("comic-open") // 기본: 쪽 넘김 보기(칸 단위 보기는 작업 03에서 없앰)
         openComicSheet()
         shot("comic-sheet-turn")
-        val sw = switchNear("칸 단위 보기")
-        assertTrue("칸 단위 보기 스위치가 없음", sw != null)
-        if (sw!!.isChecked) sw.click()
-        SystemClock.sleep(600)
+        assertTrue("없앤 '칸 단위 보기'가 만화 설정에 남아 있음", !device.hasObject(By.text("칸 단위 보기")))
         closeSheet()
         waitPage()
         val a = currentPage()
@@ -70,17 +59,7 @@ class E05ComicTest : E2eTest() {
         SystemClock.sleep(1_500)
         shot("page-grid")
         device.pressBack(); SystemClock.sleep(600)
-        // 칸 단위 보기 '자동 순서'
-        openComicSheet()
-        switchNear("칸 단위 보기")?.let { if (!it.isChecked) it.click() }
-        SystemClock.sleep(400)
-        device.findObject(By.text("자동 순서"))?.click()
-        closeSheet()
-        waitPage()
-        tap(0.95f, 0.5f)
-        shot("panel-auto")
         assertAlive()
-        android.util.Log.i(TAG, "만화 시작 쪽 $p0")
     }
 
     @Test
@@ -194,7 +173,7 @@ class E05ComicTest : E2eTest() {
     @Test
     fun comicPageMenu_longPress() {
         openComic()
-        // 칸 보기에서도 길게 누르면 쪽 메뉴(표지로·공유·저장)
+        // 길게 누르면 쪽 메뉴(표지로·공유·저장)
         longPress(0.5f, 0.5f)
         SystemClock.sleep(800)
         shot("comic-page-menu")

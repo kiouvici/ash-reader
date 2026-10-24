@@ -29,6 +29,28 @@ class CurlReleaseTest {
         assertTrue(CurlMath.dampLift(400f, max) > CurlMath.dampLift(200f, max))
     }
 
+    @Test fun liftVanishesAtBothEnds() {
+        assertEquals(0f, CurlMath.liftWeight(0f), 1e-6f)
+        assertEquals(0f, CurlMath.liftWeight(1f), 1e-6f)
+        assertTrue(CurlMath.liftWeight(0.3f) > 0.5f)
+        // 0 근처에서 부드럽게 오른다(되감기 끝에서 튀지 않게)
+        assertTrue(CurlMath.liftWeight(0.02f) < 0.05f)
+    }
+
+    /** 작업 03: 이전 쪽 되감기(t→0)로 끝날 때 접힌 선이 세로에 가깝게 남아 윗부분이 갑자기 꺾이지 않는다. */
+    @Test fun rewindEndKeepsFoldNearlyVertical() {
+        val pw = 1000f; val h = 2000f
+        val gx = pw; val gy = 1000f; val py = gy + 300f // 손가락을 아래로 끌며 되감음
+        for (t in listOf(0.1f, 0.05f, 0.02f, 0.005f)) {
+            val lift = CurlMath.dampLift(py - gy, h * 0.08f) * CurlMath.liftWeight(t)
+            val fx = CurlMath.fingerX(gx, pw, t)
+            val fy = gy + lift - (h * 0.06f) * 4f * t * (1f - t)
+            val c = CurlMath.curlFor(gx, gy, fx, fy, CurlMath.radiusFor(t, pw * 0.18f))
+            // 접힌 선의 방향(dirY 가 크면 축이 기울어 위·아래가 꺾여 보인다)
+            assertTrue("t=$t dirY=${c.dirY}", abs(c.dirY) < 0.35f)
+        }
+    }
+
     @Test fun releaseCurveContinuesVelocityWithoutJump() {
         val from = 0.3f; val to = 1f
         val v = 2.5f // 진행도/초

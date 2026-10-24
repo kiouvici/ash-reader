@@ -234,7 +234,7 @@ abstract class E2eTest {
     /** 읽기 메뉴(위·아래 막대)를 연다. */
     protected fun openMenu() {
         if (device.hasObject(By.desc("쪽 이동"))) return
-        // 가운데(쪽 넘김 보기) → 맨 위(칸 단위 보기는 가운데가 칸 확대, 메뉴는 맨 위) 순으로
+        // 가운데 → 맨 위 순으로(첫 탭이 쪽 준비 중에 묻힐 수 있어 몇 번 시도)
         for (y in listOf(0.5f, 0.07f, 0.5f, 0.07f)) {
             tap(0.5f, y)
             if (has(By.desc("쪽 이동"), 2_500)) return
