@@ -7,11 +7,13 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** I-716 종이책 넘김: 위아래 줄임, 1/4 넘기면 확정, 튕김, 손 뗀 속도에서 이어지는 애니메이션. */
+/** I-716 종이책 넘김: 위아래 줄임, 절반 넘기면 확정(작업 03), 튕김, 손 뗀 속도에서 이어지는 애니메이션. */
 class CurlReleaseTest {
-    @Test fun commitsAfterQuarterOrFling() {
+    @Test fun commitsAfterHalfOrFling() {
         assertFalse(CurlMath.commitOnRelease(0.2f, 0f))
-        assertTrue(CurlMath.commitOnRelease(0.3f, 0f))
+        // 작업 03: 절반 전에 천천히 떼면 되돌아간다
+        assertFalse(CurlMath.commitOnRelease(0.45f, 0f))
+        assertTrue(CurlMath.commitOnRelease(0.55f, 0f))
         // 짧게 끌어도 넘기는 쪽으로 튕기면 넘김
         assertTrue(CurlMath.commitOnRelease(0.05f, 900f))
         // 많이 끌었어도 되돌리는 쪽으로 튕기면 제자리

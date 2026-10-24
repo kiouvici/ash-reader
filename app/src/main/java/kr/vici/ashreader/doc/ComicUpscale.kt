@@ -51,7 +51,7 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
     private val app = context.applicationContext
     private val exec = Executors.newSingleThreadExecutor { r -> Thread(r, "ash-upscale").apply { priority = Thread.MIN_PRIORITY; isDaemon = true } }
     private val scope = CoroutineScope(SupervisorJob() + exec.asCoroutineDispatcher())
-    private val dir = File(root(app), doc.cacheKey).apply { mkdirs() }
+    private val dir = File(root(app.also { migrate(it) }), doc.cacheKey).apply { mkdirs() }
     /** 화면(메인) 스레드에서만 만진다. */
     private val jobs = HashMap<Int, Job>()
     private val skipped: MutableSet<Int> = ConcurrentHashMap.newKeySet()
@@ -181,7 +181,8 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
             if (src == null) { skipped += i; return }
             currentCoroutineContext().ensureActive()
             busyState.value = i
-            val out = try { runEngine(src) } finally { src.recycle() }
+            // 흑백 스캔은 결과도 흑백으로(AI 가 잡티를 붉게 살리는 것 막기, 작업 03)
+            val out = try { GrayKeep.keep(src, runEngine(src)) } finally { src.recycle() }
             try {
                 dir.mkdirs() // 설정에서 캐시를 지웠을 수 있다
                 val tmp = File(dir, "$i.tmp")
@@ -241,6 +242,19 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
 
         fun root(c: Context) = File(c.cacheDir, "upscale")
 
+        /** 캐시 판. 결과를 만드는 방식이 바뀌면 올린다(3: 흑백 그림은 흑백 결과 — 작업 03). */
+        private const val CACHE_VERSION = 3
+
+        /** 옛 판으로 만든 결과(흑백 만화가 붉게 물든 것 등)를 한 번 지운다. 엔진을 처음 쓸 때 부른다. */
+        @Synchronized
+        fun migrate(c: Context) {
+            val mark = File(root(c), ".v$CACHE_VERSION")
+            if (mark.exists()) return
+            root(c).deleteRecursively()
+            root(c).mkdirs()
+            runCatching { mark.createNewFile() }
+        }
+
         /** 이 문서에서 2배 결과가 저장된 쪽 수. */
         fun doneCount(c: Context, key: String): Int =
             File(root(c), key).listFiles()?.count { it.name.endsWith(".webp") && it.length() > 0 } ?: 0
@@ -248,7 +262,7 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
         /** 오래 안 쓴 파일부터 지워 [limit] 이하로. */
         @Synchronized
         fun trim(c: Context, limit: Long = limitBytes) {
-            val files = root(c).walkTopDown().filter { it.isFile }.sortedBy { it.lastModified() }.toList()
+            val files = root(c).walkTopDown().filter { it.isFile && !it.name.startsWith(".v") }.sortedBy { it.lastModified() }.toList()
             var total = files.sumOf { it.length() }
             for (f in files) {
                 if (total <= limit) break

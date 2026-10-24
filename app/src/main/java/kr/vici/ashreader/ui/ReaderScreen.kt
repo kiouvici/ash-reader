@@ -1243,7 +1243,7 @@ fun ReaderScreen(
             onCrop = { v -> setFixedView(fixedView.copy(crop = v)) },
         )
     }
-    if (showAa && openDoc !is ComicReaderDoc) ViewSettingsSheet(s, reflow, onSettings, onDismiss = { showAa = false }, txt = txtUi, fixed = fixedUi)
+    if (showAa && openDoc !is ComicReaderDoc) ViewSettingsSheet(s, reflow, onSettings, onDismiss = { showAa = false }, txt = txtUi, fixed = fixedUi, aiImages = (openDoc as? MupdfReaderDoc)?.aiImages == true)
     if (showTurn) TurnSheet(
         s, onSettings, autoOn = autoOn,
         onAuto = { v -> autoOn = v; autoPaused = false; if (v) { showTurn = false; menu = false } },

@@ -53,7 +53,7 @@ class EpubImageUpscale(context: Context, private val doc: MupdfReaderDoc) : Clos
     private val app = context.applicationContext
     private val exec = Executors.newSingleThreadExecutor { r -> Thread(r, "ash-epub-upscale").apply { priority = Thread.MIN_PRIORITY; isDaemon = true } }
     private val scope = CoroutineScope(SupervisorJob() + exec.asCoroutineDispatcher())
-    private val dir = File(ComicUpscale.root(app), "epub")
+    private val dir = File(ComicUpscale.root(app.also { ComicUpscale.migrate(it) }), "epub")
     @Volatile private var closed = false
     private var engine: Upscaler? = null
     private var cpuOnly = false
@@ -125,7 +125,7 @@ class EpubImageUpscale(context: Context, private val doc: MupdfReaderDoc) : Clos
                 if (!(f.isFile && f.length() > 0)) {
                     UpscaleGate.awaitIdle()
                     if (closed || powerSave()) return
-                    val up = runEngine(src)
+                    val up = GrayKeep.keep(src, runEngine(src)) // 흑백 그림은 결과도 흑백(작업 03)
                     try {
                         dir.mkdirs()
                         val tmp = File(dir, f.name + ".tmp")

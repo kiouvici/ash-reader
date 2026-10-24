@@ -590,7 +590,11 @@ class PageCurlView @JvmOverloads constructor(
     }
 
     private fun draw() {
-        val mirror = config.direction == TurnDirection.RTL
+        val baseMirror = config.direction == TurnDirection.RTL
+        // 작업 03: 이전 쪽 넘김(되감기)은 앞 넘김을 좌우로 뒤집은 모양 — 지금 쪽이 왼쪽 모서리에서 말려 오른쪽으로 넘어가며
+        // 이전 쪽이 드러난다(예전에는 앞 넘김을 거꾸로 되돌려 오른쪽 모서리가 돌아오는 모양이라 넘김 방향과 같아 보였다).
+        val rewind = !forward && phase != Phase.IDLE && config.effect == TurnEffect.CURL
+        val mirror = if (rewind) !baseMirror else baseMirror
         val shadow = config.shadowStrength
         renderer.begin(viewW, viewH, mirror, config.backColor, config.backMix, shadow)
         val spread = isSpread()
@@ -619,14 +623,27 @@ class PageCurlView @JvmOverloads constructor(
             }
             return
         }
-        // 종이책 말림
+        // 종이책 말림. 되감기는 t(1→0)를 이전 쪽 넘김 진행도 u = 1 - t 로 바꿔 뒤집힌 화면에서 앞 넘김처럼 그린다.
+        val u = if (rewind) 1f - t else t
         val gx = viewW
-        val radius = CurlMath.radiusFor(t, pw * 0.18f)
-        val fx = CurlMath.fingerX(gx, pw, t)
+        val radius = CurlMath.radiusFor(u, pw * 0.18f)
+        val fx = CurlMath.fingerX(gx, pw, u)
         // I-716: 손가락 위아래는 조금만 따라가고(최대 쪽 높이의 8%) 평평할 때·다 넘어갈 때 0 으로(작업 03: 되감기 끝 꺾임·깜빡임)
-        val lift = CurlMath.dampLift(py - gy, h * 0.08f) * CurlMath.liftWeight(t)
-        val fy = gy + lift - (h * 0.06f) * 4f * t * (1f - t)
+        val lift = CurlMath.dampLift(py - gy, h * 0.08f) * CurlMath.liftWeight(u)
+        val fy = gy + lift - (h * 0.06f) * 4f * u * (1f - u)
         val curl = CurlMath.curlFor(gx, gy, fx, fy, radius)
+        if (rewind) {
+            // 뒤집힌 화면: 0 자리 = 실제 오른쪽, pw 자리 = 실제 왼쪽. position(p) 은 이미 이전 펼침(돌아갈 곳)이다.
+            if (spread) {
+                if (p + 3 < count()) renderer.drawFlat(0f, 0f, pw, h, tex(p + 3))
+                if (p >= 0) renderer.drawFlat(pw, 0f, pw, h, tex(p), shadowFrom = curl)
+                renderer.drawCurl(pw, 0f, pw, h, tex(p + 2), tex(p + 1), backIsTex = true, curl = curl)
+            } else {
+                renderer.drawFlat(0f, 0f, pw, h, tex(p), shadowFrom = curl)
+                renderer.drawCurl(0f, 0f, pw, h, tex(p + 1), 0, backIsTex = false, curl = curl)
+            }
+            return
+        }
         if (spread) {
             if (p >= 0) renderer.drawFlat(0f, 0f, pw, h, tex(p))
             if (p + 3 < count()) renderer.drawFlat(pw, 0f, pw, h, tex(p + 3), shadowFrom = curl)
