@@ -43,7 +43,7 @@
 - `.md` 만 바뀐 커밋도 CI 가 돈다(약 35분). 문서만 고칠 때는 커밋을 모아서 올린다.
 
 ## 지키는 기준 (바꾸면 대화창에 먼저 물을 것)
-- 앱에 INTERNET 권한 넣지 않는다(CI 가 검사).
+- INTERNET 권한은 대표님이 승인한 기능에만 허용한다(지금: 책 정보 찾기, D-024). 네트워크 호출은 그 모듈 한 곳에서만, HTTPS 만, 설정 기본 꺼짐. 그 밖의 위험 권한은 넣지 않는다(CI 가 검사). 새로 인터넷이 필요한 기능은 대화창에 먼저 묻는다.
 - 라이선스 AGPL-3.0-or-later, 제3자 고지 `THIRD_PARTY_NOTICES`(`scripts/third-party/gen_notices.py`).
 - Room 스키마 바꾸면 이주(migration) + `app/schemas` 커밋 + `AshDbMigrationTest`.
 - 측정 기준(N-01·N-06 등)은 `docs/01-기술설계서.md` 9.0.
