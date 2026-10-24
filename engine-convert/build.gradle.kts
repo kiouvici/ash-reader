@@ -33,7 +33,8 @@ android {
         ndk { abiFilters += abis }
         externalNativeBuild {
             cmake {
-                arguments += listOf("-DASH_THIRD_PARTY=${thirdParty.absolutePath}")
+                // CMake 문자열에서 '\' 는 이스케이프라 Windows 경로도 '/' 로 넘긴다
+                arguments += listOf("-DASH_THIRD_PARTY=${thirdParty.invariantSeparatorsPath}")
             }
         }
     }

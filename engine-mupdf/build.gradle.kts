@@ -42,6 +42,8 @@ android {
                     // PDF JS(mujs)·바코드·OCR 끔. 16KB 페이지 정렬은 NDK r28 기본값.
                     "MUPDF_EXTRA_CFLAGS=-DFZ_ENABLE_JS=0 -DFZ_ENABLE_BARCODE=0 -DFZ_ENABLE_OCR_OUTPUT=0",
                 )
+                // Windows 는 명령 줄 길이 제한(32K) 때문에 llvm-ar 이 실패한다 → 목록 파일로 넘긴다
+                if (System.getProperty("os.name").startsWith("Windows")) arguments += "APP_SHORT_COMMANDS=true"
             }
         }
         ndk {
