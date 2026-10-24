@@ -326,6 +326,15 @@ fun ReaderScreen(
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
     val colors = s.readingColors()
+    // 서재 검색에서 책을 열면 글자판이 읽기 화면에 남아 아래 메뉴를 가렸다(CI D04) — 책을 열 때 닫는다
+    run {
+        val act = LocalContext.current as? Activity
+        LaunchedEffect(target.id) {
+            val w = act?.window ?: return@LaunchedEffect
+            (act.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                ?.hideSoftInputFromWindow(w.decorView.windowToken, 0)
+        }
+    }
     // 대표님 01:10 전수 검사: 어두운 종이(집중·내 테마)에서 아래 내비게이션 줄이 밝은 띠로 남고 위 상태 표시줄 글자가 묻혔다.
     // 읽는 동안에는 위아래 줄을 종이 색에 맞춘다(투명 + 밝은/어두운 아이콘), 나가면 앱 테마로 되돌린다
     run {
