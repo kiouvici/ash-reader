@@ -82,12 +82,15 @@ val LocalShelfUi = compositionLocalOf { ShelfUi() }
 /** 뒤 화면을 흐릴 수 있나(API 31+, 감수 3). */
 val canBlur: Boolean get() = Build.VERSION.SDK_INT >= 31
 
-/** 유리 메뉴 바탕: 밝게 흰 86%(흐림 없으면 92%), 어둡게 #2C2C2E 88%(92%). */
+/**
+ * 모든 떠 있는 메뉴·시트·단추의 바탕 불투명도(대표님 2026-10-25 00:02: 모두 같게, 지금보다 조금 더 투명하게).
+ * 서재 ⋯·≡ 메뉴, 선택 막대, 읽기 화면 바깥 틀 단추·떠 있는 메뉴·테마 및 설정·사용자화가 함께 쓴다.
+ */
+const val GLASS_ALPHA = 0.78f
+
+/** 유리 메뉴 바탕: 밝게 흰, 어둡게 #2C2C2E — 불투명도 [GLASS_ALPHA]. */
 @Composable
-fun glassBg(): Color {
-    val dark = LocalAshDark.current
-    return if (dark) Color(0xFF2C2C2E).copy(alpha = if (canBlur) 0.88f else 0.92f) else Color.White.copy(alpha = if (canBlur) 0.86f else 0.92f)
-}
+fun glassBg(): Color = if (LocalAshDark.current) Color(0xFF2C2C2E).copy(alpha = GLASS_ALPHA) else Color.White.copy(alpha = GLASS_ALPHA)
 
 /** 메뉴 칸 구분선 색. */
 @Composable

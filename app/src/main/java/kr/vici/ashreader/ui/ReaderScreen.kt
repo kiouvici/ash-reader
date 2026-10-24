@@ -178,8 +178,7 @@ private class GuardedSource(
     private val marks: (page: Int, tp: () -> TextPage?) -> List<Mark> = { _, _ -> emptyList() },
 ) : PageSource {
     override val pageCount: Int = doc.pageCount
-    override fun paperAspect(index: Int): Float? =
-        if (!fixed) null else synchronized(guard) { if (closed.contains(doc)) null else runCatching { doc.pageAspect(index) }.getOrNull() }
+    override val paperOnly: Boolean get() = fixed
     override fun render(index: Int, width: Int, height: Int): Bitmap = synchronized(guard) {
         if (closed.contains(doc)) Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply { eraseColor(colors.bg) }
         else runCatching {
@@ -1128,19 +1127,7 @@ fun ReaderScreen(
                     onViewMode(if (pdfComic) Book.VIEW_COMIC else Book.VIEW_ORIGINAL)
                 }
                 val pdfToggle = fmt == DocFormat.PDF && (pdfComic || imageOnly == true)
-                if (fmt == DocFormat.PDF && imageOnly == true && !pdfComic && !comicOfferClosed && !menu && hit == null) {
-                    Row(
-                        Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 8.dp, start = 12.dp, end = 12.dp)
-                            .background(colors.barC, RoundedCornerShape(24.dp)).padding(start = 16.dp, end = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("그림으로 된 PDF예요", fontSize = 14.sp, color = colors.fgC)
-                        TextButton(onClick = { togglePdfComic() }, modifier = Modifier.heightIn(min = 48.dp)) {
-                            Text("만화로 보기", color = colors.accentC, fontWeight = FontWeight.Bold)
-                        }
-                        IconButton(onClick = { comicOfferClosed = true }, modifier = Modifier.size(48.dp)) { Icon(Icons.Close, "안내 닫기", tint = colors.fgC) }
-                    }
-                }
+                // 그림으로 된 PDF 의 '만화로 보기' 띠는 없앴다(대표님 2026-10-25 00:01) — 전환은 테마 및 설정 맨 위 'PDF | 만화'
                 val curBookmark = bookmarks.firstOrNull { locatorPage(it.page, it.frac, count) == page }
                 if (target.once) OnceBar(fmt, page, count, colors, ebook = hwpEbook, onAdd = onAddToLibrary, onEbookView = { toggleHwpView() },
                     modifier = Modifier.align(if (menu) Alignment.Center else Alignment.BottomCenter).padding(bottom = if (menu) 0.dp else 28.dp))
@@ -1206,8 +1193,7 @@ fun ReaderScreen(
                             onSettings { it.copy(rotation = r) }
                             stub(if (r == Rotation.AUTO) "화면 회전을 풀었어요." else "화면 회전을 잠갔어요.")
                         })
-                        if (dualView && !target.once) add(CustomItem(Icons.Refresh, if (hwpEbook) "원본으로 보기" else "eBook으로 보기", "한글·Word 보기 방식") { customOpen = false; toggleHwpView() })
-                        if (pdfToggle) add(CustomItem(Icons.Refresh, if (pdfComic) "PDF 쪽 보기로" else "만화로 보기", "그림으로 된 PDF") { customOpen = false; togglePdfComic() })
+                        // 원본·eBook / PDF·만화 전환은 테마 및 설정 맨 위에만(대표님 2026-10-25 00:02)
                     }) { customOpen = false }
                 }
 
@@ -1300,6 +1286,12 @@ fun ReaderScreen(
                             else -> null
                         },
                         onCustomize = { themeOpen = false; customOpen = true },
+                        // 대표님 23:57: 원본·eBook(그림 PDF는 PDF·만화) 전환을 맨 위에
+                        viewSwitch = when {
+                            dualView && !target.once -> ViewSwitch("원본", "eBook", hwpEbook) { want -> if (want != hwpEbook) { themeOpen = false; toggleHwpView() } }
+                            pdfToggle -> ViewSwitch("PDF", "만화", pdfComic) { want -> if (want != pdfComic) { themeOpen = false; togglePdfComic() } }
+                            else -> null
+                        },
                     )
                 }
                 if (comic != null && showAa) ComicSettingsSheet(

@@ -503,7 +503,7 @@ class PageCurlView @JvmOverloads constructor(
                     }
                 }
                 val bmp = render(src, idx, pw, ph)
-                val paper = paperRect(runCatching { src.paperAspect(idx) }.getOrNull(), ph.toFloat() / pw)
+                val paper = if (bmp != null && src.paperOnly) runCatching { scanPaper(bmp) }.getOrNull() else null
                 gl.post {
                     loading -= idx
                     if (bmp == null) return@post
@@ -537,14 +537,30 @@ class PageCurlView @JvmOverloads constructor(
     }
 
     /**
-     * 종이 세로:가로 [aspect] 를 칸(세로:가로 [slot]) 가운데에 맞춘 자리(u0, v0, u1, v1). 칸을 거의 다 채우면 null(칸 전체).
+     * 그린 쪽 그림에서 종이 자리(u0, v0, u1, v1)를 잰다: 모서리 색(바탕)과 다른 점이 처음 나오는 줄·칸까지가 여백.
+     * 만화(책등 쪽 붙임·여백 자르기)·PDF·한글 원본 모두 실제 그려진 자리를 따른다. 칸을 거의 다 채우면 null(칸 전체).
+     * 흰 종이를 흰 바탕에 그리면 글·그림이 있는 곳까지만 잡히지만, 흰 여백은 바탕과 같아 보이므로 넘김 모양은 같다.
      */
-    private fun paperRect(aspect: Float?, slot: Float): FloatArray? {
-        val a = aspect?.takeIf { it > 0f && it.isFinite() } ?: return null
-        val wf = if (a >= slot) slot / a else 1f
-        val hf = if (a >= slot) 1f else a / slot
-        if (wf > 0.985f && hf > 0.985f) return null
-        return floatArrayOf((1f - wf) / 2f, (1f - hf) / 2f, (1f + wf) / 2f, (1f + hf) / 2f)
+    private fun scanPaper(b: Bitmap): FloatArray? {
+        val w = b.width; val h = b.height
+        if (w < 8 || h < 8) return null
+        val bg = b.getPixel(0, 0)
+        fun far(c: Int): Boolean {
+            val d = abs(((c shr 16) and 0xFF) - ((bg shr 16) and 0xFF)) + abs(((c shr 8) and 0xFF) - ((bg shr 8) and 0xFF)) + abs((c and 0xFF) - (bg and 0xFF))
+            return d > 24
+        }
+        val row = IntArray(w)
+        fun rowHas(y: Int): Boolean { b.getPixels(row, 0, w, 0, y, w, 1); var x = 0; while (x < w) { if (far(row[x])) return true; x += 2 }; return false }
+        val col = IntArray(h)
+        fun colHas(x: Int): Boolean { b.getPixels(col, 0, 1, x, 0, 1, h); var y = 0; while (y < h) { if (far(col[y])) return true; y += 2 }; return false }
+        var top = 0; while (top < h && !rowHas(top)) top++
+        if (top >= h) return null // 빈 쪽
+        var bottom = h - 1; while (bottom > top && !rowHas(bottom)) bottom--
+        var left = 0; while (left < w && !colHas(left)) left++
+        var right = w - 1; while (right > left && !colHas(right)) right--
+        val u0 = left.toFloat() / w; val u1 = (right + 1f) / w; val v0 = top.toFloat() / h; val v1 = (bottom + 1f) / h
+        if (u1 - u0 > 0.985f && v1 - v0 > 0.985f) return null
+        return floatArrayOf(u0, v0, u1, v1)
     }
 
     private fun paper(i: Int): FloatArray? = if (i in 0 until count()) papers[i] else null

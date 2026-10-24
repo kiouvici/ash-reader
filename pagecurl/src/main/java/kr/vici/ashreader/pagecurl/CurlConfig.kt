@@ -41,8 +41,8 @@ interface PageSource {
     fun render(index: Int, width: Int, height: Int): Bitmap
 
     /**
-     * 종이 세로:가로 비율(쪽 모양이 정해진 만화·PDF 등). [render] 는 이 비율의 종이를 칸 가운데에 맞춰 그린다고 본다.
-     * null = 칸 전체가 종이(이북류). 넘김 화면은 종이 부분만 말거나 밀고 둘레 여백은 가만히 둔다. 백그라운드 스레드에서 불린다.
+     * 쪽 모양이 정해진 책(만화·PDF·한글 원본 등)인가. true 면 넘김 화면이 [render] 결과에서 바탕색 둘레를 재어 종이 자리를 찾고,
+     * 종이 부분만 말거나 밀며 둘레 여백은 가만히 둔다(대표님 2026-10-24 23:00). false = 칸 전체가 종이(이북류).
      */
-    fun paperAspect(index: Int): Float? = null
+    val paperOnly: Boolean get() = false
 }

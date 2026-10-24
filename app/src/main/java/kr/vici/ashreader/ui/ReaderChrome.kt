@@ -80,8 +80,9 @@ private class ChromeColors(val btn: Color, val line: Color, val fg: Color, val s
 
 private fun chromeOf(c: ReadingColors): ChromeColors {
     val dark = luminance(c.bg) < 0.35
-    return if (dark) ChromeColors(Color(0xFF1C1C1E), Color.White.copy(alpha = 0.08f), Color(0xFFE8E8EA), Color(0xFF98989F), Color(0xFF1C1C1E), Color(0xFF2C2C2E), true)
-    else ChromeColors(Color.White.copy(alpha = if (Build.VERSION.SDK_INT >= 31) 0.9f else 0.95f), Color.Black.copy(alpha = 0.07f), Color(0xFF111316), Color(0xFF6C6C70), Color.White, Color(0xFFEFEFF2), false)
+    // 단추·시트 바탕은 모든 메뉴와 같은 불투명도(GLASS_ALPHA, 대표님 00:02)
+    return if (dark) ChromeColors(Color(0xFF2C2C2E).copy(alpha = GLASS_ALPHA), Color.White.copy(alpha = 0.08f), Color(0xFFE8E8EA), Color(0xFF98989F), Color(0xFF1C1C1E).copy(alpha = GLASS_ALPHA), Color(0xFF3A3A3C).copy(alpha = 0.6f), true)
+    else ChromeColors(Color.White.copy(alpha = GLASS_ALPHA), Color.Black.copy(alpha = 0.07f), Color(0xFF111316), Color(0xFF6C6C70), Color.White.copy(alpha = GLASS_ALPHA), Color(0xFFEFEFF2).copy(alpha = 0.7f), false)
 }
 
 /**
@@ -168,7 +169,7 @@ fun ReaderMenuStack(
     val k = chromeOf(c)
     val shape = RoundedCornerShape(14.dp)
     fun Modifier.glass() = shadow(if (k.dark) 0.dp else 16.dp, shape, ambientColor = Color.Black.copy(alpha = 0.08f), spotColor = Color.Black.copy(alpha = 0.2f))
-        .clip(shape).background(if (k.dark) Color(0xFF2C2C2E) else Color.White.copy(alpha = 0.94f)).border(1.dp, k.line, shape)
+        .clip(shape).background(k.btn).border(1.dp, k.line, shape)
     Column(modifier.width(260.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         StackRow(k, "목차", "$percent%", Icons.ListView, Modifier.glass(), onToc)
         StackRow(k, "책 검색", null, Icons.Search, Modifier.glass(), onSearch)
@@ -214,12 +215,26 @@ fun ThemeSheet(
     s: Settings, c: ReadingColors, onSettings: ((Settings) -> Settings) -> Unit, onDismiss: () -> Unit,
     reflow: Boolean, scrollAvailable: Boolean, level: Float, onLive: (Float?) -> Unit,
     ai: (@Composable () -> Unit)?, onCustomize: () -> Unit,
+    /** 한글·Word '원본 | eBook', 그림 PDF 'PDF | 만화' 보기 전환(대표님 23:57: 맨 위에). null = 없음. */
+    viewSwitch: ViewSwitch? = null,
 ) {
     val k = chromeOf(c)
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = k.sheet, contentColor = k.fg) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 18.dp).verticalScroll(rememberScrollState())) {
             Text("테마 및 설정", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = k.fg, modifier = Modifier.padding(bottom = 10.dp).semantics { heading() })
+            viewSwitch?.let { v ->
+                Row(Modifier.padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(k.chip).padding(3.dp)) {
+                    listOf(false to v.left, true to v.right).forEach { (second, label) ->
+                        val on = second == v.secondOn
+                        Box(
+                            Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).background(if (on) k.sheet else Color.Transparent)
+                                .selectable(on, role = Role.RadioButton) { if (!on) v.onPick(second) }.semantics { contentDescription = "$label 보기" },
+                            contentAlignment = Alignment.Center,
+                        ) { Text(label, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, color = k.fg) }
+                    }
+                }
+            }
             ai?.invoke()
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // 가/가: 글자 크기 한 단계씩(이북류만)
@@ -236,8 +251,8 @@ fun ThemeSheet(
                         contentAlignment = Alignment.Center,
                     ) { Text("가", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = k.fg.copy(alpha = if (reflow) 1f else 0.35f)) }
                 }
-                ToggleTile(k, Icons.Book, "쪽 넘김", !s.scrollView, enabled = scrollAvailable, Modifier.weight(1f)) { onSettings { it.copy(scrollView = false) } }
-                ToggleTile(k, Icons.Scroll, "스크롤", s.scrollView, enabled = scrollAvailable, Modifier.weight(1f)) { onSettings { it.copy(scrollView = true) } }
+                ToggleTile(k, Icons.ArrowsLR, "쪽 넘김", !s.scrollView, enabled = scrollAvailable, Modifier.weight(1f)) { onSettings { it.copy(scrollView = false) } }
+                ToggleTile(k, Icons.ArrowsUD, "스크롤", s.scrollView, enabled = scrollAvailable, Modifier.weight(1f)) { onSettings { it.copy(scrollView = true) } }
                 // 어둡게: 집중(검은 종이) ↔ 원본
                 val darkOn = s.theme == ReadTheme.NIGHT
                 ToggleTile(k, Icons.Moon, "어둡게", darkOn, enabled = true, Modifier.weight(1f), inverse = true) {
@@ -326,6 +341,9 @@ fun sharePageImage(context: android.content.Context, page: Int, render: () -> an
         try { context.startActivity(android.content.Intent.createChooser(send, "이 쪽 공유")) } catch (_: android.content.ActivityNotFoundException) { onMsg("공유할 앱이 없어요.") }
     }
 }
+
+/** 테마 및 설정 맨 위 보기 전환: [left]·[right] 이름, [secondOn] = 지금 오른쪽 보기인가, [onPick] = 오른쪽을 고르면 true. */
+class ViewSwitch(val left: String, val right: String, val secondOn: Boolean, val onPick: (Boolean) -> Unit)
 
 /** 사용자화 시트의 한 줄: 아이콘 + 이름 + 설명. */
 class CustomItem(val icon: ImageVector, val label: String, val sub: String?, val onClick: () -> Unit)

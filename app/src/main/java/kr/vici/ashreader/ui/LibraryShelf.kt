@@ -257,16 +257,22 @@ internal fun Modifier.bookShadow(shape: androidx.compose.ui.graphics.Shape, dark
     if (dark) dropShadow(shape, Shadow(radius = 18.dp, color = tone ?: Color.White, offset = DpOffset(0.dp, 8.dp), alpha = if (tone != null) 0.45f else 0.12f))
     else this
         .dropShadow(shape, Shadow(radius = 22.dp, color = Color.Black, spread = (-2).dp, offset = DpOffset(6.dp, 9.dp), alpha = 0.17f))
-        .dropShadow(shape, Shadow(radius = 3.dp, color = Color.Black, offset = DpOffset(1.dp, 1.5.dp), alpha = 0.10f))
+        // 대표님 23:46: 넓은 그러데이션보다 아래·오른쪽 가장자리를 선처럼 더 진하게
+        .dropShadow(shape, Shadow(radius = 0.75.dp, color = Color.Black, offset = DpOffset(1.dp, 1.dp), alpha = 0.30f))
 
 /**
- * 묶음 카드(서재 첫 화면·형식·폴더·시리즈 카드) 그림자: 밝게 = 왼쪽 아래로 진하게 + 위·오른쪽 살짝 → 떠 있는 느낌. 어둡게 = 없음(카드 색으로 구분).
+ * 묶음 카드(서재 첫 화면·형식·폴더·시리즈 카드) 그림자(대표님 22:50·23:46): 빛이 오른쪽 위에서 비친다 →
+ * 왼쪽 아래로 넓게 + 왼쪽·아래 가장자리 2px 정도 더 진하게, 위·오른쪽은 아주 옅게. 어둡게 = 없음(카드 색으로 구분).
  */
 internal fun Modifier.cardShadow(shape: androidx.compose.ui.graphics.Shape, dark: Boolean): Modifier =
     if (dark) this
     else this
         .dropShadow(shape, Shadow(radius = 24.dp, color = Color.Black, spread = (-1).dp, offset = DpOffset((-5).dp, 10.dp), alpha = 0.18f))
-        .dropShadow(shape, Shadow(radius = 8.dp, color = Color.Black, offset = DpOffset(2.dp, (-1).dp), alpha = 0.07f))
+        .dropShadow(shape, Shadow(radius = 6.dp, color = Color.Black, offset = DpOffset(1.dp, (-1).dp), alpha = 0.025f))
+        .dropShadow(shape, Shadow(radius = 1.dp, color = Color.Black, offset = DpOffset((-1).dp, 1.dp), alpha = 0.22f))
+
+/** 묶음 카드 모서리(대표님 23:46: 더 각지게). */
+internal val CARD_SHAPE = RoundedCornerShape(5.dp)
 
 /** 표지 폭에 비례한 글자 크기(글자 크기 설정과 상관없이 표지 안에 맞게 — 넘치면 말줄임). */
 @Composable
@@ -565,14 +571,23 @@ private fun homeSpec(w: Dp, h: Dp): HomeSpec {
     // 대표님 2026-10-24 23:00·23:05: 카드 옆 간격은 넓게, 카드 높이는 줄여 표지 윗선이 제목보다 살짝 아래(제목·권수가 책보다 조금 높게),
     // 카드 줄 사이 간격은 옆 간격보다 조금 좁게. 카드 높이 = 가장 높은 표지 + 위 여유.
     return when {
-        land && tablet -> HomeSpec(4, 146.dp + 30.dp, 96.dp, listOf(128.dp, 146.dp, 136.dp), 52.dp, 22f, 34f, 152.dp, 40.dp, 32.dp, 24.dp)
-        land -> HomeSpec(4, 74.dp + 18.dp, 52.dp, listOf(64.dp, 74.dp, 68.dp), 28.dp, 16f, 24f, 80.dp, 24.dp, 20.dp, 14.dp)
+        // 대표님 23:33: 카드 제목 글씨가 카드에 비해 크다 → 줄임, 카드 속 표지도 약 10% 작게(카드 높이도 따라 낮아짐)
+        land && tablet -> HomeSpec(4, 130.dp + 28.dp, 86.dp, listOf(115.dp, 130.dp, 122.dp), 47.dp, 14f, 34f, 152.dp, 40.dp, 32.dp, 24.dp)
+        land -> HomeSpec(4, 66.dp + 18.dp, 47.dp, listOf(58.dp, 66.dp, 61.dp), 25.dp, 12f, 24f, 80.dp, 24.dp, 20.dp, 14.dp)
         else -> {
             val s = (w / 390.dp).coerceIn(1f, 1.6f)
-            HomeSpec(2, (86.dp + 24.dp) * s, 58.dp * s, listOf(76.dp * s, 86.dp * s), 44.dp * s, 18f, 32f, 100.dp * s, 20.dp * s, 20.dp * s, 16.dp * s)
+            // 대표님 23:26 '세로 줄을 조금씩 다 줄여': 카드 높이·책장 표지·줄 사이를 조금씩 줄여 첫 화면에 줄이 더 들어오게
+            HomeSpec(2, (78.dp + 18.dp) * s, 52.dp * s, listOf(68.dp * s, 78.dp * s), 40.dp * s, 12f * s, 32f, shelfCoverW(w), 20.dp * s, 20.dp * s, 12.dp * s)
         }
     }
 }
+
+/**
+ * 책장 줄 표지 폭(첫 화면 '최근'·책장 줄, 묶음 안 '이어 읽기'·하위 폴더 줄·'모든 책' 격자 모두 같은 값 — 대표님 22:58·23:26).
+ * 화면 폭 [w] 기준: 휴대폰 세로 390dp 에서 78dp(대표님 23:40 '살짝 더 작게'), 넓으면 비례해 크게(최대 1.6배).
+ * '전체' 등 모음 격자도 이 크기에 맞춰 열 수를 정한다(모든 책 크기를 같게).
+ */
+internal fun shelfCoverW(w: Dp): Dp = 78.dp * (w / 390.dp).coerceIn(1f, 1.6f)
 
 /** 창 좌표 저장(⋯·길게 누름 메뉴 자리). 다시 그리지 않도록 상태가 아닌 칸에 둔다. */
 internal class RectHolder { var rect: Rect = Rect.Zero }
@@ -615,7 +630,7 @@ private fun LibraryHome(
             item(key = "cards") {
                 // 어둡게: 카드 묶음 뒤 띠 #161618(DarkMode 목업)
                 Column(
-                    Modifier.background(if (c.dark) c.shelfBottom else Color.Transparent).padding(horizontal = sp.pad).padding(top = 12.dp, bottom = 22.dp),
+                    Modifier.background(if (c.dark) c.shelfBottom else Color.Transparent).padding(horizontal = sp.pad).padding(top = 8.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(sp.rowGap),
                 ) {
                     cards.chunked(sp.cols).forEach { row ->
@@ -654,7 +669,7 @@ private fun LibraryHome(
 /** 첫 화면 카드: 이름(굵게) + 개수, 오른쪽 아래 표지가 바닥에 붙어 겹침. TalkBack "전체, 312권". */
 @Composable
 private fun HomeCard(name: String, sub: String, books: List<Book>, sp: HomeSpec, c: ShelfColors, modifier: Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = CARD_SHAPE
     Box(
         modifier.height(sp.cardH)
             .cardShadow(shape, c.dark)
@@ -663,9 +678,10 @@ private fun HomeCard(name: String, sub: String, books: List<Book>, sp: HomeSpec,
             .clearAndSetSemantics { contentDescription = "$name, $sub"; role = Role.Button },
     ) {
         CoverFan(books, sp.heights, sp.coverW, sp.step, Modifier.align(Alignment.BottomEnd).offset(x = 10.dp))
-        Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 8.dp)) {
+        // 대표님 23:46: 제목은 예전 권수 크기(12sp)로 굵게, 권수는 그에 맞춰 더 작게
+        Column(Modifier.padding(start = 14.dp, top = 12.dp, end = 8.dp)) {
             Text(name, fontSize = sp.name.sp, fontWeight = FontWeight.Black, color = c.ink, maxLines = 1)
-            Text(sub, fontSize = 12.5.sp, color = c.sub, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
+            Text(sub, fontSize = (sp.name * 0.83f).sp, color = smallSub, maxLines = 1, modifier = Modifier.padding(top = 1.dp))
         }
     }
 }
@@ -776,20 +792,20 @@ private fun GroupList(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GroupCard(g: LibGroup, c: ShelfColors, modifier: Modifier, onClick: () -> Unit, onLong: (() -> Unit)?) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = CARD_SHAPE
     Box(
-        modifier.fillMaxWidth().heightIn(min = 116.dp)
+        modifier.fillMaxWidth().heightIn(min = 104.dp)
             .cardShadow(shape, c.dark)
             .clip(shape).background(c.card)
             .combinedClickable(onClick = onClick, onLongClick = onLong)
             .clearAndSetSemantics { contentDescription = "${g.name}, ${g.books.size}권"; role = Role.Button },
     ) {
         // 오른쪽: 이 묶음 책 표지 3장이 카드 바닥에 붙어 서서 겹친다(높이 조금씩 다르게, 오른쪽 끝은 카드 밖으로 잘림)
-        CoverFan(g.books, listOf(86.dp, 96.dp, 90.dp), 70.dp, 54.dp, Modifier.align(Alignment.BottomEnd).offset(x = 6.dp))
-        // 제목·권수는 위쪽(표지 윗선보다 살짝 높게 — 대표님 23:05)
-        Column(Modifier.align(Alignment.TopStart).fillMaxWidth(0.46f).padding(start = 20.dp, top = 14.dp, bottom = 12.dp)) {
-            Text(g.name, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(LibGroups.cardSub(g), fontSize = 13.sp, color = c.sub, modifier = Modifier.padding(top = 3.dp))
+        CoverFan(g.books, listOf(78.dp, 87.dp, 82.dp), 63.dp, 49.dp, Modifier.align(Alignment.BottomEnd).offset(x = 6.dp))
+        // 제목·권수는 위쪽(표지 윗선보다 살짝 높게 — 대표님 23:05), 글씨는 카드에 맞게 작게(23:33)
+        Column(Modifier.align(Alignment.TopStart).fillMaxWidth(0.46f).padding(start = 18.dp, top = 12.dp, bottom = 12.dp)) {
+            Text(g.name, fontSize = 13.sp, fontWeight = FontWeight.Black, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(LibGroups.cardSub(g), fontSize = 11.sp, color = smallSub, modifier = Modifier.padding(top = 1.dp))
         }
     }
 }
@@ -809,7 +825,7 @@ internal fun ShelfRow(
     coverW: Dp = 98.dp, sidePad: Dp = 20.dp, bleedPad: Dp = 20.dp, titleLabel: String? = null,
 ) {
     val c = h.c
-    Column(modifier.bleed(bleedPad).background(Brush.verticalGradient(listOf(c.detail, c.shelfBottom))).padding(top = 14.dp, bottom = 22.dp)) {
+    Column(modifier.bleed(bleedPad).background(Brush.verticalGradient(listOf(c.detail, c.shelfBottom))).padding(top = 8.dp, bottom = 14.dp)) {
         Row(
             Modifier.padding(start = sidePad).heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp))
                 .then(if (onTitle != null) Modifier.clickable(role = Role.Button, onClick = onTitle).clearAndSetSemantics {
@@ -823,7 +839,7 @@ internal fun ShelfRow(
             if (onTitle != null) Icon(Icons.Chevron, contentDescription = null, tint = c.sub2, modifier = Modifier.padding(start = 2.dp).size(16.dp))
         }
         LazyRow(
-            Modifier.padding(top = 8.dp).height(coverW * 1.48f + 10.dp),
+            Modifier.padding(top = 2.dp).height(coverW * 1.48f + 10.dp),
             contentPadding = PaddingValues(horizontal = sidePad, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.Bottom,

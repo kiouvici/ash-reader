@@ -73,12 +73,12 @@ import kr.vici.ashreader.doc.FirstPara
 
 // 작업 07 A·B·C: 전체 격자(LibraryAll) · 목록 보기(LibraryMenus ③) · 선택 · 직접 정렬 · 묶음 머리(SeriesDetail).
 
-/** 화면 폭에 따른 격자 열 수: 휴대폰 세로 3열, 태블릿은 폭에 맞춰(1280dp 가로 = 5열). */
-private fun gridCols(w: Dp): Int = when {
-    w < 600.dp -> 3
-    w < 840.dp -> 4
-    else -> (w / 230.dp).toInt().coerceIn(5, 7)
-}
+/**
+ * 격자 열 수: 책장 줄 표지 폭([shelfCoverW])과 같은 크기가 되게 정한다(대표님 23:40 '모든 책의 크기를 줄여야').
+ * 휴대폰 세로 4열, 태블릿은 폭에 맞춰. [pad]·[gap] = 바깥 여백·칸 사이.
+ */
+private fun gridCols(w: Dp, pad: Dp, gap: Dp): Int =
+    ((w - pad * 2 + gap) / (shelfCoverW(w) + gap)).let { kotlin.math.round(it).toInt() }.coerceIn(3, 8)
 
 /** 선택 모드·직접 정렬 모드 상태(화면마다). */
 private class ShelfModes {
@@ -113,9 +113,9 @@ internal fun FlatShelf(
     var deleting by remember { mutableStateOf(false) }
     val seriesCount = items.count { it is ShelfItem.Stack }
     BoxWithConstraints(h.shared.of("sec-$key").fillMaxSize().background(c.detail)) {
-        val cols = gridCols(maxWidth)
         val wide = maxWidth >= 600.dp
         val pad = if (wide) 40.dp else 20.dp
+        val cols = gridCols(maxWidth, pad, if (wide) 36.dp else 16.dp)
         LazyVerticalGrid(
             columns = GridCells.Fixed(if (view.list || modes.reordering) 1 else cols),
             modifier = Modifier.fillMaxSize(),
@@ -500,29 +500,31 @@ internal fun HeroDetail(h: ShelfHost, g: LibGroup, sec: LibSection, folderPath: 
         val wide = maxWidth >= 600.dp
         val s = (maxWidth / 390.dp).coerceIn(1f, 1.6f)
         val pad = if (wide) 40.dp else 20.dp
-        // 이어 읽기 줄과 모든 책 격자의 표지 폭을 같게
-        val coverW = 98.dp * s
+        // 이어 읽기 줄과 모든 책 격자의 표지 폭을 같게 — 첫 화면 책장 줄과도 같은 값
+        val coverW = shelfCoverW(maxWidth)
         val gap = 16.dp
         val cols = ((maxWidth - pad * 2 + gap) / (coverW + gap)).toInt().coerceAtLeast(2)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (modes.selecting) 120.dp else 36.dp)) {
             item(key = "hero") {
                 Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(heroTop, heroBottom)))) {
                     Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.25f))))
-                    Column(Modifier.padding(top = 60.dp)) {
-                        HeroFan(g.books, s, Modifier.fillMaxWidth().height(196.dp * s))
-                        Column(Modifier.padding(start = pad, end = pad, top = 16.dp, bottom = 20.dp)) {
+                    // 대표님 23:37: 색 머리 높이를 지금의 약 2/3로, 펼친 책도 더 작게
+                    // 대표님 23:46: 책 크기는 그대로, 위·아래 여백만 더 줄여 제목·이어 읽기가 위로
+                    Column(Modifier.padding(top = 40.dp)) {
+                        HeroFan(g.books, s, Modifier.fillMaxWidth().height(100.dp * s))
+                        Column(Modifier.padding(start = pad, end = pad, top = 2.dp, bottom = 10.dp)) {
                             Text(
-                                if (modes.selecting) "${modes.selected.size}권 선택" else g.name, fontSize = 25.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em,
+                                if (modes.selecting) "${modes.selected.size}권 선택" else g.name, fontSize = 22.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em,
                                 color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() },
                             )
-                            if (by.isNotBlank()) Text(by, fontSize = 15.sp, color = Color.White.copy(alpha = 0.92f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
-                            Text(meta, fontSize = 13.5.sp, color = Color.White.copy(alpha = 0.8f), modifier = Modifier.padding(top = 3.dp))
+                            if (by.isNotBlank()) Text(by, fontSize = 14.sp, color = Color.White.copy(alpha = 0.92f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
+                            Text(meta, fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f), modifier = Modifier.padding(top = 1.dp))
                             if (cta != null && !modes.selecting) Column(
-                                Modifier.padding(top = 12.dp).fillMaxWidth().heightIn(min = 52.dp).clip(RoundedCornerShape(13.dp))
+                                Modifier.padding(top = 6.dp).fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
                                     .background(Color.White.copy(alpha = 0.2f)).border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(13.dp))
                                     .clickable(role = Role.Button) { h.open(cta) }
                                     .clearAndSetSemantics { contentDescription = "${if (cta.lastOpenedAt > 0) "이어 읽기" else "읽기 시작"}, ${cta.shownTitle}"; role = Role.Button }
-                                    .padding(vertical = 6.dp),
+                                    .padding(vertical = 4.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
                             ) {
                                 Text(if (cta.lastOpenedAt > 0) "이어 읽기" else "읽기 시작", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
@@ -632,14 +634,16 @@ private fun HeroFan(books: List<Book>, s: Float, modifier: Modifier) {
     val hs = listOf(128, 148, 178, 148, 128)
     val slot = when (pick.size) { 1 -> listOf(2); 2 -> listOf(2, 3); 3 -> listOf(2, 1, 3); 4 -> listOf(2, 1, 3, 0); else -> listOf(2, 1, 3, 0, 4) }
     BoxWithConstraints(modifier) {
-        val k = maxWidth / 390.dp
+        // 자리 높이(목업 196)에 맞춰 줄이고 가운데 놓는다(대표님 23:37: 머리를 낮추며 책도 작게)
+        val k = maxHeight / 196.dp
+        val left = (maxWidth - 340.dp * k) / 2 - 18.dp * k
         // 바깥 → 안쪽 → 가운데 순으로 그려 가운데가 맨 위
         val drawOrder = slot.indices.sortedBy { listOf(1, 2, 5, 2, 1)[slot[it]] }
         drawOrder.forEach { i ->
             val p = slot[i]; val b = pick[i]
             ShelfCover(
                 b,
-                Modifier.align(Alignment.BottomStart).offset(x = (xs[p] * k).dp).width((ws[p] * k).dp).height((hs[p] * k).dp),
+                Modifier.align(Alignment.BottomStart).offset(x = left + (xs[p] * k).dp).width((ws[p] * k).dp).height((hs[p] * k).dp),
             )
         }
     }
