@@ -568,6 +568,7 @@ fun ReaderScreen(
     val curLevel by rememberUpdatedState(effLevel ?: activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.5f)
     // 지금 보이는 문서의 책 경로(같은 책을 다시 나누는지 알기)
     var loadedPath by remember { mutableStateOf<String?>(null) }
+    var loadedShape by remember { mutableStateOf<List<Any?>?>(null) }
     BoxWithConstraints(
         Modifier.fillMaxSize().background(colors.bgC).edgeBrightness(
             enabled = s.edgeBrightness, edge = 32.dp, band = 200.dp, current = { curLevel },
@@ -587,13 +588,16 @@ fun ReaderScreen(
         val frame = if (reflow && !scrollView) pageFrame else null
         val layoutKey = if (reflow) listOf(s.font, s.fontSize, s.lineHeight, pageWdp.toInt(), hDp.toInt(), hwpEbook, txtEnc, frame) + styleKey + txtKey
             else listOf(spread, hwpEbook, pdfComic, fixedView.crop)
+        // 화면 크기·보기 방식(이게 바뀌면 예전처럼 '여는 중'을 거쳐 쪽 위치를 다시 맞춘다 — 회전·앱 다시 만들기, CI land-b)
+        val shapeKey = listOf(pageWdp.toInt(), hDp.toInt(), spread, frame, hwpEbook, pdfComic, fixedView.crop)
 
         val load by produceState<Load>(Load.Loading, target.path, layoutKey, pwTry) {
             // 대표님 01:00: 글자 크기·줄 간격 등을 바꿔 다시 나눌 때 '여는 중…'으로 번쩍이지 않게(그리고 열린 시트가 닫히지 않게),
-            // 같은 책이면 새 배치가 다 될 때까지 지금 문서를 그대로 보여 주고, 새 문서로 바꾼 뒤에 옛 문서를 닫는다
+            // 같은 책·같은 화면 크기면 새 배치가 다 될 때까지 지금 문서를 그대로 보여 주고, 새 문서로 바꾼 뒤에 옛 문서를 닫는다
             val prev = (value as? Load.Ok)?.doc
-            val relayout = prev != null && loadedPath == target.path
+            val relayout = prev != null && loadedPath == target.path && loadedShape == shapeKey
             loadedPath = target.path
+            loadedShape = shapeKey
             if (!relayout) { value = Load.Loading; prev?.let { closeDoc(it) } }
             val pw = password
             val crop = fixedView.crop && !reflow && !pdfComic
