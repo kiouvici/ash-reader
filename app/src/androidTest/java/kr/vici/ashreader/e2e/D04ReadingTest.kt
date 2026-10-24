@@ -125,7 +125,7 @@ class D04ReadingTest : E2eTest() {
         stale { device.findObject(By.textStartsWith("ASH 바탕"))?.click() }; SystemClock.sleep(400)
         shot("aa-font")
         clickText("테마")
-        for (t in listOf("세피아", "야간", "내 테마", "주간")) { clickText(t); SystemClock.sleep(300) }
+        for (t in listOf("고요", "집중", "내 테마", "원본")) { clickText(t); SystemClock.sleep(300) }
         shot("aa-theme")
         clickText("문단")
         for (step in listOf("줄 간격", "문단 간격", "좌우 여백", "위아래 여백")) {
@@ -195,8 +195,7 @@ class D04ReadingTest : E2eTest() {
     @Test
     fun search_toc_jump() {
         openBook()
-        openMenu()
-        obj(By.desc("검색")).click()
+        menuItem("검색")
         // 검색어가 실제로 들어갔는지 보고 검색 키(Enter)도 누른다. 결과가 안 나오면 다시 넣는다(흔들림 — PR #50·#49 CI)
         var found = false
         for (k in 0 until 3) {
@@ -205,7 +204,7 @@ class D04ReadingTest : E2eTest() {
             SystemClock.sleep(400)
             if (runCatching { field.text }.getOrNull() != "반딧불이") continue
             device.pressEnter()
-            if (has(By.textEndsWith("곳을 찾았어요."), 30_000)) { found = true; break }
+            if (has(By.textStartsWith("이 책에서"), 30_000)) { found = true; break }
             shot("search-retry-$k")
         }
         assertTrue("검색 결과가 나오지 않음", found)
@@ -216,7 +215,7 @@ class D04ReadingTest : E2eTest() {
         val target = hit!!.text.removeSuffix("쪽").toInt()
         hit.click()
         SystemClock.sleep(1_200)
-        assertTrue("검색 표시 띠가 없음", has(By.text("검색 결과로"), 5_000))
+        assertTrue("검색 표시 띠가 없음", has(By.desc("검색 표시 지우기"), 5_000))
         shot("search-hit")
         val now = page()
         assertTrue("검색 결과 쪽으로 가지 않음 (기대 $target, 지금 $now)", kotlin.math.abs(now - target) <= 1)
@@ -245,14 +244,14 @@ class D04ReadingTest : E2eTest() {
         tap(0.9f, 0.5f)
         val page = page()
         // 책갈피
-        openMenu()
-        obj(By.desc("책갈피")).click()
+        menuItem("책갈피")
         SystemClock.sleep(800)
         val bid = runBlocking { app.db.books().allBooks().first { it.title == book }.id }
         assertTrue("책갈피가 저장되지 않음", runBlocking { app.db.books().bookmarks(bid).first().isNotEmpty() })
         shot("bookmarked")
         // 쪽 메모
-        clickText("메모")
+        closeMenu()
+        menuItem("메모")
         obj(By.text("${page}쪽 메모"), 5_000)
         obj(By.clazz("android.widget.EditText")).text = "e2e 쪽 메모"
         clickText("저장")

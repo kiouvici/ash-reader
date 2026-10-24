@@ -25,7 +25,18 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 enum class BodyFont(val label: String) { NANUM_MYEONGJO("나눔명조 (기본)"), RIDI_BATANG("ASH 바탕 (리디바탕 기반)"), MARUBURI("ASH 부리 (마루부리 기반)") }
 
 /** 읽기 테마(F-21·F-43). [CUSTOM] = 사용자 색(Settings.customBg·customFg). 순서(ordinal)를 저장하므로 끝에만 더한다. */
-enum class ReadTheme(val label: String) { DAY("주간"), SEPIA("세피아"), NIGHT("야간"), CUSTOM("내 테마") }
+/**
+ * 읽기 테마. 이름으로 저장하므로 끝에만 더한다. 작업 07(ReaderNew 목업): 원본·고요·종이·볼드·평온·집중 + 내 테마.
+ * 옛 주간·세피아·야간은 원본·고요·집중으로 이름만 바뀐다(저장값 그대로).
+ */
+enum class ReadTheme(val label: String) {
+    DAY("원본"), SEPIA("고요"), NIGHT("집중"), CUSTOM("내 테마"), PAPER("종이"), BOLD("볼드"), CALM("평온");
+
+    companion object {
+        /** 테마 및 설정 시트의 타일 순서(목업 3 × 2). */
+        val TILES = listOf(DAY, SEPIA, PAPER, BOLD, CALM, NIGHT)
+    }
+}
 
 /** 탭 영역 배치(F-64, 화면 설계서 4.1). */
 enum class TapLayout(val label: String) { SIDES("좌우"), L_SHAPE("L자"), ANYWHERE("어디든 다음"), CUSTOM("내 방식") }

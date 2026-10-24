@@ -471,6 +471,16 @@ fun LibraryPane(
                     key0 == null -> LibraryHome(
                         books, formats, folders, series, recent, h, scanning, navBar, extras,
                         onSection = { go(listOf(it.key)) },
+                        // 대표님 2026-10-24 23:10: 첫 화면 아래 빈칸 → '최근' 아래 책장 줄(≡ 모음 순서·숨김을 따름, 책이 있는 줄만)
+                        shelves = arrangement.filter { it.second }.mapNotNull { (k, _) ->
+                            when {
+                                k == ShelfColls.READING || k == ShelfColls.RECENT_FILES || k == ShelfColls.DONE ->
+                                    Triple(k, ShelfColls.TITLES[k].orEmpty(), ShelfItems.builtIn(k, books, now).let { l -> if (k == ShelfColls.READING) l.sortedByDescending { it.lastOpenedAt } else l })
+                                ShelfColls.isUser(k) -> userGroups.firstOrNull { ShelfColls.userKey(it.first.id) == k }?.let { (cc, l) -> Triple(k, cc.name, l) }
+                                else -> null
+                            }
+                        }.filter { it.third.isNotEmpty() },
+                        onShelf = { k -> go(listOf(k)) },
                     )
                     sec == LibSection.ALL -> FlatShelf(h, ShelfColls.ALL, "전체", books, onBack = back, stackSeries = series)
                     sec == LibSection.RECENT -> FlatShelf(h, "recent", "최근", recent, onBack = back, fixedSort = true)
@@ -546,18 +556,20 @@ internal class SharedBounds(val scope: SharedTransitionScope?, val av: AnimatedV
 /** 첫 화면 크기: 세로(휴대폰 기준 390dp, 태블릿은 비례해 크게) / 가로 휴대폰 / 가로 태블릿(목업 LibraryHome·LibraryHomeLand). */
 private class HomeSpec(
     val cols: Int, val cardH: Dp, val coverW: Dp, val heights: List<Dp>, val step: Dp, val name: Float, val title: Float,
-    val bookW: Dp, val pad: Dp, val gap: Dp,
+    val bookW: Dp, val pad: Dp, val gap: Dp, val rowGap: Dp,
 )
 
 private fun homeSpec(w: Dp, h: Dp): HomeSpec {
     val land = w > h
     val tablet = minOf(w, h) >= 600.dp
+    // 대표님 2026-10-24 23:00·23:05: 카드 옆 간격은 넓게, 카드 높이는 줄여 표지 윗선이 제목보다 살짝 아래(제목·권수가 책보다 조금 높게),
+    // 카드 줄 사이 간격은 옆 간격보다 조금 좁게. 카드 높이 = 가장 높은 표지 + 위 여유.
     return when {
-        land && tablet -> HomeSpec(4, 210.dp, 96.dp, listOf(128.dp, 146.dp, 136.dp), 52.dp, 22f, 34f, 152.dp, 40.dp, 20.dp)
-        land -> HomeSpec(4, 96.dp, 52.dp, listOf(64.dp, 74.dp, 68.dp), 28.dp, 16f, 24f, 80.dp, 24.dp, 12.dp)
+        land && tablet -> HomeSpec(4, 146.dp + 30.dp, 96.dp, listOf(128.dp, 146.dp, 136.dp), 52.dp, 22f, 34f, 152.dp, 40.dp, 32.dp, 24.dp)
+        land -> HomeSpec(4, 74.dp + 18.dp, 52.dp, listOf(64.dp, 74.dp, 68.dp), 28.dp, 16f, 24f, 80.dp, 24.dp, 20.dp, 14.dp)
         else -> {
             val s = (w / 390.dp).coerceIn(1f, 1.6f)
-            HomeSpec(2, 150.dp * s, 58.dp * s, listOf(76.dp * s, 86.dp * s), 44.dp * s, 18f, 32f, 100.dp * s, 16.dp, 12.dp)
+            HomeSpec(2, (86.dp + 24.dp) * s, 58.dp * s, listOf(76.dp * s, 86.dp * s), 44.dp * s, 18f, 32f, 100.dp * s, 20.dp * s, 20.dp * s, 16.dp * s)
         }
     }
 }
@@ -572,6 +584,9 @@ private fun LibraryHome(
     books: List<Book>, formats: List<LibGroup>, folders: List<LibGroup>, series: List<LibGroup>, recent: List<Book>,
     h: ShelfHost, scanning: Boolean, navBar: (@Composable () -> Unit)?, extras: @Composable () -> Unit,
     onSection: (LibSection) -> Unit,
+    /** '최근' 아래 책장 줄들(열쇠, 이름, 책). */
+    shelves: List<Triple<String, String, List<Book>>> = emptyList(),
+    onShelf: (String) -> Unit = {},
 ) {
     val c = h.c
     // 카드 표지: 묶음마다 앞의 책(형식·폴더·시리즈는 서로 다른 묶음에서 하나씩 — 무엇이 들었는지 보이게)
@@ -601,7 +616,7 @@ private fun LibraryHome(
                 // 어둡게: 카드 묶음 뒤 띠 #161618(DarkMode 목업)
                 Column(
                     Modifier.background(if (c.dark) c.shelfBottom else Color.Transparent).padding(horizontal = sp.pad).padding(top = 12.dp, bottom = 22.dp),
-                    verticalArrangement = Arrangement.spacedBy(sp.gap),
+                    verticalArrangement = Arrangement.spacedBy(sp.rowGap),
                 ) {
                     cards.chunked(sp.cols).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(sp.gap)) {
@@ -622,6 +637,14 @@ private fun LibraryHome(
                     "최근", null, recent.take(30), h, h.shared.of("sec-recent"), { onSection(LibSection.RECENT) },
                     coverW = sp.bookW, sidePad = sp.pad + 4.dp, bleedPad = 0.dp, titleLabel = "최근 읽은 책 모두 보기",
                 )
+            }
+            shelves.forEach { (k, title, l) ->
+                item(key = "shelf-$k") {
+                    ShelfRow(
+                        title, "${l.size}권", l.take(30), h, h.shared.of("sec-$k"), { onShelf(k) },
+                        coverW = sp.bookW, sidePad = sp.pad + 4.dp, bleedPad = 0.dp, titleLabel = "$title, ${l.size}권, 모두 보기",
+                    )
+                }
             }
             item(key = "extras") { extras() }
         }
@@ -735,7 +758,7 @@ private fun GroupList(
                 )
             }
             items(groups.chunked(cols), key = { it.first().id }) { row ->
-                Row(Modifier.padding(horizontal = 16.dp).padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(Modifier.padding(horizontal = 20.dp).padding(bottom = 22.dp), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                     row.forEach { g ->
                         GroupCard(g, c, Modifier.weight(1f).then(h.shared.of(g.id)), onClick = { onEnter(g) }, onLong = onLong?.let { l -> { l(g) } })
                     }
@@ -763,7 +786,8 @@ private fun GroupCard(g: LibGroup, c: ShelfColors, modifier: Modifier, onClick: 
     ) {
         // 오른쪽: 이 묶음 책 표지 3장이 카드 바닥에 붙어 서서 겹친다(높이 조금씩 다르게, 오른쪽 끝은 카드 밖으로 잘림)
         CoverFan(g.books, listOf(86.dp, 96.dp, 90.dp), 70.dp, 54.dp, Modifier.align(Alignment.BottomEnd).offset(x = 6.dp))
-        Column(Modifier.align(Alignment.CenterStart).fillMaxWidth(0.46f).padding(start = 20.dp, top = 12.dp, bottom = 12.dp)) {
+        // 제목·권수는 위쪽(표지 윗선보다 살짝 높게 — 대표님 23:05)
+        Column(Modifier.align(Alignment.TopStart).fillMaxWidth(0.46f).padding(start = 20.dp, top = 14.dp, bottom = 12.dp)) {
             Text(g.name, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(LibGroups.cardSub(g), fontSize = 13.sp, color = c.sub, modifier = Modifier.padding(top = 3.dp))
         }

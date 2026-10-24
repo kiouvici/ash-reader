@@ -39,4 +39,10 @@ interface PageSource {
      * 강조(형광펜·검색·TTS)는 이 비트맵에 구워서 준다(M-03).
      */
     fun render(index: Int, width: Int, height: Int): Bitmap
+
+    /**
+     * 종이 세로:가로 비율(쪽 모양이 정해진 만화·PDF 등). [render] 는 이 비율의 종이를 칸 가운데에 맞춰 그린다고 본다.
+     * null = 칸 전체가 종이(이북류). 넘김 화면은 종이 부분만 말거나 밀고 둘레 여백은 가만히 둔다. 백그라운드 스레드에서 불린다.
+     */
+    fun paperAspect(index: Int): Float? = null
 }

@@ -120,9 +120,13 @@ data class ReadingColors(
 
 fun ReadTheme.colors(): ReadingColors = when (this) {
     ReadTheme.DAY -> ReadingColors(0xFFFFFFFF.toInt(), 0xFF1F1F1F.toInt(), 0xFF5F6368.toInt(), 0xFFFBF9F5.toInt(), 0xFFE5E0D6.toInt(), 0xFF2E4A6B.toInt(), 0xFFFFFFFF.toInt(), 1f)
-    ReadTheme.SEPIA -> ReadingColors(0xFFF4ECD8.toInt(), 0xFF4A3A2C.toInt(), 0xFF6E5A45.toInt(), 0xFFEDE2C8.toInt(), 0xFFD8C8A6.toInt(), 0xFF8C5A2B.toInt(), 0xFFFFFFFF.toInt(), 1f)
-    ReadTheme.NIGHT -> ReadingColors(0xFF121212.toInt(), 0xFFCFCFCF.toInt(), 0xFFBFC3C7.toInt(), 0xFF1C1D20.toInt(), 0xFF2E3034.toInt(), 0xFF9EC5F5.toInt(), 0xFF0E2238.toInt(), 0.5f)
+    // 작업 07 ReaderNew 목업 테마 타일 색: 고요 #F4EFE6/#3B342B, 종이 #ECE7DD/#2B2B2B, 볼드 흰 바탕 검은 굵은 글자, 평온 #E9EFE9/#23302A, 집중 #000/#E8E8EA
+    ReadTheme.SEPIA -> ReadingColors(0xFFF4EFE6.toInt(), 0xFF3B342B.toInt(), 0xFF6E6252.toInt(), 0xFFEDE6DA.toInt(), 0xFFD9CFBE.toInt(), 0xFF8C5A2B.toInt(), 0xFFFFFFFF.toInt(), 1f)
+    ReadTheme.NIGHT -> ReadingColors(0xFF000000.toInt(), 0xFFE8E8EA.toInt(), 0xFF98989F.toInt(), 0xFF1C1C1E.toInt(), 0xFF2C2C2E.toInt(), 0xFF9EC5F5.toInt(), 0xFF0E2238.toInt(), 0.5f)
     ReadTheme.CUSTOM -> customColors(0xFFF3F1EA.toInt(), 0xFF2B2B2B.toInt())
+    ReadTheme.PAPER -> ReadingColors(0xFFECE7DD.toInt(), 0xFF2B2B2B.toInt(), 0xFF5E5A52.toInt(), 0xFFE4DED2.toInt(), 0xFFD2CBBD.toInt(), 0xFF6B4A2B.toInt(), 0xFFFFFFFF.toInt(), 1f)
+    ReadTheme.BOLD -> ReadingColors(0xFFFFFFFF.toInt(), 0xFF000000.toInt(), 0xFF3A3A3C.toInt(), 0xFFF7F7F8.toInt(), 0xFFE0E0E3.toInt(), 0xFF1E5FB4.toInt(), 0xFFFFFFFF.toInt(), 1f)
+    ReadTheme.CALM -> ReadingColors(0xFFE9EFE9.toInt(), 0xFF23302A.toInt(), 0xFF56635C.toInt(), 0xFFE0E8E1.toInt(), 0xFFC9D5CC.toInt(), 0xFF2F6B4F.toInt(), 0xFFFFFFFF.toInt(), 1f)
 }
 
 /** 설정을 반영한 읽기 색: 내 테마(F-43)와 야간 '그림은 반전하지 않기'(F-21). */

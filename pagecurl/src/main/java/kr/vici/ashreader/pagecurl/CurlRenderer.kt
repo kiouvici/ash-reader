@@ -108,8 +108,11 @@ internal class CurlRenderer {
         GLES20.glFrontFace(if (mirror) GLES20.GL_CCW else GLES20.GL_CW)
     }
 
-    /** 평평한 쪽. tex=0 이면 바탕색 빈 종이(M-06). shadowFrom 이 있으면 말린 쪽의 그림자를 받는다. */
-    fun drawFlat(x0: Float, y0: Float, w: Float, h: Float, tex: Int, shadowFrom: CurlMath.Curl? = null) {
+    /**
+     * 평평한 쪽. tex=0 이면 바탕색 빈 종이(M-06). shadowFrom 이 있으면 말린 쪽의 그림자를 받는다.
+     * [uv] = 텍스처에서 쓸 부분(u0, v0, u1, v1). null 이면 전체.
+     */
+    fun drawFlat(x0: Float, y0: Float, w: Float, h: Float, tex: Int, shadowFrom: CurlMath.Curl? = null, uv: FloatArray? = null) {
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glDepthMask(false)
         val q = quadData
@@ -117,10 +120,11 @@ internal class CurlRenderer {
             val o = i * STRIDE
             q[o] = x; q[o + 1] = y; q[o + 2] = 0f; q[o + 3] = 1f; q[o + 4] = uu; q[o + 5] = vv
         }
-        v(0, x0, y0, 0f, 0f)
-        v(1, x0 + w, y0, 1f, 0f)
-        v(2, x0, y0 + h, 0f, 1f)
-        v(3, x0 + w, y0 + h, 1f, 1f)
+        val u0 = uv?.get(0) ?: 0f; val v0 = uv?.get(1) ?: 0f; val u1 = uv?.get(2) ?: 1f; val v1 = uv?.get(3) ?: 1f
+        v(0, x0, y0, u0, v0)
+        v(1, x0 + w, y0, u1, v0)
+        v(2, x0, y0 + h, u0, v1)
+        v(3, x0 + w, y0 + h, u1, v1)
         quadBuf.position(0)
         quadBuf.put(q)
         GLES20.glUniform1i(u("u_mode"), 0)
@@ -141,12 +145,14 @@ internal class CurlRenderer {
     /**
      * 말리는 쪽 (x0, y0, w, h). 뒷면은 backIsTex 면 텍스처 back(두 쪽 펼침에서 다음 펼침의 왼쪽 쪽),
      * 아니면 앞면을 비춘 모습에 테마 바탕색을 섞는다(M-03).
+     * [uv] = 앞면 텍스처에서 쓸 부분(u0, v0, u1, v1, 종이만 말 때). 뒷면은 좌우를 뒤집어(1 - u) 같은 부분을 쓴다.
      */
     fun drawCurl(
         x0: Float, y0: Float, w: Float, h: Float,
-        front: Int, back: Int, backIsTex: Boolean, curl: CurlMath.Curl,
+        front: Int, back: Int, backIsTex: Boolean, curl: CurlMath.Curl, uv: FloatArray? = null,
     ) {
         val d = meshData
+        val u0 = uv?.get(0) ?: 0f; val v0 = uv?.get(1) ?: 0f; val u1 = uv?.get(2) ?: 1f; val v1 = uv?.get(3) ?: 1f
         var o = 0
         for (r in 0 until rows) {
             val vv = r.toFloat() / MESH_ROWS
@@ -155,7 +161,7 @@ internal class CurlRenderer {
                 val uu = c.toFloat() / MESH_COLS
                 CurlMath.apply(x0 + uu * w, y, curl, tmp, 0)
                 d[o] = tmp[0]; d[o + 1] = tmp[1]; d[o + 2] = tmp[2]; d[o + 3] = tmp[3]
-                d[o + 4] = uu; d[o + 5] = vv
+                d[o + 4] = u0 + uu * (u1 - u0); d[o + 5] = v0 + vv * (v1 - v0)
                 o += STRIDE
             }
         }

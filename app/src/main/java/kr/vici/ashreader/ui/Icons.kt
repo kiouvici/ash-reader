@@ -86,4 +86,5 @@ object Icons {
     val ListView = line("list", "M8 6h12M8 12h12M8 18h12", "M4 6v.01M4 12v.01M4 18v.01")
     val Select = line("select", "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", "M8 12.3l2.7 2.7L16.2 9.5")
     val Guide = line("guide", "M3 9h18M3 15h18")
+    val Book = line("page-turn", "M6 3h12v18H6z")
 }

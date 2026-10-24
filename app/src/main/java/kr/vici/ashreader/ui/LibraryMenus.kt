@@ -389,9 +389,16 @@ private fun TopIcon(icon: ImageVector, label: String, onClick: () -> Unit) {
     }
 }
 
+private val SHARE_MIME = mapOf(
+    "epub" to "application/epub+zip", "pdf" to "application/pdf", "txt" to "text/plain", "hwp" to "application/x-hwp",
+    "hwpx" to "application/hwp+zip", "docx" to "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "doc" to "application/msword", "cbz" to "application/vnd.comicbook+zip", "cbr" to "application/vnd.comicbook-rar",
+    "zip" to "application/zip", "djvu" to "image/vnd.djvu", "mobi" to "application/x-mobipocket-ebook", "fb2" to "application/x-fictionbook+xml",
+)
+
 /**
  * 책 파일 공유: FileProvider 가 내보내는 곳은 캐시 share/ 하나뿐(F-59)이라, 읽을 수 있는 파일을 그곳에 복사해 넘긴다.
- * 앞에 공유한 사본은 지운다. 큰 파일이면 복사하는 동안 잠깐 걸린다.
+ * 10분 지난 공유 사본은 지운다. 큰 파일이면 복사하는 동안 잠깐 걸린다.
  */
 private fun share(context: android.content.Context, b: Book) {
     val app = context.ash
@@ -399,7 +406,8 @@ private fun share(context: android.content.Context, b: Book) {
         val uri = runCatching {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val src = java.io.File(app.library.localPath(b))
-                val dir = java.io.File(context.cacheDir, "share").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
+                // 지난 공유 사본은 10분이 지난 것만 지운다(받는 앱이 아직 읽고 있을 수 있음 — 그림 공유와 같은 규칙)
+                val dir = java.io.File(context.cacheDir, "share").apply { mkdirs(); listFiles()?.forEach { if (System.currentTimeMillis() - it.lastModified() > 10 * 60_000L) it.delete() } }
                 val ext = src.extension.ifBlank { kr.vici.ashreader.data.DocFormat.of(b.format).badge.lowercase() }
                 val name = b.shownTitle.replace(Regex("[\\\\/:*?\"<>|]"), " ").trim().take(80).ifBlank { "book" } + "." + ext
                 val out = java.io.File(dir, name)
@@ -407,7 +415,8 @@ private fun share(context: android.content.Context, b: Book) {
                 androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".files", out) to ext
             }
         }.getOrNull() ?: return@launch
-        val mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(uri.second.lowercase()) ?: "application/octet-stream"
+        // 확장자 → MIME(네트워크 패키지는 쓰지 않는다 — checkNetworkConfined)
+        val mime = SHARE_MIME[uri.second.lowercase()] ?: "application/octet-stream"
         val i = Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, uri.first)
             .putExtra(Intent.EXTRA_SUBJECT, b.shownTitle).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         try { context.startActivity(Intent.createChooser(i, "책 공유").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: ActivityNotFoundException) {}

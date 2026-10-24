@@ -221,8 +221,9 @@ private fun ViewTab(cs: ComicSession, p: ComicBookPrefs) {
     Choices(listOf("끔", "약", "중", "강"), p.sharpen) { i -> cs.update { it.copy(sharpen = i) } }
 }
 
+/** 만화 AI 화질 향상 칸(책마다). 만화 설정 시트와 읽기 화면 '테마 및 설정' 맨 위(작업 07, 같은 자리)에 쓴다. */
 @Composable
-private fun ComicAiCard(cs: ComicSession, globalAi: Boolean, upscale: ComicUpscale?, limitMb: Int, onCompare: (() -> Unit)?, modifier: Modifier) {
+internal fun ComicAiCard(cs: ComicSession, globalAi: Boolean, upscale: ComicUpscale?, limitMb: Int, onCompare: (() -> Unit)?, modifier: Modifier) {
     val context = LocalContext.current
     val cap by produceState(AiCapability.cached(context)) { if (value == null) value = AiCapability.measureWithin(context) }
     LaunchedEffect(cap) { cap?.let { cs.aiVerdict = it.verdict } }

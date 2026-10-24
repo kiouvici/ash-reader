@@ -87,6 +87,14 @@ class AshDbMigrationTest {
                 assertEquals(1, room.books().allNotes().size)
                 assertEquals(0, room.books().allHighlights().size)
                 assertEquals(0, room.books().allStoreApps().size)
+                // 판 8(작업 07 새 모음·직접 정렬): 빈 표가 생기고, 넣고 읽을 수 있다
+                assertEquals(0, room.books().allCollections().size)
+                room.books().upsertCollection(kr.vici.ashreader.data.ShelfCollection("c1", "여름 휴가", 0, 1L))
+                room.books().addToCollection(listOf(kr.vici.ashreader.data.CollectionBook("c1", "b1", 0)))
+                room.books().insertOrder(listOf(kr.vici.ashreader.data.BookOrder("all", "b1", 0)))
+                assertEquals("여름 휴가", room.books().allCollections().single().name)
+                assertEquals("b1", room.books().allCollectionBooks().single().bookId)
+                assertEquals(1, room.books().allOrders().size)
             }
         } finally {
             room.close()

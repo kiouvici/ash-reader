@@ -91,8 +91,9 @@ private class SetColors(val bg: Color, val card: Color, val ink: Color, val sub:
 @Composable
 private fun setColors(): SetColors {
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    return if (dark) SetColors(Color(0xFF121417), Color(0xFF22252A), Color(0xFFE6E6E8), Color(0xFF9A9EA3), Color(0x1FFFFFFF), Color(0xFF5AA9FF), Color(0xFF6B6F75), Color(0xFF0A84FF))
-    else SetColors(Color(0xFFF2F2F7), Color.White, Color(0xFF111316), Color(0xFF8E8E93), Color(0xFFECECEF), Color(0xFF0A6CD6), Color(0xFFC4C4C8), Color(0xFF0A84FF))
+    // 작업 07 DarkMode 목업: 어둡게 바탕 #000·카드 #1C1C1E·선 #2C2C2E·보조 #98989F. 감수 1: 밝게 작은 보조 글자 #6C6C70
+    return if (dark) SetColors(Color.Black, Color(0xFF1C1C1E), Color.White, Color(0xFF98989F), Color(0xFF2C2C2E), Color(0xFF409CFF), Color(0xFF5A5A5E), Color(0xFF0A84FF))
+    else SetColors(Color(0xFFF2F2F7), Color.White, Color(0xFF111316), Color(0xFF6C6C70), Color(0xFFECECEF), Color(0xFF0A6CD6), Color(0xFFC4C4C8), Color(0xFF0A84FF))
 }
 
 /** 하위 화면 하나: 이름·아이콘 색·아이콘 선(24 격자). */
