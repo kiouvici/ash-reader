@@ -79,7 +79,7 @@ $sdk = if ($env:ANDROID_HOME -and $env:ANDROID_HOME -notmatch ' ') { $env:ANDROI
 if (-not (Test-Path $sdk)) { throw "Android SDK 가 없습니다: $sdk" }
 $env:ANDROID_HOME = $sdk
 $env:ANDROID_NDK_HOME = Join-Path $sdk 'ndk\28.2.13676358'
-foreach ($p in @('C:\msys64\usr\bin', (Join-Path $env:USERPROFILE '.cargo\bin'), (Join-Path $sdk 'cmake\3.22.1\bin'))) {
+foreach ($p in @('C:\msys64\usr\bin', (Join-Path $env:USERPROFILE '.cargo\bin'), (Join-Path $sdk 'cmake\3.22.1\bin'), (Join-Path $env:ProgramFiles 'GitHub CLI'))) {
     if ((Test-Path $p) -and ($env:Path -split ';' -notcontains $p)) { $env:Path = "$env:Path;$p" }
 }
 

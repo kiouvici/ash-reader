@@ -481,23 +481,32 @@ class PageCurlView @JvmOverloads constructor(
         val pw = max(1, (pageW() * scale).toInt())
         val ph = max(1, (viewH * scale).toInt())
         val gen = sourceGen
+        // 지금 보이는 쪽인데 아직 그림이 없으면(처음 열기·건너뛰기) 작게 먼저 그려 흰 화면을 줄인다(작업 03: 무거운 한글 쪽 2.5초+)
+        val visible = if (isSpread()) setOf(position, position + 1) else setOf(position)
         // 가까운 쪽부터
         range.sortedBy { abs(it - position) }.forEach { idx ->
             if (idx in textures || idx in loading) return@forEach
             // release() 뒤(shutdownNow)에는 새 작업을 넣지 않는다(RejectedExecutionException 방지)
             if (loader.isShutdown) return@forEach
             loading += idx
+            val preview = idx in visible
             try { loader.execute {
-                val bmp: Bitmap? = try {
-                    src.render(idx, pw, ph)
-                } catch (e: Throwable) {
-                    Log.e(EglCore.TAG, "쪽 $idx 렌더 실패", e)
-                    null
+                if (preview) render(src, idx, max(1, pw / PREVIEW_DIV), max(1, ph / PREVIEW_DIV))?.let { small ->
+                    gl.post {
+                        if (gen == sourceGen && egl != null && idx in wanted() && idx !in textures) {
+                            textures[idx] = renderer.upload(small)
+                            requestFrame()
+                        }
+                        small.recycle()
+                    }
                 }
+                val bmp = render(src, idx, pw, ph)
                 gl.post {
                     loading -= idx
                     if (bmp == null) return@post
-                    if (gen == sourceGen && egl != null && idx in wanted() && idx !in textures) {
+                    if (gen == sourceGen && egl != null && idx in wanted()) {
+                        // 미리보기(작은 그림)가 있으면 선명한 그림으로 바꾼다
+                        textures.remove(idx)?.let { renderer.deleteTexture(it) }
                         textures[idx] = renderer.upload(bmp)
                         requestFrame()
                     }
@@ -507,6 +516,13 @@ class PageCurlView @JvmOverloads constructor(
                 loading -= idx
             }
         }
+    }
+
+    private fun render(src: PageSource, idx: Int, w: Int, h: Int): Bitmap? = try {
+        src.render(idx, w, h)
+    } catch (e: Throwable) {
+        Log.e(EglCore.TAG, "쪽 $idx 렌더 실패", e)
+        null
     }
 
     private fun clearTextures() {
@@ -619,5 +635,10 @@ class PageCurlView @JvmOverloads constructor(
             renderer.drawFlat(0f, 0f, pw, h, tex(p + 1), shadowFrom = curl)
             renderer.drawCurl(0f, 0f, pw, h, tex(p), 0, backIsTex = false, curl = curl)
         }
+    }
+
+    private companion object {
+        /** 보이는 쪽 미리보기 크기 = 쪽 크기 / 이 값(화소 수 1/9 — 무거운 쪽도 금방 그린다). */
+        const val PREVIEW_DIV = 3
     }
 }
