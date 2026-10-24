@@ -4,14 +4,13 @@ package kr.vici.ashreader
 import kr.vici.ashreader.data.IntentInbox
 import kr.vici.ashreader.data.OnceRefs
 import kr.vici.ashreader.doc.PageFrame
-import kr.vici.ashreader.ui.swipeTurn
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 배치 7A: eBook 보기 가장자리(I-711), 받은 문서 처리(I-714), 칸 단위 밀기(I-717). */
+/** 배치 7A: eBook 보기 가장자리(I-711), 받은 문서 처리(I-714). 칸 단위 밀기(I-717)는 칸 단위 보기를 없애며 뺐다(작업 03). */
 class Batch7aTest {
     // ---------------- I-711 eBook 보기 쪽 가장자리 ----------------
 
@@ -105,15 +104,5 @@ class Batch7aTest {
         assertTrue(r.release("never-held.pdf")) // 잡은 적 없는 것(압축 안 문서 등)은 예전처럼 지운다
         r.hold("tmp-1")
         assertTrue(r.ids().isEmpty())
-    }
-
-    // ---------------- I-717 칸 단위 보기 밀기 ----------------
-
-    @Test fun panelSwipeDirection() {
-        assertNull(swipeTurn(-10f, 40f, rtl = false))
-        assertEquals(true, swipeTurn(-120f, 40f, rtl = false))  // 왼쪽으로 밀기 = 다음 칸
-        assertEquals(false, swipeTurn(120f, 40f, rtl = false))
-        assertEquals(true, swipeTurn(120f, 40f, rtl = true))    // 만화(오→왼): 오른쪽으로 밀기 = 다음 칸
-        assertEquals(false, swipeTurn(-120f, 40f, rtl = true))
     }
 }

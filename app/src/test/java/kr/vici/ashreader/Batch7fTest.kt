@@ -194,6 +194,10 @@ class Batch7fTest {
         assertEquals(Kind.UNKNOWN, idx.kindOf(400, 400)) // SVG 등 표에 없는 크기
         assertEquals(Kind.SVG, EpubUpscaleRules.kindOfName("a/b.SVG"))
         assertEquals(Kind.RASTER, EpubUpscaleRules.kindOfName("x.webp"))
+        // 작업 03: zip 이 아닌 문서(PDF·FB2·HTML)는 이름 표가 없어 모든 그림을 래스터로 본다
+        val pdf = EpubUpscaleRules.Index(emptyList(), fallback = Kind.RASTER)
+        assertEquals(Kind.RASTER, pdf.kindOf(400, 400))
+        assertTrue(EpubUpscaleRules.eligible(400, 300, 900f, 675f, pdf.kindOf(400, 300)))
     }
 
     @Test

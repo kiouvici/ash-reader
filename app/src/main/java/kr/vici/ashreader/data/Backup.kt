@@ -41,12 +41,14 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
         val hls = dao.allHighlights()
         val ses = dao.allSessions()
         val s = prefs.settings.first()
+        // 숨긴 책(빠진 파일·뺀 책·한 번만 본 문서 등)도 상태를 되살리려고 담지만, 보이는 권수는 서재와 같은 기준(hidden = 0)으로 센다
+        val shown = books.count { it.hidden == 0 }
         val root = JSONObject()
             .put("format", FORMAT)
             .put("version", VERSION)
             .put("exportedAt", System.currentTimeMillis())
             // S-53 백업 가져오기 목록이 앞 몇 KB 만 읽어 내용을 보이도록 요약을 머리에 둔다(JSONObject 는 넣은 순서대로 쓴다)
-            .put("summary", JSONObject().put("books", books.size).put("bookmarks", bms.size)
+            .put("summary", JSONObject().put("books", shown).put("bookmarks", bms.size)
                 .put("memos", notes.size + hls.count { it.note.isNotBlank() }).put("notes", notes.size).put("highlights", hls.size))
             .put("books", JSONArray().apply { books.forEach { put(it.toJson()) } })
             .put("bookmarks", JSONArray().apply { bms.forEach { put(it.toJson()) } })
@@ -58,7 +60,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("comicPrefs", ComicPrefsStore(context).exportAll())
         val out = context.contentResolver.openOutputStream(uri, "wt") ?: throw BadBackup("파일을 만들 수 없어요.")
         out.use { it.write(root.toString(1).toByteArray(Charsets.UTF_8)) }
-        ExportResult(books.size, bms.size, notes.size, hls.size, ses.size)
+        ExportResult(shown, bms.size, notes.size, hls.size, ses.size)
     }
 
     /**
@@ -198,7 +200,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
 
         private fun Settings.toJson() = JSONObject()
             .put("font", font.name).put("fontSize", fontSize).put("lineHeight", lineHeight.toDouble()).put("theme", theme.name)
-            .put("curl", curl).put("volumeKeys", volumeKeys).put("panelMode", panelMode.name).put("aiUpscale", aiUpscale).put("epubAiUpscale", epubAiUpscale)
+            .put("curl", curl).put("volumeKeys", volumeKeys).put("aiUpscale", aiUpscale).put("epubAiUpscale", epubAiUpscale)
             .put("clearOnceOnExit", clearOnceOnExit).put("tapGuideShown", tapGuideShown).put("upscaleCacheMb", upscaleCacheMb)
             .put("txtBlank", txtBlank).put("txtJoin", txtJoin).put("txtTrim", txtTrim).put("txtDefaultEncoding", txtDefaultEncoding)
             .put("warmth", warmth).put("warmAuto", warmAuto).put("warmFrom", warmFrom).put("warmTo", warmTo)
@@ -220,7 +222,6 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             theme = ReadTheme.entries.firstOrNull { it.name == o.optString("theme") } ?: base.theme,
             curl = o.optBoolean("curl", base.curl),
             volumeKeys = o.optBoolean("volumeKeys", base.volumeKeys),
-            panelMode = PanelMode.entries.firstOrNull { it.name == o.optString("panelMode") } ?: base.panelMode,
             aiUpscale = o.optBoolean("aiUpscale", base.aiUpscale),
             epubAiUpscale = o.optBoolean("epubAiUpscale", base.epubAiUpscale),
             clearOnceOnExit = o.optBoolean("clearOnceOnExit", base.clearOnceOnExit),

@@ -28,7 +28,13 @@ pub mod textlayout;
 
 pub struct Doc {
     core: rhwp::DocumentCore,
+    /// 최근 만든 쪽 SVG 트리(작업 03). 쪽 트리 만들기(rhwp SVG + usvg 해석)가 쪽 그리기 시간의 대부분이라
+    /// 쪽 크기·그리기·그림 영역·빈 쪽 검사(F-28)가 같은 쪽 트리를 다시 만들지 않게 [TREE_CACHE]개만 둔다.
+    trees: Mutex<Vec<(u32, Arc<resvg::usvg::Tree>)>>,
 }
+
+/// 기억해 둘 쪽 트리 수(펼침 두 쪽).
+const TREE_CACHE: usize = 2;
 
 // 스레드 안전(F-28): 문서마다 핸들(Box<Doc>, 각자의 DocumentCore)이 따로라, 10초를 넘겨 버려진 원본 열기 스레드와
 // 이북식 변환 스레드가 동시에 돌아도 서로의 문서를 건드리지 않는다. 이 라이브러리의 전역 값은 아래 둘뿐이다.
@@ -99,7 +105,7 @@ pub fn init_fonts(dirs: &str) {
 pub fn open(path: &str) -> Result<Doc, String> {
     let data = std::fs::read(path).map_err(|e| format!("읽기 실패: {e}"))?;
     match catch_unwind(AssertUnwindSafe(|| rhwp::DocumentCore::from_bytes(&data))) {
-        Ok(Ok(core)) => Ok(Doc { core }),
+        Ok(Ok(core)) => Ok(Doc { core, trees: Mutex::new(Vec::new()) }),
         Ok(Err(e)) => Err(format!("{e:?}")),
         Err(_) => Err("파서 패닉".into()),
     }
@@ -110,7 +116,19 @@ impl Doc {
         catch_unwind(AssertUnwindSafe(|| self.core.page_count())).map_err(|_| "쪽 수 패닉".to_string())
     }
 
-    fn tree(&self, i: u32) -> Result<resvg::usvg::Tree, String> {
+    fn tree(&self, i: u32) -> Result<Arc<resvg::usvg::Tree>, String> {
+        if let Some(t) = lock(&self.trees).iter().find(|(k, _)| *k == i).map(|(_, t)| t.clone()) {
+            return Ok(t);
+        }
+        let t = Arc::new(self.build_tree(i)?);
+        let mut c = lock(&self.trees);
+        c.retain(|(k, _)| *k != i);
+        c.insert(0, (i, t.clone()));
+        c.truncate(TREE_CACHE);
+        Ok(t)
+    }
+
+    fn build_tree(&self, i: u32) -> Result<resvg::usvg::Tree, String> {
         let svg = catch_unwind(AssertUnwindSafe(|| self.core.render_page_svg_native(i)))
             .map_err(|_| "렌더 패닉".to_string())?
             .map_err(|e| format!("{e:?}"))?;

@@ -111,7 +111,6 @@ import kr.vici.ashreader.doc.TextPage
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.FormatGroup
 import kr.vici.ashreader.data.Note
-import kr.vici.ashreader.data.PanelMode
 import kr.vici.ashreader.data.Rotation
 import kr.vici.ashreader.data.ScreenTimeout
 import kr.vici.ashreader.data.Settings
@@ -281,7 +280,7 @@ private fun Modifier.edgeBrightness(enabled: Boolean, edge: Dp, band: Dp, curren
         }
     }
 
-/** S-20·S-21 읽기 화면 (+ S-40 한 번만 보기, 태블릿 두 쪽 펼침, 만화 칸 단위 보기). */
+/** S-20·S-21 읽기 화면 (+ S-40 한 번만 보기, 태블릿 두 쪽 펼침). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReaderScreen(
@@ -318,6 +317,8 @@ fun ReaderScreen(
     // 필수 2: 회전·복원에도 읽던 쪽 유지
     var page by rememberSaveable(target.id) { mutableIntStateOf(target.startPage) }
     var showAa by remember { mutableStateOf(false) }
+    // 만화 'AI 화질' 표시를 눌러 열면 만화 설정을 [화질] 탭으로 연다
+    var aaQuality by remember { mutableStateOf(false) }
     var showToc by remember { mutableStateOf(false) }
     var memoOpen by remember { mutableStateOf(false) }
     var turnReq by remember { mutableIntStateOf(0) }
@@ -634,7 +635,7 @@ fun ReaderScreen(
                     }
                 }
                 // 만화 설정(S-33, 책마다): 방향·펼침·웹툰·그림 보기·AI 화질. 쪽 수(펼침 배치)가 정해지므로 count 보다 먼저.
-                val comic = rememberComicSession(doc, target.id, target.once, spread, wDp > hDp, s.panelMode)
+                val comic = rememberComicSession(doc, target.id, target.once, spread, wDp > hDp)
                 // F-50·7G 두 쪽 펼침의 첫 쪽 단독(표지): 만화는 책마다 설정('첫 쪽 단독'), 그 밖에는 첫 쪽이 실제로
                 // 쪽 전체 그림(표지·스캔 쪽)일 때만. 글로 시작하는 책은 첫 펼침부터 두 쪽(빈 왼쪽 쪽이 생기지 않게).
                 val coverImage by produceState<Boolean?>(null, doc) {
@@ -654,8 +655,6 @@ fun ReaderScreen(
                         if (page >= count - 1) onFinished()
                     }
                 }
-                val comicPanel = comic?.panelMode(s.panelMode) ?: PanelMode.OFF
-                val panelMode = comic != null && comicPanel != PanelMode.OFF
                 val webtoon = comic?.webtoon == true
                 val aiOn = comic?.aiOn(s.aiUpscale) == true
                 // AI 화질 개선(F-73): 만화 + 설정 켬일 때만. 원본을 먼저 보여 주고 2배 결과로 바꿔 낀다.
@@ -676,12 +675,12 @@ fun ReaderScreen(
                     value = if (reflow) withContext(Dispatchers.IO) { guarded(doc, emptyList()) { doc.toc() } } else emptyList()
                 }
                 // F-54 맞춤 방식(화면 외): 쪽마다 한 자리로 보고 쪽 안을 밀어 본다
-                val fitMode = comic != null && !panelMode && !webtoon && comic.prefs.fit != ComicBookPrefs.FIT_SCREEN
+                val fitMode = comic != null && !webtoon && comic.prefs.fit != ComicBookPrefs.FIT_SCREEN
                 val scrollMode = scrollView && comicDoc == null
                 val continuous = scrollMode || webtoon
                 SideEffect { continuousNow = continuous; comicNow = comicDoc != null }
                 if (comic != null) ComicSessionEffects(
-                    comic, autoSpread = spread, landscape = wDp > hDp, plainPages = panelMode || webtoon || fitMode, upscale = upscale,
+                    comic, autoSpread = spread, landscape = wDp > hDp, plainPages = webtoon || fitMode, upscale = upscale,
                     onRelayout = { f -> page = f(page) }, onNotice = { stub(it) },
                 )
                 // F-73 전후 비교(S-33 [화질]): 도구 막대 자리를 차지하는 비교 화면. 끝내면 보던 쪽으로.
@@ -732,17 +731,6 @@ fun ReaderScreen(
                         upscale = upscale, onLongPress = comicMenuOf,
                         autoDpPerSec = autoDp, onAutoEnd = onAutoEnd,
                     )
-                } else if (panelMode) {
-                    ComicPanelReader(
-                        doc = doc as ComicReaderDoc, startPage = (doc as ComicReaderDoc).sourceOf(page), autoDefault = comicPanel == PanelMode.AUTO, colors = colors,
-                        menuVisible = menu, onToggleMenu = { menu = !menu },
-                        onPage = { if (it != page) { page = it; pagesTurned++ } },
-                        turnRequest = turnReq, turnForward = turnFwd,
-                        upscale = upscale,
-                        jumpRequest = jumpReq, onJumpHandled = { jumpReq = null },
-                        onLongPress = comicMenuOf,
-                    )
-                    ComicExtractOverlay(doc as ComicReaderDoc, listOf(page), colors, menuVisible = menu) {}
                 } else if (fitMode && comicDoc != null) {
                     // F-54 맞춤 방식(폭·높이·원본) + F-55 두 번 탭 2배 + F-58 미리 풀기
                     val readySet = upscale?.ready?.collectAsState()?.value
@@ -760,7 +748,7 @@ fun ReaderScreen(
                         reloadKey = listOf(comicDoc.look, comic?.prefs?.fit, readySet?.contains(comicDoc.sourceOf(page)), extState?.done?.let { comicDoc.ready(comicDoc.sourceOf(page)) }),
                     )
                     ComicExtractOverlay(comicDoc, listOf(comicDoc.sourceOf(page)), colors, menuVisible = menu) {}
-                    if (upscale != null && !menu) UpscaleChip(upscale, comicDoc.sourceOf(page), Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 12.dp))
+                    if (upscale != null && !menu) UpscaleChip(upscale, comicDoc.sourceOf(page), Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 12.dp)) { aaQuality = true; showAa = true }
                 } else {
                     val near = if (reflow || isWord) 3 else 0 // Word 원본↔eBook은 쪽 수가 달라 근처 쪽까지 찾는다
                     val speaking = if (listening) listen.cur?.takeIf { it.start >= 0 } else null
@@ -1014,7 +1002,7 @@ fun ReaderScreen(
                         val visSrc = (if (spreadNow) listOf(page, page + 1) else listOf(page)).filter { it < count }.map { doc.sourceOf(it) }
                         ComicExtractOverlay(doc, visSrc, colors, menuVisible = menu) { curlView?.let { v -> v.tag = source; v.setPageSource(source, page) } }
                     }
-                    // F-73 확장(D-021): EPUB 그림 AI 화질 향상 — 처리된 그림이 생기면 지금 쪽을 다시 그린다. 넘김 중에는 쉰다.
+                    // F-73 확장(D-021·작업 03): 문서(이북·PDF) 그림 AI 화질 향상 — 처리된 그림이 생기면 지금 쪽을 다시 그린다. 넘김 중에는 쉰다.
                     EpubUpscaleHook(doc, s.epubAiUpscale, curlView) { curlView?.let { v -> v.tag = source; v.setPageSource(source, page) } }
                     if (upscale != null && doc is ComicReaderDoc) {
                         val readySet by upscale.ready.collectAsState()
@@ -1027,7 +1015,7 @@ fun ReaderScreen(
                                 curlView?.let { v -> v.tag = source; v.setPageSource(source, page) }
                             }
                         }
-                        if (!menu) UpscaleChip(upscale, page, Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 12.dp))
+                        if (!menu) UpscaleChip(upscale, doc.sourceOf(page), Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 12.dp)) { aaQuality = true; showAa = true }
                     }
                     }
                 }
@@ -1049,7 +1037,7 @@ fun ReaderScreen(
                     value = withContext(Dispatchers.IO) { guarded(doc, emptyList<Int>()) { doc.toc().map { it.page }.filter { it >= 0 }.distinct().sorted() } }
                 }
                 val chapterLeft = tocPages?.takeIf { it.isNotEmpty() }?.let { t -> (t.firstOrNull { it > page } ?: count) - page - 1 }
-                if (!menu && !panelMode && !(listening && !s.infoTop)) {
+                if (!menu && !(listening && !s.infoTop)) {
                     // 태블릿 두 쪽 펼침에서 '쪽마다' 설정이면 각 쪽 아래에 그 쪽 번호(만화는 원본 쪽 번호)
                     val perPage = s.infoPerPage && spreadNow && !scrollView && !webtoon && !fitMode && zoomAt == null
                     val halves = if (!perPage) null else {
@@ -1083,7 +1071,7 @@ fun ReaderScreen(
                     hwpEbook = !hwpEbook
                     onViewMode(if (hwpEbook) Book.VIEW_EBOOK else Book.VIEW_ORIGINAL)
                 }
-                // 그림만 든 PDF ↔ 만화 보기(칸 단위·AI 화질)
+                // 그림만 든 PDF ↔ 만화 보기(AI 화질 등)
                 fun togglePdfComic() {
                     menu = false; sel = null; hit = null
                     comicOfferClosed = true
@@ -1149,7 +1137,7 @@ fun ReaderScreen(
                         onGrid = if (comicDoc != null) ({ menu = false; gridOpen = true }) else null,
                         onSeek = { p -> jumpReq = p },
                         onToc = { showToc = true },
-                        onAa = { showAa = true },
+                        onAa = { aaQuality = false; showAa = true },
                         onTurn = { showTurn = true },
                         onListen = { onListen() },
                         onLight = { showLight = true },
@@ -1218,11 +1206,12 @@ fun ReaderScreen(
                 // 만화 설정(S-33): 태블릿 가로는 화면 안 측면 시트(Box)라 쪽 화면들보다 '뒤'에 그리면 가려져 안 보였다(7D E2E).
                 // 쪽 화면·메뉴 다음에 그린다(휴대폰 바텀시트는 따로 창이라 상관없음).
                 if (comic != null && showAa) ComicSettingsSheet(
-                    comic, s.panelMode, s.aiUpscale, upscale, s.upscaleCacheMb, onDismiss = { showAa = false }, side = spread,
+                    comic, s.aiUpscale, upscale, s.upscaleCacheMb, onDismiss = { showAa = false }, side = spread,
                     onCompare = { showAa = false; menu = false; compareOpen = true },
+                    startQuality = aaQuality,
                 )
                 if (!s.tapGuideShown && !target.once) TapGuide(
-                    rtl = doc.rtl, panelMode = panelMode,
+                    rtl = doc.rtl,
                     grid = TapZones.grid(s.tapLayout, s.tapCustom, s.leftHanded, doc.rtl),
                     onChange = { onSettings { it.copy(tapGuideShown = true) }; showTurn = true },
                 ) { onSettings { it.copy(tapGuideShown = true) } }
@@ -1254,7 +1243,7 @@ fun ReaderScreen(
             onCrop = { v -> setFixedView(fixedView.copy(crop = v)) },
         )
     }
-    if (showAa && openDoc !is ComicReaderDoc) ViewSettingsSheet(s, reflow, onSettings, onDismiss = { showAa = false }, txt = txtUi, fixed = fixedUi)
+    if (showAa && openDoc !is ComicReaderDoc) ViewSettingsSheet(s, reflow, onSettings, onDismiss = { showAa = false }, txt = txtUi, fixed = fixedUi, aiImages = (openDoc as? MupdfReaderDoc)?.aiImages == true)
     if (showTurn) TurnSheet(
         s, onSettings, autoOn = autoOn,
         onAuto = { v -> autoOn = v; autoPaused = false; if (v) { showTurn = false; menu = false } },

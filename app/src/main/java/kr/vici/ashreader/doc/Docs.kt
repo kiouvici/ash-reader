@@ -334,6 +334,8 @@ class MupdfReaderDoc(
             val dw = minOf(w.toFloat(), h / a)
             val rawW = (dw / (box.r - box.l)).toInt().coerceIn(1, 4096)
             val full = synchronized(lock) { doc.renderPage(index, rawW) }
+            // 문서 그림 AI(작업 03): 여백을 자르는 PDF 도 자르기 전 쪽 전체에 덧그린다(그림 위치가 쪽 전체 기준)
+            imageUpscale?.let { up -> runCatching { up.decorate(index, full) } }
             val keep = if (colors.keepImages && themeFilter(colors) != null) MarginCrop.mapRects(keepRects(index), box) else null
             return fitInto(MarginCrop.cut(full, box), w, h, colors, applyTheme = true, keep = keep)
         }
@@ -344,13 +346,16 @@ class MupdfReaderDoc(
         return fitInto(raw, w, h, colors, applyTheme = true, keep = keep)
     }
 
-    /** 원본 파일(변환한 이북은 합성 EPUB). EPUB 그림 AI 화질 향상이 그림 파일 종류를 볼 때 쓴다. */
+    /** 원본 파일(변환한 이북은 합성 EPUB). 문서 그림 AI 화질 향상이 그림 파일 종류를 볼 때 쓴다. */
     val sourceFile: File = file
 
-    /** EPUB 그림 AI 화질 향상 대상 문서인가(이북류를 다시 배치해 보는 중 — 한글·Word 이북식·TXT 는 아님). */
-    val ebookImages: Boolean get() = reflow && format.group == FormatGroup.EBOOK
+    /**
+     * 문서 그림 AI 화질 향상 대상인가(작업 03): 이북류를 다시 배치해 보는 중이거나 PDF. 한글·Word(원본·이북식)·TXT 는 아님
+     * — Word 원본은 PDF 로 만들어 열지만 형식이 DOCX·DOC·RTF 라 빠진다.
+     */
+    val aiImages: Boolean get() = (reflow && format.group == FormatGroup.EBOOK) || format == DocFormat.PDF
 
-    /** EPUB 그림 AI 화질 향상(붙어 있을 때만). 읽기 화면이 붙이고 뗀다. */
+    /** 문서 그림 AI 화질 향상(붙어 있을 때만). 읽기 화면이 붙이고 뗀다. */
     @Volatile var imageUpscale: EpubImageUpscale? = null
 
     /** 쪽 안 그림들(EPUB 그림 AI). 닫혔으면 빈 목록. */

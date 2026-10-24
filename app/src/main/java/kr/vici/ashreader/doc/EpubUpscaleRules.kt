@@ -2,7 +2,7 @@
 package kr.vici.ashreader.doc
 
 /**
- * EPUB 그림 AI 화질 향상(F-73 확장, D-021)의 대상 고르기. 안드로이드 클래스를 쓰지 않는다(단위 시험).
+ * 문서 그림 AI 화질 향상(F-73 확장, D-021·작업 03)의 대상 고르기. 안드로이드 클래스를 쓰지 않는다(단위 시험).
  *
  * 대상: 화면에 원래 크기보다 '크게' 보이는 래스터 그림(JPEG·PNG·WebP·BMP) — 작은 그림·삽화.
  * 빼는 것: SVG(벡터라 이미 선명), GIF(움직이는 그림·색이 적은 그림), 아이콘처럼 아주 작은 그림(짧은 변 64px 미만),
@@ -33,9 +33,9 @@ object EpubUpscaleRules {
 
     /**
      * EPUB 안 그림 파일 목록([name], 화소 [w]×[h])으로 '크기 → 종류' 표를 만든다. 같은 크기에 래스터가 하나라도 있으면 래스터.
-     * SVG 는 MuPDF 가 화소 크기를 따로 정하므로 표에 없다 — 표에 없는 크기는 [Kind.UNKNOWN](건너뜀).
+     * SVG 는 MuPDF 가 화소 크기를 따로 정하므로 표에 없다 — 표에 없는 크기는 [fallback](EPUB 은 [Kind.UNKNOWN] = 건너뜀).
      */
-    class Index(files: List<Triple<String, Int, Int>>) {
+    class Index(files: List<Triple<String, Int, Int>>, private val fallback: Kind = Kind.UNKNOWN) {
         private val bySize = HashMap<Long, Kind>()
 
         init {
@@ -52,7 +52,7 @@ object EpubUpscaleRules {
 
         private fun key(w: Int, h: Int) = (w.toLong() shl 32) or h.toLong()
 
-        fun kindOf(w: Int, h: Int): Kind = bySize[key(w, h)] ?: Kind.UNKNOWN
+        fun kindOf(w: Int, h: Int): Kind = bySize[key(w, h)] ?: fallback
     }
 
     /**

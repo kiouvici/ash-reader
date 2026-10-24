@@ -42,7 +42,7 @@ import kr.vici.ashreader.engine.mupdf.MupdfDoc
 import kr.vici.ashreader.pagecurl.PageCurlView
 
 /**
- * EPUB 그림 AI 화질 향상(F-73 확장, D-021). 이북(EPUB·변환한 MOBI·AZW3·CHM) 쪽 안의 작은 래스터 그림만
+ * 문서 그림 AI 화질 향상(F-73 확장, D-021·작업 03). 이북(EPUB·변환한 MOBI·AZW3·CHM·FB2·HTML)과 PDF 쪽 안의 작은 래스터 그림만
  * 만화와 같은 Real-CUGAN 2배 엔진으로 키워 쪽 그림 위에 바꿔 그린다. 글자에는 적용하지 않는다.
  * - 쪽을 처음 그릴 때는 원래 그림 그대로, 뒤(백그라운드)에서 처리해 끝나면 [version] 이 바뀌고 화면이 다시 그린다.
  * - 대상은 [EpubUpscaleRules.eligible]: 화면에서 원래보다 크게 보이는 래스터 그림(SVG·GIF·아이콘·이미 큰 그림·단순 그림 제외).
@@ -53,7 +53,7 @@ class EpubImageUpscale(context: Context, private val doc: MupdfReaderDoc) : Clos
     private val app = context.applicationContext
     private val exec = Executors.newSingleThreadExecutor { r -> Thread(r, "ash-epub-upscale").apply { priority = Thread.MIN_PRIORITY; isDaemon = true } }
     private val scope = CoroutineScope(SupervisorJob() + exec.asCoroutineDispatcher())
-    private val dir = File(ComicUpscale.root(app), "epub")
+    private val dir = File(ComicUpscale.root(app.also { ComicUpscale.migrate(it) }), "epub")
     @Volatile private var closed = false
     private var engine: Upscaler? = null
     private var cpuOnly = false
@@ -63,6 +63,8 @@ class EpubImageUpscale(context: Context, private val doc: MupdfReaderDoc) : Clos
     private val pages = ConcurrentHashMap<Int, List<Item>>()
     private val queued: MutableSet<Int> = ConcurrentHashMap.newKeySet()
     private val kinds by lazy { buildIndex(doc.sourceFile) }
+    /** 판정에 쓸 쪽 그림의 최소 폭: 화면 짧은 변의 35%(두 쪽 펼침 한 쪽은 넘고, 1/3 미리보기는 못 넘는다). */
+    private val minJudgeWidth = app.resources.displayMetrics.let { (minOf(it.widthPixels, it.heightPixels) * 0.35f).toInt() }
 
     private val versionState = MutableStateFlow(0)
     /** 처리된 그림이 늘 때마다 1씩 커진다(화면이 다시 그린다). */
@@ -75,7 +77,12 @@ class EpubImageUpscale(context: Context, private val doc: MupdfReaderDoc) : Clos
     fun decorate(index: Int, raw: Bitmap) {
         if (closed) return
         val items = pages[index]
-        if (items == null) { request(index, raw.width, raw.height); request(index + 1, raw.width, raw.height); return }
+        if (items == null) {
+            // 넘김 화면의 미리보기(쪽 1/3)·쪽 미리보기 그림 같은 작은 그림으로는 판정하지 않는다 — 화면에서 크게 보이는지를
+            // 작은 크기로 재면 작은 그림이 대상에서 빠진 채로 굳는다(작업 03)
+            if (raw.width >= minJudgeWidth) { request(index, raw.width, raw.height); request(index + 1, raw.width, raw.height) }
+            return
+        }
         if (items.isEmpty()) return
         val c = Canvas(raw)
         val p = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
@@ -118,7 +125,7 @@ class EpubImageUpscale(context: Context, private val doc: MupdfReaderDoc) : Clos
                 if (!(f.isFile && f.length() > 0)) {
                     UpscaleGate.awaitIdle()
                     if (closed || powerSave()) return
-                    val up = runEngine(src)
+                    val up = GrayKeep.run(src) { runEngine(it) } // 흑백 그림은 회색 입력·종이 색조 되살리기(작업 03)
                     try {
                         dir.mkdirs()
                         val tmp = File(dir, f.name + ".tmp")
@@ -181,7 +188,10 @@ class EpubImageUpscale(context: Context, private val doc: MupdfReaderDoc) : Clos
     }
 
     companion object {
-        /** EPUB(zip) 안 그림 파일의 크기·종류 표. zip 이 아니면(FB2·HTML 등) 빈 표 — 아무 그림도 처리하지 않는다. */
+        /**
+         * EPUB(zip) 안 그림 파일의 크기·종류 표. zip 이 아니면(PDF·FB2·HTML) 그림 파일 이름을 알 수 없으므로 모든 그림을 래스터로 본다
+         * — PDF 안 그림은 늘 래스터이고(벡터는 그림 블록이 아님), 단순 그림은 [EpubUpscaleRules.isFlat] 이 거른다.
+         */
         fun buildIndex(file: File): EpubUpscaleRules.Index = runCatching {
             val list = ArrayList<Triple<String, Int, Int>>()
             ZipFile(file).use { z ->
@@ -197,12 +207,12 @@ class EpubImageUpscale(context: Context, private val doc: MupdfReaderDoc) : Clos
                 }
             }
             EpubUpscaleRules.Index(list)
-        }.getOrElse { EpubUpscaleRules.Index(emptyList()) }
+        }.getOrElse { EpubUpscaleRules.Index(emptyList(), fallback = EpubUpscaleRules.Kind.RASTER) }
     }
 }
 
 /**
- * 읽기 화면 연결(한 줄로 붙인다): 설정 'EPUB 그림 AI 화질 향상'이 켜져 있고 이북 문서이며 이 기기에서 AI 를 쓸 수 있으면
+ * 읽기 화면 연결(한 줄로 붙인다): 설정 '문서 그림 AI 화질 향상'이 켜져 있고 이북·PDF 문서이며 이 기기에서 AI 를 쓸 수 있으면
  * [EpubImageUpscale] 을 문서에 붙이고, 처리된 그림이 생기면 [onRefresh](지금 쪽 다시 그리기)를 부른다.
  * 종이 넘김 애니메이션 신호([PageCurlView.isAnimating])를 [UpscaleGate] 에 넣는다(만화 AI 도 같이 쉰다).
  */
@@ -210,7 +220,7 @@ class EpubImageUpscale(context: Context, private val doc: MupdfReaderDoc) : Clos
 fun EpubUpscaleHook(doc: ReaderDoc, on: Boolean, curl: PageCurlView?, onRefresh: () -> Unit) {
     val context = LocalContext.current
     val md = doc as? MupdfReaderDoc
-    val want = on && md != null && md.ebookImages
+    val want = on && md != null && md.aiImages
     val cap by produceState(AiCapability.cached(context), want) {
         if (want && value == null) value = AiCapability.measureWithin(context)
     }

@@ -56,7 +56,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kr.vici.ashreader.data.ComicBookPrefs
-import kr.vici.ashreader.data.PanelMode
 import kr.vici.ashreader.doc.AiCapability
 import kr.vici.ashreader.doc.ComicUpscale
 
@@ -70,7 +69,6 @@ private enum class ComicTab(val label: String) { TURN("넘김"), VIEW("보기"),
 @Composable
 fun ComicSettingsSheet(
     cs: ComicSession,
-    globalPanel: PanelMode,
     globalAi: Boolean,
     upscale: ComicUpscale?,
     upscaleLimitMb: Int,
@@ -79,8 +77,10 @@ fun ComicSettingsSheet(
     side: Boolean = false,
     /** [화질] 탭 '전후 비교'(F-73): 시트를 닫고 비교 화면을 연다. null 이면 비교 단추를 흐리게. */
     onCompare: (() -> Unit)? = null,
+    /** 처음 보일 탭이 [화질]인가(읽기 화면의 'AI 화질' 표시를 눌러 열 때). */
+    startQuality: Boolean = false,
 ) {
-    var tab by remember { mutableStateOf(ComicTab.TURN) }
+    var tab by remember { mutableStateOf(if (startQuality) ComicTab.QUALITY else ComicTab.TURN) }
     val p = cs.prefs
     val cs3 = MaterialTheme.colorScheme
     var savedNote by remember { mutableStateOf(false) }
@@ -93,9 +93,9 @@ fun ComicSettingsSheet(
                 ComicTab.entries.forEach { t -> Pill(t.label, t == tab) { tab = t } }
             }
             when (tab) {
-                ComicTab.TURN -> TurnTab(cs, p, globalPanel)
+                ComicTab.TURN -> TurnTab(cs, p)
                 ComicTab.VIEW -> ViewTab(cs, p)
-                ComicTab.QUALITY -> QualityTab(cs, globalAi, globalPanel, upscale, upscaleLimitMb, onCompare)
+                ComicTab.QUALITY -> QualityTab(cs, globalAi, upscale, upscaleLimitMb, onCompare)
             }
             HorizontalDivider(Modifier.padding(top = 16.dp))
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -168,7 +168,7 @@ private fun SliderLine(t: String, value: Float, range: ClosedFloatingPointRange<
 private fun pct(v: Float) = (if (v > 0f) "+" else "") + (v * 100).toInt()
 
 @Composable
-private fun TurnTab(cs: ComicSession, p: ComicBookPrefs, globalPanel: PanelMode) {
+private fun TurnTab(cs: ComicSession, p: ComicBookPrefs) {
     val web = p.webtoon
     val dirSel = when (p.dir) {
         ComicBookPrefs.DIR_AUTO -> if (cs.doc.fileRtl) 1 else 0
@@ -180,7 +180,7 @@ private fun TurnTab(cs: ComicSession, p: ComicBookPrefs, globalPanel: PanelMode)
     Choices(listOf("왼→오", "오→왼", "위→아래 · 웹툰"), dirSel) { i ->
         cs.update { it.copy(dir = when (i) { 0 -> ComicBookPrefs.DIR_LTR; 1 -> ComicBookPrefs.DIR_RTL; else -> ComicBookPrefs.DIR_TTB }) }
     }
-    if (web) Text("웹툰 보기에서는 두 쪽 보기·펼침·칸 단위 보기를 쓰지 않아요", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+    if (web) Text("웹툰 보기에서는 두 쪽 보기·펼침을 쓰지 않아요", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
     Label("두 쪽 보기")
     Choices(listOf("자동", "한 쪽", "두 쪽"), p.spread, enabled = !web) { i -> cs.update { it.copy(spread = i) } }
     SwitchLine("첫 쪽 단독", p.coverAlone, enabled = !web && p.spread != 1, sub = "두 쪽 보기에서 표지를 혼자 보여요") { v -> cs.update { it.copy(coverAlone = v) } }
@@ -191,15 +191,6 @@ private fun TurnTab(cs: ComicSession, p: ComicBookPrefs, globalPanel: PanelMode)
     }
     Label("가로로 긴 쪽", "한 쪽 보기·세로 화면일 때. 두 쪽 보기에서는 펼침 하나로 크게 보여요")
     Choices(listOf("반으로 나눔", "회전", "그대로"), p.wide, enabled = !web) { i -> cs.update { it.copy(wide = i) } }
-
-    Label("칸 단위 보기")
-    val pm = cs.panelMode(globalPanel)
-    SwitchLine("칸 단위 보기", pm != PanelMode.OFF, enabled = !web) { v ->
-        cs.update { it.copy(panel = if (v) (if (globalPanel == PanelMode.AUTO) 2 else 1) else 0) }
-    }
-    Choices(listOf("눌러서 확대", "자동 순서"), if (pm == PanelMode.AUTO) 1 else 0, enabled = !web && pm != PanelMode.OFF) { i ->
-        cs.update { it.copy(panel = i + 1) }
-    }
 
     Label("웹툰 보기", if (web) null else "읽는 방향을 '위→아래'로 하면 쓸 수 있어요")
     Text("그림 사이 간격", fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp).alpha(if (web) 1f else 0.38f))
@@ -232,7 +223,7 @@ private fun ViewTab(cs: ComicSession, p: ComicBookPrefs) {
 }
 
 @Composable
-private fun QualityTab(cs: ComicSession, globalAi: Boolean, globalPanel: PanelMode, upscale: ComicUpscale?, limitMb: Int, onCompare: (() -> Unit)?) {
+private fun QualityTab(cs: ComicSession, globalAi: Boolean, upscale: ComicUpscale?, limitMb: Int, onCompare: (() -> Unit)?) {
     val context = LocalContext.current
     val cap by produceState(AiCapability.cached(context)) {
         if (value == null) value = AiCapability.measureWithin(context)
@@ -248,8 +239,8 @@ private fun QualityTab(cs: ComicSession, globalAi: Boolean, globalPanel: PanelMo
             // S-36: 처음 'AI 향상'·'전후 비교'를 고르면 확인창. 값 = 확인 뒤 갈 방식(1 AI 향상, 2 전후 비교)
             var confirm by remember { mutableStateOf<Int?>(null) }
             val on = cs.aiOn(globalAi)
-            // 칸 보기·웹툰에서는 비교할 수 없다(화면이 쪽 단위가 아님)
-            val blocked = cs.webtoon || cs.panelMode(globalPanel) != PanelMode.OFF
+            // 웹툰에서는 비교할 수 없다(화면이 쪽 단위가 아님)
+            val blocked = cs.webtoon
             fun go(mode: Int) {
                 cs.update { it.copy(ai = 1) }
                 if (mode == 2) onCompare?.invoke()

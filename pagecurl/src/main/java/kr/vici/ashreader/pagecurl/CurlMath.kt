@@ -84,8 +84,11 @@ object CurlMath {
     /** 손을 뗐을 때 넘길지(true) 되돌릴지. 넘어간 정도 50% 기준 (화면 설계서 4.2). 탭·볼륨 넘김 등 손가락 없는 경우. */
     fun shouldCommit(t: Float): Boolean = t >= 0.5f
 
-    /** 손가락으로 넘길 때 넘김이 확정되는 끈 거리(쪽 너비 비율, I-716). 실제 책처럼 쪽 너비의 약 1/4. */
-    const val COMMIT_DRAG = 0.27f
+    /**
+     * 손가락으로 넘길 때 넘김이 확정되는 끈 거리(쪽 너비 비율, I-716). 처음엔 실제 책처럼 1/4(0.27)이었으나
+     * 조금만 끌어도 늘 넘어가 '중간에 떼면 되돌아가지 않는다'는 대표님 의견으로 절반으로(작업 03). 빠르게 튕기면 짧아도 넘긴다.
+     */
+    const val COMMIT_DRAG = 0.5f
 
     /** 이 속도(dp/초) 넘게 넘기는 쪽으로 튕기면 거리가 짧아도 넘긴다. 반대쪽으로 튕기면 되돌린다. */
     const val FLING_DP_S = 450f
@@ -111,6 +114,34 @@ object CurlMath {
         val e = kotlin.math.exp(2f * x.coerceIn(-10f, 10f))
         return maxLift * (e - 1f) / (e + 1f)
     }
+
+    /**
+     * 손가락 위아래([dampLift])를 진행도 [t] 에서 얼마나 반영할지(0..1). 양 끝(t=0 평평, t=1 다 넘어감)에서 0.
+     * 예전에는 (1-t) 라서 t→0 으로 끝나는 넘김(이전 쪽 되감기·앞 넘김 취소)의 마지막 프레임에 접힌 선이 홱 돌아
+     * 종이 윗부분이 갑자기 아래로 꺾이고, 끝난 순간 평평한 쪽으로 바뀌며 깜빡였다(작업 03).
+     */
+    fun liftWeight(t: Float): Float {
+        val u = t.coerceIn(0f, 1f)
+        val k = (u / LIFT_EASE).coerceIn(0f, 1f)
+        return k * k * (3f - 2f * k) * (1f - u)
+    }
+
+    /**
+     * 진행도 [u] 에서 잡은 점이 끌려가는 목표 y. [gy] = 잡은 높이, [py] = 지금 손가락 높이, [h] = 쪽 높이.
+     * 작업 03: 실제 책처럼 잡은 높이에 따라 기울기가 달라진다 — 아래쪽을 잡으면 아래 모서리가, 위쪽을 잡으면
+     * 위 모서리가 먼저 넘어가고 가운데를 잡으면 곧게 넘어간다(예전엔 늘 위로 들어 올려 아래가 앞서는 모양으로 고정).
+     */
+    fun fingerY(gy: Float, py: Float, h: Float, u: Float): Float {
+        val lift = dampLift(py - gy, h * 0.08f) * liftWeight(u)
+        val bias = ((gy / h.coerceAtLeast(1f)) - 0.5f).coerceIn(-0.5f, 0.5f) * 2f // 위 -1 … 가운데 0 … 아래 +1
+        return gy + lift - (h * CORNER_LEAD) * bias * 4f * u * (1f - u)
+    }
+
+    /** 모서리가 앞서는 정도(쪽 높이 비율, 진행 중간·쪽 끝을 잡았을 때). */
+    const val CORNER_LEAD = 0.08f
+
+    /** [liftWeight] 가 0 에서 다 오르는 진행도. */
+    private const val LIFT_EASE = 0.2f
 
     /**
      * 손을 뗀 뒤 애니메이션(I-716): 시작 기울기 [slope] (= 뗄 때 속도 × 길이, 진행도 단위)에서 끝 기울기 0 으로 가는

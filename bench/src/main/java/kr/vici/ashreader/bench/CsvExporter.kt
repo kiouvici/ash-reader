@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.bench
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import java.io.File
 import java.text.SimpleDateFormat
@@ -42,6 +46,46 @@ object CsvExporter {
             }
         }
     }
+
+    /** 자동 저장 파일(결과를 지우면 새 파일). */
+    private var autoName: String? = null
+    private var autoUri: Uri? = null
+
+    /** [ResultStore.clear] 뒤: 다음 결과부터 새 파일에 쓴다. */
+    fun resetAuto() { autoName = null; autoUri = null }
+
+    /**
+     * 자동 저장(작업 03): 결과가 늘 때마다 다운로드/AshBench/ash-bench-<모델>-<시각>.csv 를 덮어쓴다(adb pull 용).
+     * 안드로이드 10+ 는 MediaStore(권한 없음), 9 이하는 앱 외부 폴더 files/exports/. 저장한 경로를 돌려준다.
+     */
+    fun autoSave(context: Context, device: DeviceInfo?, results: List<Measurement>): String {
+        val name = autoName ?: run {
+            val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(Date())
+            val model = Build.MODEL.replace(Regex("[^A-Za-z0-9_-]"), "_")
+            "ash-bench-$model-$stamp.csv".also { autoName = it }
+        }
+        val bytes = build(device, results).toByteArray(Charsets.UTF_8)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val cr = context.contentResolver
+            val written = autoUri?.let { u -> runCatching { cr.openOutputStream(u, "wt")?.use { it.write(bytes) } != null }.getOrDefault(false) } == true
+            if (!written) {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/$AUTO_DIR")
+                }
+                val u = cr.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error("다운로드 폴더에 만들 수 없음")
+                cr.openOutputStream(u, "wt")?.use { it.write(bytes) } ?: error("다운로드 폴더에 쓸 수 없음")
+                autoUri = u
+            }
+            return "/sdcard/${Environment.DIRECTORY_DOWNLOADS}/$AUTO_DIR/$name"
+        }
+        val f = File(File(context.getExternalFilesDir(null), "exports").apply { mkdirs() }, name)
+        f.writeBytes(bytes)
+        return f.absolutePath
+    }
+
+    private const val AUTO_DIR = "AshBench"
 
     fun formatValue(v: Double): String =
         if (v == Math.floor(v) && !v.isInfinite() && kotlin.math.abs(v) < 1e15) v.toLong().toString()

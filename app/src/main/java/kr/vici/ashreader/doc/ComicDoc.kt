@@ -25,9 +25,7 @@ import kr.vici.ashreader.engine.comic.BorderCrop
 import kr.vici.ashreader.engine.comic.ComicArchive
 import kr.vici.ashreader.engine.comic.CropBox
 import kr.vici.ashreader.engine.comic.PageDecoder
-import kr.vici.ashreader.engine.comic.PagePanels
 import kr.vici.ashreader.engine.comic.PageSlot
-import kr.vici.ashreader.engine.comic.PanelDetector
 import kr.vici.ashreader.engine.comic.ReadingDirection
 import kr.vici.ashreader.engine.comic.Sharpen
 import kr.vici.ashreader.engine.comic.SlotPart
@@ -252,8 +250,6 @@ class ComicReaderDoc(
     val cacheKey: String,
     private val meta: File? = null,
 ) : ReaderDoc {
-    private val detector = PanelDetector()
-    private val panelCache = HashMap<Int, PagePanels>()
     /** 원본 쪽 수. */
     val sourceCount: Int = src.pageCount
 
@@ -266,7 +262,6 @@ class ComicReaderDoc(
 
     /** 읽는 방향 직접 지정(F-48). null = 파일 정보(F-49). */
     @Volatile var dirOverride: Boolean? = null
-        set(v) { if (field != v) { field = v; synchronized(panelCache) { panelCache.clear() } } }
     override val rtl: Boolean get() = dirOverride ?: src.rtl
     /** 파일이 정한 방향(ComicInfo, F-49). */
     val fileRtl: Boolean get() = src.rtl
@@ -477,7 +472,7 @@ class ComicReaderDoc(
         } finally { b.recycle() }
     }
 
-    /** 밝기·대비·선명하게(F-56·57)를 입힌 그림(칸 단위 보기). 바꿀 것이 없으면 [b] 그대로. */
+    /** 밝기·대비·선명하게(F-56·57)를 입힌 그림. 바꿀 것이 없으면 [b] 그대로. */
     fun withLook(b: Bitmap): Bitmap {
         val l = look
         if (l.adjust.isIdentity && l.sharpen <= 0) return b
@@ -670,14 +665,6 @@ class ComicReaderDoc(
         }
         if (n == 0 || r <= l || r - l < 0.5f) return 0f to 1f
         return l to r
-    }
-
-    /** 칸 인식(F-72). 결과 좌표는 [pageBitmap] 과 같은 비율의 원본 기준(width/height 함께 줌). */
-    fun panels(index: Int, dir: ReadingDirection): PagePanels = synchronized(panelCache) {
-        panelCache.getOrPut(index) {
-            val b = pageBitmap(index, 1200)
-            try { detector.detect(PageDecoder.toGray(b), dir) } finally { b.recycle() }
-        }
     }
 
     override fun toc(): List<TocEntry> = src.toc().map { if (slots == null) it else it.copy(page = if (it.page >= 0) indexOf(it.page) else it.page) }

@@ -481,23 +481,32 @@ class PageCurlView @JvmOverloads constructor(
         val pw = max(1, (pageW() * scale).toInt())
         val ph = max(1, (viewH * scale).toInt())
         val gen = sourceGen
+        // 지금 보이는 쪽인데 아직 그림이 없으면(처음 열기·건너뛰기) 작게 먼저 그려 흰 화면을 줄인다(작업 03: 무거운 한글 쪽 2.5초+)
+        val visible = if (isSpread()) setOf(position, position + 1) else setOf(position)
         // 가까운 쪽부터
         range.sortedBy { abs(it - position) }.forEach { idx ->
             if (idx in textures || idx in loading) return@forEach
             // release() 뒤(shutdownNow)에는 새 작업을 넣지 않는다(RejectedExecutionException 방지)
             if (loader.isShutdown) return@forEach
             loading += idx
+            val preview = idx in visible
             try { loader.execute {
-                val bmp: Bitmap? = try {
-                    src.render(idx, pw, ph)
-                } catch (e: Throwable) {
-                    Log.e(EglCore.TAG, "쪽 $idx 렌더 실패", e)
-                    null
+                if (preview) render(src, idx, max(1, pw / PREVIEW_DIV), max(1, ph / PREVIEW_DIV))?.let { small ->
+                    gl.post {
+                        if (gen == sourceGen && egl != null && idx in wanted() && idx !in textures) {
+                            textures[idx] = renderer.upload(small)
+                            requestFrame()
+                        }
+                        small.recycle()
+                    }
                 }
+                val bmp = render(src, idx, pw, ph)
                 gl.post {
                     loading -= idx
                     if (bmp == null) return@post
-                    if (gen == sourceGen && egl != null && idx in wanted() && idx !in textures) {
+                    if (gen == sourceGen && egl != null && idx in wanted()) {
+                        // 미리보기(작은 그림)가 있으면 선명한 그림으로 바꾼다
+                        textures.remove(idx)?.let { renderer.deleteTexture(it) }
                         textures[idx] = renderer.upload(bmp)
                         requestFrame()
                     }
@@ -507,6 +516,13 @@ class PageCurlView @JvmOverloads constructor(
                 loading -= idx
             }
         }
+    }
+
+    private fun render(src: PageSource, idx: Int, w: Int, h: Int): Bitmap? = try {
+        src.render(idx, w, h)
+    } catch (e: Throwable) {
+        Log.e(EglCore.TAG, "쪽 $idx 렌더 실패", e)
+        null
     }
 
     private fun clearTextures() {
@@ -574,7 +590,11 @@ class PageCurlView @JvmOverloads constructor(
     }
 
     private fun draw() {
-        val mirror = config.direction == TurnDirection.RTL
+        val baseMirror = config.direction == TurnDirection.RTL
+        // 작업 03: 이전 쪽 넘김(되감기)은 앞 넘김을 좌우로 뒤집은 모양 — 지금 쪽이 왼쪽 모서리에서 말려 오른쪽으로 넘어가며
+        // 이전 쪽이 드러난다(예전에는 앞 넘김을 거꾸로 되돌려 오른쪽 모서리가 돌아오는 모양이라 넘김 방향과 같아 보였다).
+        val rewind = !forward && phase != Phase.IDLE && config.effect == TurnEffect.CURL
+        val mirror = if (rewind) !baseMirror else baseMirror
         val shadow = config.shadowStrength
         renderer.begin(viewW, viewH, mirror, config.backColor, config.backMix, shadow)
         val spread = isSpread()
@@ -603,14 +623,26 @@ class PageCurlView @JvmOverloads constructor(
             }
             return
         }
-        // 종이책 말림
+        // 종이책 말림. 되감기는 t(1→0)를 이전 쪽 넘김 진행도 u = 1 - t 로 바꿔 뒤집힌 화면에서 앞 넘김처럼 그린다.
+        val u = if (rewind) 1f - t else t
         val gx = viewW
-        val radius = CurlMath.radiusFor(t, pw * 0.18f)
-        val fx = CurlMath.fingerX(gx, pw, t)
-        // I-716: 손가락 위아래는 조금만 따라가고(최대 쪽 높이의 8%) 넘어갈수록 0 으로
-        val lift = CurlMath.dampLift(py - gy, h * 0.08f) * (1f - t)
-        val fy = gy + lift - (h * 0.06f) * 4f * t * (1f - t)
+        val radius = CurlMath.radiusFor(u, pw * 0.18f)
+        val fx = CurlMath.fingerX(gx, pw, u)
+        // I-716·작업 03: 손가락 위아래는 조금만 따라가고, 잡은 높이에 따라 위·아래 모서리가 먼저 넘어간다
+        val fy = CurlMath.fingerY(gy, py, h, u)
         val curl = CurlMath.curlFor(gx, gy, fx, fy, radius)
+        if (rewind) {
+            // 뒤집힌 화면: 0 자리 = 실제 오른쪽, pw 자리 = 실제 왼쪽. position(p) 은 이미 이전 펼침(돌아갈 곳)이다.
+            if (spread) {
+                if (p + 3 < count()) renderer.drawFlat(0f, 0f, pw, h, tex(p + 3))
+                if (p >= 0) renderer.drawFlat(pw, 0f, pw, h, tex(p), shadowFrom = curl)
+                renderer.drawCurl(pw, 0f, pw, h, tex(p + 2), tex(p + 1), backIsTex = true, curl = curl)
+            } else {
+                renderer.drawFlat(0f, 0f, pw, h, tex(p), shadowFrom = curl)
+                renderer.drawCurl(0f, 0f, pw, h, tex(p + 1), 0, backIsTex = false, curl = curl)
+            }
+            return
+        }
         if (spread) {
             if (p >= 0) renderer.drawFlat(0f, 0f, pw, h, tex(p))
             if (p + 3 < count()) renderer.drawFlat(pw, 0f, pw, h, tex(p + 3), shadowFrom = curl)
@@ -619,5 +651,10 @@ class PageCurlView @JvmOverloads constructor(
             renderer.drawFlat(0f, 0f, pw, h, tex(p + 1), shadowFrom = curl)
             renderer.drawCurl(0f, 0f, pw, h, tex(p), 0, backIsTex = false, curl = curl)
         }
+    }
+
+    private companion object {
+        /** 보이는 쪽 미리보기 크기 = 쪽 크기 / 이 값(화소 수 1/9 — 무거운 쪽도 금방 그린다). */
+        const val PREVIEW_DIV = 3
     }
 }
