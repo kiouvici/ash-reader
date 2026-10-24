@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>시리즈·묶음 안 화면</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1330px; height: 910px; display: flex; gap: 80px; background: #FFFFFF; font-family: 'Noto Sans KR', sans-serif">
+<sc-for list="{{phones}}" as="p" hint-placeholder-count="3">
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">{{p.label}}</div>
+<div style="width: 390px; height: 844px; overflow: hidden; background: {{p.bg}}; color: {{p.fg}}; position: relative">
+<div style="position: relative; height: 410px; background: {{p.hero}}; color: #FFFFFF; overflow: hidden">
+<div style="position: absolute; inset: 0; background: radial-gradient(120% 80% at 30% 20%, rgba(255,255,255,0.18), rgba(0,0,0,0) 60%), linear-gradient(180deg, rgba(0,0,0,0) 50%, rgba(0,0,0,0.25) 100%)"></div>
+<div style="position: relative; display: flex; justify-content: space-between; padding: 12px 12px 0">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(255,255,255,0.18); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center"><svg width="11" height="18" viewBox="0 0 11 18" aria-hidden="true"><path d="M9 2L2 9l7 7" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"></path></svg></div>
+<div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(255,255,255,0.18); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 18px; letter-spacing: 1px">···</div>
+</div>
+<div style="position: relative; height: 196px; margin-top: 8px">
+<sc-for list="{{p.fan}}" as="c" hint-placeholder-count="5">
+<div style="position: absolute; left: {{c.x}}; bottom: 0; width: {{c.w}}; height: {{c.h}}; z-index: {{c.z}}; border-radius: 1px 3px 3px 1px; background: {{c.bg}}; box-shadow: 0 10px 24px -8px rgba(0,0,0,0.55); overflow: hidden">
+<div style="position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: linear-gradient(90deg, rgba(255,255,255,0.35), rgba(0,0,0,0.2))"></div>
+<div style="position: absolute; left: 10px; right: 8px; top: 10px; font-size: {{c.ts}}; font-weight: 900; line-height: 1.15; color: {{c.ink}}; word-break: keep-all">{{c.title}}</div>
+<div style="position: absolute; left: 22%; bottom: 14%; width: 56%; height: 34%; border-radius: 50%; background: {{c.art}}"></div>
+</div>
+</sc-for>
+</div>
+<div style="position: relative; padding: 16px 20px 0">
+<div style="font-size: 25px; font-weight: 900; letter-spacing: -0.02em">{{p.title}}</div>
+<div style="font-size: 15px; margin-top: 3px; opacity: 0.92">{{p.by}}</div>
+<div style="font-size: 13.5px; margin-top: 3px; opacity: 0.7">{{p.meta}}</div>
+<div style="margin-top: 12px; height: 52px; border-radius: 13px; background: rgba(255,255,255,0.2); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22); display: flex; flex-direction: column; align-items: center; justify-content: center">
+<div style="font-size: 15px; font-weight: 700">{{p.cta}}</div>
+<div style="font-size: 12px; opacity: 0.85">{{p.ctaSub}}</div>
+</div>
+</div>
+</div>
+<div style="padding: 18px 20px 6px; font-size: 20px; font-weight: 900">{{p.listTitle}}</div>
+<sc-for list="{{p.rows}}" as="r" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 14px; padding: 0 16px 0 20px">
+<div style="position: relative; width: 52px; aspect-ratio: {{r.ratio}}; flex-shrink: 0; border-radius: 1px 2px 2px 1px; background: {{r.bg}}; box-shadow: 0 6px 12px -6px rgba(0,0,0,0.5); overflow: hidden">
+<div style="position: absolute; left: 6px; right: 4px; top: 6px; font-size: 7px; font-weight: 900; line-height: 1.1; color: {{r.ink}}; word-break: keep-all">{{r.cover}}</div>
+<div style="display: {{r.band}}; position: absolute; left: 6px; right: 5px; top: 5px; height: 2px; background: {{r.bandC}}"></div>
+<div style="display: {{r.band}}; position: absolute; left: 6px; right: 7px; top: 18px; height: 30px; background-image: repeating-linear-gradient(#DCDCE0 0 1px, transparent 1px 4px)"></div>
+</div>
+<div style="flex-grow: 1; min-width: 0; padding: 14px 0; border-bottom: 1px solid {{p.line}}">
+<div style="display: flex; align-items: center; gap: 10px">
+<div style="flex-grow: 1; min-width: 0">
+<div style="font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.title}}</div>
+<div style="font-size: 13px; color: {{p.sub2}}; margin-top: 2px">{{r.by}}</div>
+<div style="font-size: 12.5px; color: {{r.stateC}}; margin-top: 2px; font-weight: {{r.stateW}}">{{r.state}}</div>
+</div>
+<div style="color: {{p.sub}}; font-size: 18px; letter-spacing: 1px">···</div>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1330,"height":910}}'>
+class Component extends DCLogic {
+renderVals() {
+const VOL = [['#FF6A13', '#1C1C1C', '#1C1C1C'], ['#F2C230', '#1C1C1C', '#E4473C'], ['#16B8E8', '#0C2233', '#FFFFFF'], ['#7A3E9D', '#FFFFFF', '#F2C230'], ['#2BB673', '#0C2233', '#FFFFFF']];
+const fanS = [2, 1, 0, 3, 4].map((v, k) => ({ bg: VOL[v][0], ink: VOL[v][1], art: VOL[v][2], title: '코트 위의 여름 ' + (v + 1),
+x: ['18px', '52px', '112px', '214px', '262px'][k], w: k === 2 ? '120px' : '96px', h: k === 2 ? '178px' : ['128px', '148px', '', '148px', '128px'][k], z: [1, 2, 5, 2, 1][k], ts: k === 2 ? '14px' : '11px' }));
+const vols = [0, 1, 2, 3].map(v => ({ title: '코트 위의 여름 ' + (v + 1), cover: '코트 위의 여름 ' + (v + 1), by: '박하람', bg: VOL[v][0], ink: VOL[v][1], ratio: '1 / 1.46', band: 'none', bandC: '',
+state: v === 0 ? '다 읽음' : v === 1 ? '30% 읽는 중' : '새 책', stateC: v === 1 ? '#0A84FF' : '#8E8E93', stateW: v === 1 ? 700 : 400 }));
+const doc = (t, f, st, by) => ({ title: t, cover: t, by, bg: '#FFFFFF', ink: '#26282B', ratio: '1 / 1.414', band: 'block', bandC: f === 'PDF' ? '#C2343F' : '#2E6FA8',
+state: st, stateC: /%/.test(st) ? '#0A84FF' : '#8E8E93', stateW: /%/.test(st) ? 700 : 400 });
+const docs = [doc('2025 행정업무운영 편람', 'HWP', '42% 읽는 중', 'HWP · 383쪽'), doc('2025년도 아동양육시설 운영비 보조금 교부 신청서 및 사업계획서', 'HWPX', '새 책 · 어제 받음', 'HWPX · 27쪽'), doc('인사 규정', 'PDF', '65% 읽는 중', 'PDF · 48쪽'), doc('결산 보고', 'PDF', '다 읽음', 'PDF · 15쪽')];
+const fanD = [0, 1, 2, 3, 4].map(k => ({ bg: k === 2 ? '#FFFFFF' : ['#E9EEF5', '#F4F4F6', '', '#F7F2F2', '#EEF2EE'][k], ink: '#26282B', art: 'transparent', title: ['예산서', '인사 규정', '2025 행정업무운영 편람', '결산 보고', '취업규칙'][k],
+x: ['18px', '52px', '112px', '214px', '262px'][k], w: k === 2 ? '126px' : '96px', h: k === 2 ? '178px' : ['136px', '156px', '', '156px', '136px'][k], z: [1, 2, 5, 2, 1][k], ts: k === 2 ? '12px' : '10px' }));
+return { phones: [
+{ label: '① 시리즈 — 밝게 (북스 시리즈 화면 기준)', bg: '#FFFFFF', fg: '#111316', sub: '#8E8E93', sub2: '#3A3A3C', line: '#E5E5EA', hero: 'linear-gradient(160deg, #C9661F 0%, #7A3A12 100%)',
+fan: fanS, title: '코트 위의 여름', by: '박하람', meta: '시리즈 · 24권 · 만화', cta: '이어 읽기', ctaSub: '코트 위의 여름 2 · 30%', listTitle: '책', rows: vols },
+{ label: '② 시리즈 — 어둡게', bg: '#000000', fg: '#FFFFFF', sub: '#98989F', sub2: '#C7C7CC', line: '#2C2C2E', hero: 'linear-gradient(160deg, #A8541A 0%, #4A230B 100%)',
+fan: fanS, title: '코트 위의 여름', by: '박하람', meta: '시리즈 · 24권 · 만화', cta: '이어 읽기', ctaSub: '코트 위의 여름 2 · 30%', listTitle: '책', rows: vols },
+{ label: '③ 폴더(업무)에도 같은 머리 — 밝게', bg: '#FFFFFF', fg: '#111316', sub: '#8E8E93', sub2: '#3A3A3C', line: '#E5E5EA', hero: 'linear-gradient(160deg, #3E6E9A 0%, #1C3550 100%)',
+fan: fanD, title: '업무', by: '내장 저장공간 › Documents', meta: '폴더 · 하위 폴더 2개 · 64권', cta: '이어 읽기', ctaSub: '2025 행정업무운영 편람 · 42%', listTitle: '책  (목록 ↔ 격자 바꾸기)', rows: docs }
+] };
+}
+}
+</script>
+</body>
+</html>

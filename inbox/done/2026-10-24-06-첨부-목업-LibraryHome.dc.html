@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>서재 첫 화면 A·B</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&amp;display=swap">
+<style>body{margin:0} button{font-family:inherit;cursor:pointer}</style>
+</helmet>
+<div style="width: 860px; height: 900px; display: flex; gap: 80px; background: #FFFFFF; font-family: 'Noto Sans KR', sans-serif; color: #111316">
+<sc-for list="{{phones}}" as="p" hint-placeholder-count="2">
+<div style="width: 390px; flex-shrink: 0">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">{{p.label}}</div>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF">
+<div style="position: absolute; inset: 0 0 66px 0; overflow-y: auto">
+<div style="display: flex; align-items: center; padding: 20px 12px 6px 20px">
+<div style="flex-grow: 1; font-size: 32px; font-weight: 900; letter-spacing: -0.02em">서재</div>
+<button aria-label="검색" style="width: 44px; height: 44px; border: none; border-radius: 12px; background: rgba(255,255,255,0.9); box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.07); display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111316" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg></button>
+</div>
+
+<div style="display: {{p.showA}}; flex-direction: column; gap: 12px; padding: 12px 16px 26px">
+<button style="position: relative; height: 128px; border: none; border-radius: 12px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 26px -14px rgba(0,0,0,0.24); overflow: hidden; text-align: left; padding: 0 0 0 20px; display: flex; align-items: center; color: #111316">
+<span><span style="display: block; font-size: 19px; font-weight: 900">전체</span><span style="display: block; font-size: 13px; color: #6C6C70; margin-top: 3px">312권</span></span>
+<span style="position: absolute; right: 0; bottom: 0; width: 240px; height: 112px">
+<sc-for list="{{p.allFan}}" as="c" hint-placeholder-count="4">
+<span style="position: absolute; left: {{c.x}}; bottom: 0; width: 74px; height: {{c.h}}; border-radius: 1px 2px 0 0; background: {{c.bg}}; box-shadow: -8px 0 14px -8px rgba(0,0,0,0.35); overflow: hidden">
+<span style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(90deg, rgba(255,255,255,0.35), rgba(0,0,0,0.12))"></span>
+<span style="display: {{c.frame}}; position: absolute; inset: 4px 4px 0 7px; border: 1px solid rgba(255,255,255,0.18); border-bottom: none"></span>
+<span style="display: {{c.band}}; position: absolute; left: 10px; right: 8px; top: 9px; height: 2px; background: {{c.bandC}}"></span>
+<span style="position: absolute; left: 10px; right: 7px; top: 15px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-align: {{c.align}}; font-size: {{c.ts}}; font-weight: {{c.tw}}; line-height: 1.25; color: {{c.ink}}; word-break: keep-all">{{c.title}}</span>
+<span style="display: {{c.band}}; position: absolute; left: 10px; right: 9px; top: 46px; height: 34px; background-image: repeating-linear-gradient(#DADADF 0 1px, transparent 1px 5px)"></span>
+</span>
+</sc-for>
+</span>
+</button>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+<sc-for list="{{p.small}}" as="g" hint-placeholder-count="3">
+<button style="position: relative; height: 136px; border: none; border-radius: 12px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 22px -14px rgba(0,0,0,0.24); overflow: hidden; text-align: left; padding: 12px 0 0 12px; color: #111316">
+<span style="display: block; font-size: 15px; font-weight: 900">{{g.name}}</span>
+<span style="display: block; font-size: 11.5px; color: #6C6C70; margin-top: 1px">{{g.sub}}</span>
+<span style="position: absolute; right: 0; bottom: 0; width: 92px; height: 74px">
+<sc-for list="{{g.fan}}" as="c" hint-placeholder-count="2">
+<span style="position: absolute; left: {{c.sx}}; bottom: 0; width: 50px; height: {{c.sh}}; border-radius: 1px 2px 0 0; background: {{c.bg}}; box-shadow: -6px 0 12px -6px rgba(0,0,0,0.35); overflow: hidden">
+<span style="position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(90deg, rgba(255,255,255,0.35), rgba(0,0,0,0.12))"></span>
+<span style="display: {{c.band}}; position: absolute; left: 7px; right: 6px; top: 7px; height: 2px; background: {{c.bandC}}"></span>
+<span style="display: {{c.band}}; position: absolute; left: 7px; right: 7px; top: 20px; height: 30px; background-image: repeating-linear-gradient(#DADADF 0 1px, transparent 1px 4px)"></span>
+<span style="display: {{c.frame}}; position: absolute; inset: 3px 3px 0 5px; border: 1px solid rgba(255,255,255,0.18); border-bottom: none"></span>
+</span>
+</sc-for>
+</span>
+</button>
+</sc-for>
+</div>
+</div>
+
+<div style="display: {{p.showB}}; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 12px 16px 26px">
+<sc-for list="{{p.four}}" as="g" hint-placeholder-count="4">
+<button style="position: relative; height: 150px; border: none; border-radius: 12px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 22px -14px rgba(0,0,0,0.24); overflow: hidden; text-align: left; padding: 14px 0 0 16px; color: #111316">
+<span style="display: block; font-size: 18px; font-weight: 900">{{g.name}}</span>
+<span style="display: block; font-size: 12.5px; color: #6C6C70; margin-top: 2px">{{g.sub}}</span>
+<span style="position: absolute; right: 0; bottom: 0; width: 120px; height: 90px">
+<sc-for list="{{g.fan}}" as="c" hint-placeholder-count="2">
+<span style="position: absolute; left: {{c.bx}}; bottom: 0; width: 58px; height: {{c.bh}}; border-radius: 1px 2px 0 0; background: {{c.bg}}; box-shadow: -6px 0 12px -6px rgba(0,0,0,0.35); overflow: hidden">
+<span style="position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(90deg, rgba(255,255,255,0.35), rgba(0,0,0,0.12))"></span>
+<span style="display: {{c.band}}; position: absolute; left: 8px; right: 6px; top: 8px; height: 2px; background: {{c.bandC}}"></span>
+<span style="display: {{c.band}}; position: absolute; left: 8px; right: 7px; top: 24px; height: 36px; background-image: repeating-linear-gradient(#DADADF 0 1px, transparent 1px 4px)"></span>
+<span style="display: {{c.frame}}; position: absolute; inset: 3px 3px 0 6px; border: 1px solid rgba(255,255,255,0.18); border-bottom: none"></span>
+<span style="display: {{c.frame}}; position: absolute; left: 8px; right: 6px; top: 14px; text-align: center; font-size: 8px; color: #FFFFFF; word-break: keep-all">{{c.title}}</span>
+</span>
+</sc-for>
+</span>
+</button>
+</sc-for>
+</div>
+
+<sc-for list="{{p.shelves}}" as="sh" hint-placeholder-count="2">
+<div style="background: linear-gradient(180deg, #FFFFFF 0, #F0F0F2 100%); padding: 18px 0 22px">
+<div style="display: flex; align-items: center; gap: 4px; padding-left: 20px; font-size: 20px; font-weight: 900; letter-spacing: -0.01em">{{sh.title}}<svg style="margin-left: 4px" width="9" height="15" viewBox="0 0 9 15" aria-hidden="true"><path d="M1.5 1.5L7.5 7.5 1.5 13.5" fill="none" stroke="#A1A1A6" stroke-width="2.2" stroke-linecap="round"></path></svg></div>
+<div style="display: flex; align-items: flex-end; gap: 16px; padding: 14px 20px 4px; overflow-x: auto; height: 150px">
+<sc-for list="{{sh.books}}" as="b" hint-placeholder-count="4">
+<div style="flex-shrink: 0; width: 100px">
+<div style="position: relative; width: 100px; aspect-ratio: {{b.ratio}}; border-radius: 1px 3px 3px 1px; background: {{b.bg}}; box-shadow: 0 1px 1px rgba(0,0,0,0.08), 0 12px 16px -10px rgba(0,0,0,0.45); overflow: hidden">
+<span style="position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: linear-gradient(90deg, rgba(255,255,255,0.35), rgba(255,255,255,0.05) 60%, rgba(0,0,0,0.18))"></span>
+<span style="display: {{b.frame}}; position: absolute; inset: 5px 5px 5px 9px; border: 1px solid rgba(255,255,255,0.16)"></span>
+<span style="display: {{b.band}}; position: absolute; left: 12px; right: 9px; top: 10px; height: 3px; background: {{b.bandC}}"></span>
+<span style="position: absolute; left: 12px; right: 9px; top: {{b.tTop}}; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-align: {{b.align}}; font-size: {{b.ts}}; font-weight: {{b.tw}}; line-height: 1.25; color: {{b.ink}}; word-break: keep-all">{{b.title}}</span>
+<span style="display: {{b.frame}}; position: absolute; left: 10px; right: 8px; bottom: 12px; text-align: center; font-size: 8.5px; color: rgba(255,255,255,0.75)">{{b.by}}</span>
+<span style="display: {{b.band}}; position: absolute; left: 12px; right: 14px; top: 50px; height: 30px; background-image: repeating-linear-gradient(#DCDCE0 0 1px, transparent 1px 5px)"></span>
+<span style="display: {{b.bar}}; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(0,0,0,0.12)"><span style="display: block; width: {{b.pct}}; height: 3px; background: #0A84FF"></span></span>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; height: 66px; display: flex; justify-content: center; align-items: flex-start; padding-top: 6px; box-sizing: border-box">
+<div style="display: flex; gap: 2px; padding: 3px; border-radius: 13px; background: rgba(255,255,255,0.9); box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.10)">
+<div style="padding: 6px 18px; border-radius: 10px; background: rgba(0,0,0,0.07); display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 11px; font-weight: 700"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111316" stroke-width="2" aria-hidden="true"><path d="M12 6.8C10 5.3 7 4.8 3.5 5.1v12.6c3.5-.3 6.5.2 8.5 1.7 2-1.5 5-2 8.5-1.7V5.1C17 4.8 14 5.3 12 6.8zM12 6.8v12.6"></path></svg>서재</div>
+<div style="padding: 6px 18px; display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 11px; color: #6C6C70"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6C6C70" stroke-width="2" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"></path></svg>독서 기록</div>
+<div style="padding: 6px 18px; display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 11px; color: #6C6C70"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6C6C70" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"></path></svg>설정</div>
+</div>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":860,"height":900}}'>
+class Component extends DCLogic {
+renderVals() {
+const G = (a, b) => 'linear-gradient(180deg, ' + a + ' 0%, ' + b + ' 100%)';
+const NOV = { '어린 왕자': [G('#1E7BD6', '#0B2D63'), '생텍쥐페리'], '데미안': [G('#B21E1E', '#4A0B0B'), '헤르만 헤세'], '동물농장': [G('#1F8A3A', '#0B3A1A'), '조지 오웰'], '등대지기': [G('#B4560F', '#4A1D06'), '이도윤'], '겨울의 정원': [G('#6B6B6F', '#2A2A2D'), '한소율'] };
+const COM = { '코트 위의 여름 2': ['#F2C230', '#1C1C1C'], '코트 위의 여름 1': ['#FF6A13', '#1C1C1C'] };
+const BAND = { HWP: '#2E6FA8', HWPX: '#2E6FA8', PDF: '#C2343F', DOCX: '#2B579A' };
+const bk = (title, fmt, pct) => {
+const n = NOV[title], c = COM[title], doc = !n && !c;
+return { title, by: n ? n[1] : '', bg: n ? n[0] : c ? c[0] : '#FFFFFF', ink: n ? '#FFFFFF' : c ? c[1] : '#26282B',
+frame: n ? 'block' : 'none', band: doc ? 'block' : 'none', bandC: BAND[fmt] || '#999',
+align: n ? 'center' : 'left', tw: n ? 500 : 900, ts: doc ? '7.5px' : n ? '11px' : '13px', tTop: doc ? '19px' : '20px',
+ratio: doc ? '1 / 1.414' : '1 / 1.48', pct: (pct || 0) + '%', bar: pct && pct < 100 ? 'block' : 'none' };
+};
+const reading = [bk('2025 행정업무운영 편람', 'HWP', 42), bk('어린 왕자', 'EPUB', 80), bk('코트 위의 여름 2', 'CBZ', 30), bk('인사 규정', 'PDF', 65)];
+const added = [bk('2025년도 아동양육시설 운영비 보조금 교부 신청서', 'HWPX'), bk('데미안', 'EPUB'), bk('회의 자료', 'PDF'), bk('동물농장', 'EPUB'), bk('신청서 양식', 'DOCX')];
+const fan = (list) => list.map((b, k) => ({ bg: b.bg, ink: b.ink, title: b.title, align: b.align, ts: '8.5px', tw: b.tw, frame: b.frame, band: b.band, bandC: b.bandC,
+x: (k * 52) + 'px', h: [92, 104, 96, 100][k] + 'px', sx: (k * 34) + 'px', sh: [62, 70][k] + 'px', bx: (k * 44) + 'px', bh: [76, 86][k] + 'px' }));
+const allFan = fan([reading[0], reading[1], reading[2], added[1]]);
+const groups = [
+{ name: '형식', sub: '6가지', fan: fan([bk('어린 왕자', 'EPUB'), bk('예산서', 'HWPX')]) },
+{ name: '폴더', sub: '4개', fan: fan([bk('회의 자료', 'PDF'), bk('동물농장', 'EPUB')]) },
+{ name: '시리즈', sub: '3개', fan: fan([bk('코트 위의 여름 1', 'CBZ'), bk('코트 위의 여름 2', 'CBZ')]) }
+];
+const four = [{ name: '전체', sub: '312권', fan: fan([reading[1], reading[0]]) }].concat(groups);
+return { phones: [
+{ label: 'A안 — 전체 한 줄 + 형식·폴더·시리즈 + 책장 줄', showA: 'flex', showB: 'none', allFan, small: groups, four: [],
+shelves: [{ title: '이어 읽기', books: reading }, { title: '최근 추가', books: added }] },
+{ label: 'B안 — 전체·형식·폴더·시리즈 네 칸 + 최근', showA: 'none', showB: 'grid', allFan: [], small: [], four,
+shelves: [{ title: '최근', books: reading.concat(added.slice(0, 3)) }] }
+] };
+}
+}
+</script>
+</body>
+</html>

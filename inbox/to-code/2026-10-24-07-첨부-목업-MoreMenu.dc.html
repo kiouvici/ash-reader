@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>책 ⋯ 메뉴</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 860px; height: 910px; display: flex; gap: 80px; background: #FFFFFF; font-family: 'Noto Sans KR', sans-serif">
+<sc-for list="{{phones}}" as="p" hint-placeholder-count="2">
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">{{p.label}}</div>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: {{p.bg}}; color: {{p.fg}}">
+<div style="padding: 70px 20px 18px; font-size: 32px; font-weight: 900">전체</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px 16px; padding: 0 20px; filter: blur(1.5px); opacity: 0.55">
+<sc-for list="{{p.covers}}" as="c" hint-placeholder-count="6">
+<div><div style="height: 150px; display: flex; align-items: flex-end"><div style="width: 100%; aspect-ratio: 1 / 1.48; border-radius: 1px 3px 3px 1px; background: {{c}}; box-shadow: 0 12px 18px -10px rgba(0,0,0,0.4)"></div></div><div style="height: 28px"></div></div>
+</sc-for>
+</div>
+<div style="position: absolute; left: 20px; top: 140px; width: 104px">
+<div style="height: 150px; display: flex; align-items: flex-end"><div style="width: 100%; aspect-ratio: 1 / 1.48; border-radius: 1px 3px 3px 1px; background: linear-gradient(180deg, #B21E1E 0%, #4A0B0B 100%); box-shadow: 0 14px 22px -10px rgba(178,30,30,0.6); position: relative"><div style="position: absolute; inset: 5px 5px 5px 9px; border: 1px solid rgba(255,255,255,0.16)"></div><div style="position: absolute; left: 0; right: 0; top: 22px; text-align: center; color: #FFFFFF; font-size: 12px">데미안</div></div></div>
+<div style="display: flex; align-items: center; margin-top: 8px"><span style="height: 18px; padding: 0 6px; border-radius: 9px; background: {{p.pillBg}}; color: {{p.pillFg}}; font-size: 10.5px; font-weight: 700; line-height: 18px">새 책</span><span style="flex-grow: 1"></span><span style="width: 28px; height: 22px; border-radius: 11px; background: {{p.dotBg}}; display: flex; align-items: center; justify-content: center; font-size: 14px; letter-spacing: 1px">···</span></div>
+</div>
+<div style="position: absolute; left: 112px; top: 188px; width: 248px; border-radius: 14px; background: {{p.menuBg}}; backdrop-filter: blur(24px); box-shadow: {{p.menuShadow}}; overflow: hidden">
+<div style="display: flex; justify-content: space-around; padding: 12px 8px 10px; border-bottom: 1px solid {{p.sep}}">
+<sc-for list="{{top}}" as="t" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11.5px; width: 70px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{{p.fg}}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.d}}"></path></svg>{{t.k}}</div>
+</sc-for>
+</div>
+<sc-for list="{{items}}" as="it" hint-placeholder-count="6">
+<div style="display: flex; align-items: center; gap: 12px; height: 46px; padding: 0 16px; border-top: {{it.sepTop}}; color: {{it.c}}">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{it.d}}"></path></svg>
+<span style="font-size: 15px">{{it.k}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":860,"height":910}}'>
+class Component extends DCLogic {
+renderVals() {
+const covers = ['#FFFFFF', 'linear-gradient(180deg,#1E7BD6,#0B2D63)', '#F2C230', '#F4F4F6', 'linear-gradient(180deg,#1F8A3A,#0B3A1A)', '#FF6A13'];
+const red = '#FF3B30';
+const mk = (dark) => ({
+label: dark ? '② 어둡게' : '① ⋯ 누름 → 메뉴 (밝게) · 표지 길게 눌러도 같은 메뉴',
+bg: dark ? '#000000' : '#FFFFFF', fg: dark ? '#FFFFFF' : '#111316',
+pillBg: dark ? '#0A3D7A' : '#1E5FB4', pillFg: dark ? '#9FD0FF' : '#FFFFFF', dotBg: dark ? '#2C2C2E' : '#E5E5EA',
+menuBg: dark ? 'rgba(44,44,46,0.88)' : 'rgba(255,255,255,0.86)', sep: dark ? '#3A3A3C' : '#E5E5EA',
+menuShadow: dark ? '0 20px 50px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.08)' : '0 20px 50px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04)',
+covers
+});
+const sepC = '1px solid rgba(128,128,128,0.25)';
+return {
+phones: [mk(false), mk(true)],
+top: [{ k: '공유', d: 'M12 3v12M8 7l4-4 4 4M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6' }, { k: '책 정보', d: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v6M12 7.5v.01' }, { k: '파일 위치', d: 'M3 7.5A1.5 1.5 0 0 1 4.5 6h4.3l2 2.2h8.7A1.5 1.5 0 0 1 21 9.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z' }],
+items: [
+{ k: '시리즈로 묶기', d: 'M4 6h10M4 12h10M4 18h7M18 15v6M15 18h6', c: 'inherit', sepTop: 'none' },
+{ k: '다 읽음으로 표시', d: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8 12.3l2.7 2.7L16.2 9.5', c: 'inherit', sepTop: 'none' },
+{ k: '표지 바꾸기', d: 'M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5', c: 'inherit', sepTop: 'none' },
+{ k: '처음부터 다시 읽기', d: 'M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4', c: 'inherit', sepTop: 'none' },
+{ k: '서재에서 숨기기', d: 'M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.8 9.8 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-2.2 3.1M6.6 6.6A17 17 0 0 0 2.5 12s3.5 7 9.5 7a9.7 9.7 0 0 0 5.4-1.6', c: 'inherit', sepTop: sepC },
+{ k: '서재에서 빼기…', d: 'M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3', c: red, sepTop: 'none' }
+]
+};
+}
+}
+</script>
+</body>
+</html>

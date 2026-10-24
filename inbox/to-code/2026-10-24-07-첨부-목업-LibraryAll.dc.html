@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>전체 책 격자</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1280px; height: 1840px; background: #FFFFFF; font-family: 'Noto Sans KR', sans-serif">
+<div style="display: flex; gap: 80px">
+<sc-for list="{{phones}}" as="p" hint-placeholder-count="2">
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">{{p.label}}</div>
+<div style="width: 390px; height: 844px; overflow: hidden; background: {{p.bg}}; color: {{p.fg}}; position: relative">
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 0">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: {{p.btn}}; box-shadow: {{p.btnLine}}; display: flex; align-items: center; justify-content: center"><svg width="11" height="18" viewBox="0 0 11 18" aria-hidden="true"><path d="M9 2L2 9l7 7" fill="none" stroke="{{p.fg}}" stroke-width="2.2" stroke-linecap="round"></path></svg></div>
+<div style="display: flex; gap: 8px">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: {{p.btn}}; box-shadow: {{p.btnLine}}; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{p.fg}}" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 10h16M4 14h16M4 18h11"></path></svg></div>
+<div style="width: 44px; height: 44px; border-radius: 12px; background: {{p.btn}}; box-shadow: {{p.btnLine}}; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.8" fill="{{p.fg}}"></circle><circle cx="12" cy="12" r="1.8" fill="{{p.fg}}"></circle><circle cx="19" cy="12" r="1.8" fill="{{p.fg}}"></circle></svg></div>
+</div>
+</div>
+<div style="padding: 10px 20px 18px; font-size: 32px; font-weight: 900; letter-spacing: -0.02em">전체</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px 16px; padding: 0 20px">
+<sc-for list="{{p.books}}" as="b" hint-placeholder-count="9">
+<div>
+<div style="position: relative; height: 150px; display: flex; align-items: flex-end">
+<div style="display: {{b.stackShow}}; position: absolute; left: 0; bottom: 8px; width: 82%; aspect-ratio: {{b.ratio}}; border-radius: 1px 3px 3px 1px; background: {{b.bg2}}; box-shadow: 0 8px 14px -8px rgba(0,0,0,0.5)"></div>
+<div style="position: relative; width: {{b.w}}; margin-left: {{b.ml}}; aspect-ratio: {{b.ratio}}; border-radius: 1px 3px 3px 1px; background: {{b.bg}}; box-shadow: 0 1px 1px rgba(0,0,0,0.08), 0 14px 20px -12px {{b.glow}}; overflow: hidden">
+<div style="position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: linear-gradient(90deg, rgba(255,255,255,0.32), rgba(255,255,255,0.05) 60%, rgba(0,0,0,0.18))"></div>
+<div style="display: {{b.frame}}; position: absolute; inset: 5px 5px 5px 9px; border: 1px solid rgba(255,255,255,0.16)"></div>
+<div style="display: {{b.band}}; position: absolute; left: 11px; right: 8px; top: 9px; height: 3px; background: {{b.bandC}}"></div>
+<div style="position: absolute; left: 11px; right: 8px; top: {{b.tTop}}; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-align: {{b.align}}; font-size: {{b.ts}}; font-weight: {{b.tw}}; line-height: 1.25; color: {{b.ink}}; word-break: keep-all">{{b.title}}</div>
+<div style="display: {{b.frame}}; position: absolute; left: 10px; right: 8px; bottom: 11px; text-align: center; font-size: 8px; color: rgba(255,255,255,0.75)">{{b.by}}</div>
+<div style="display: {{b.band}}; position: absolute; left: 11px; right: 13px; top: 46px; height: 30%; background-image: repeating-linear-gradient(#DCDCE0 0 1px, transparent 1px 5px)"></div>
+<div style="display: {{b.bar}}; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(0,0,0,0.15)"><div style="width: {{b.pct}}; height: 3px; background: #0A84FF"></div></div>
+</div>
+</div>
+<div style="display: flex; align-items: center; margin-top: 8px; height: 20px">
+<span style="display: {{b.pillShow}}; height: 18px; padding: 0 6px; border-radius: 9px; background: {{p.pillBg}}; color: {{p.pillFg}}; font-size: 10.5px; font-weight: 700; line-height: 18px">{{b.state}}</span>
+<span style="display: {{b.textShow}}; font-size: 11.5px; color: {{p.sub}}">{{b.state}}</span>
+<span style="flex-grow: 1"></span>
+<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7" fill="{{p.sub}}"></circle><circle cx="12" cy="12" r="1.7" fill="{{p.sub}}"></circle><circle cx="19" cy="12" r="1.7" fill="{{p.sub}}"></circle></svg>
+</div>
+<div style="display: {{b.docTitle}}; margin-top: 2px; font-size: 11.5px; color: {{p.sub}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{b.title}}</div>
+</div>
+</sc-for>
+</div>
+<div style="padding: 22px 0 0; text-align: center; font-size: 13px; color: {{p.sub}}">책 312권, 시리즈 3개</div>
+</div>
+</div>
+</sc-for>
+</div>
+<div style="height: 56px; display: flex; align-items: center; margin-top: 24px; font-size: 15px; font-weight: 700; color: #6C6C70">③ 태블릿 가로 — 어둡게 (5열)</div>
+<div style="width: 1280px; height: 800px; overflow: hidden; background: #000000; color: #FFFFFF; position: relative">
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 24px 0">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: #1C1C1E; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08)"></div>
+<div style="display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: #1C1C1E; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08)">
+<div style="padding: 0 16px; height: 38px; border-radius: 8px; background: #3A3A3C; display: flex; align-items: center; font-size: 14px; font-weight: 700">서재</div>
+<div style="padding: 0 16px; height: 38px; display: flex; align-items: center; font-size: 14px; color: #98989F">독서 기록</div>
+<div style="padding: 0 16px; height: 38px; display: flex; align-items: center; font-size: 14px; color: #98989F">설정</div>
+</div>
+<div style="display: flex; gap: 8px"><div style="width: 44px; height: 44px; border-radius: 12px; background: #1C1C1E; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08)"></div><div style="width: 44px; height: 44px; border-radius: 12px; background: #1C1C1E; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08)"></div></div>
+</div>
+<div style="padding: 20px 40px 22px; font-size: 36px; font-weight: 900">전체</div>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 30px 36px; padding: 0 40px">
+<sc-for list="{{tab}}" as="b" hint-placeholder-count="10">
+<div>
+<div style="position: relative; height: 290px; display: flex; align-items: flex-end">
+<div style="display: {{b.stackShow}}; position: absolute; left: 0; bottom: 14px; width: 82%; aspect-ratio: {{b.ratio}}; border-radius: 1px 3px 3px 1px; background: {{b.bg2}}"></div>
+<div style="position: relative; width: {{b.w}}; margin-left: {{b.ml}}; aspect-ratio: {{b.ratio}}; border-radius: 1px 4px 4px 1px; background: {{b.bg}}; box-shadow: 0 18px 28px -14px {{b.glow}}; overflow: hidden">
+<div style="position: absolute; left: 0; top: 0; bottom: 0; width: 7px; background: linear-gradient(90deg, rgba(255,255,255,0.32), rgba(255,255,255,0.05) 60%, rgba(0,0,0,0.18))"></div>
+<div style="display: {{b.frame}}; position: absolute; inset: 8px 8px 8px 13px; border: 1px solid rgba(255,255,255,0.16)"></div>
+<div style="display: {{b.band}}; position: absolute; left: 18px; right: 12px; top: 14px; height: 4px; background: {{b.bandC}}"></div>
+<div style="position: absolute; left: 18px; right: 12px; top: {{b.tTopL}}; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-align: {{b.align}}; font-size: {{b.tsL}}; font-weight: {{b.tw}}; line-height: 1.25; color: {{b.ink}}; word-break: keep-all">{{b.title}}</div>
+<div style="display: {{b.frame}}; position: absolute; left: 14px; right: 12px; bottom: 20px; text-align: center; font-size: 13px; color: rgba(255,255,255,0.75)">{{b.by}}</div>
+<div style="display: {{b.band}}; position: absolute; left: 18px; right: 22px; top: 80px; height: 30%; background-image: repeating-linear-gradient(#DCDCE0 0 1px, transparent 1px 7px)"></div>
+</div>
+</div>
+<div style="display: flex; align-items: center; margin-top: 10px">
+<span style="display: {{b.pillShow}}; height: 22px; padding: 0 8px; border-radius: 11px; background: #0A3D7A; color: #9FD0FF; font-size: 12px; font-weight: 700; line-height: 22px">{{b.state}}</span>
+<span style="display: {{b.textShow}}; font-size: 13px; color: #98989F">{{b.state}}</span>
+<span style="flex-grow: 1"></span><span style="color: #98989F; font-size: 18px; letter-spacing: 1px">···</span>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1840}}'>
+class Component extends DCLogic {
+renderVals() {
+const G = (a, b) => 'linear-gradient(180deg, ' + a + ' 0%, ' + b + ' 100%)';
+const NOV = { '어린 왕자': [G('#1E7BD6', '#0B2D63'), '생텍쥐페리', 'rgba(30,123,214,0.5)'], '데미안': [G('#B21E1E', '#4A0B0B'), '헤르만 헤세', 'rgba(178,30,30,0.5)'], '동물농장': [G('#1F8A3A', '#0B3A1A'), '조지 오웰', 'rgba(31,138,58,0.45)'], '등대지기': [G('#5A5F3A', '#262817'), '이도윤', 'rgba(90,95,58,0.45)'], '겨울의 정원': [G('#4A4E5A', '#1E2027'), '한소율', 'rgba(90,90,100,0.4)'] };
+const COM = { '코트 위의 여름': ['#F2C230', '#1C1C1C', '#FF6A13'] };
+const BAND = { HWP: '#2E6FA8', HWPX: '#2E6FA8', PDF: '#C2343F', DOCX: '#2B579A' };
+const bk = (title, fmt, st, series) => { const n = NOV[title], c = COM[title], doc = !n && !c;
+const isPill = st === '새 책' || /%$/.test(st);
+return { title, by: n ? n[1] : '', bg: n ? n[0] : c ? c[0] : '#F7F7F9', bg2: c ? c[2] : '#888', glow: n ? n[2] : c ? 'rgba(242,194,48,0.45)' : 'rgba(0,0,0,0.35)',
+ink: n ? '#FFFFFF' : c ? c[1] : '#26282B', frame: n ? 'block' : 'none', band: doc ? 'block' : 'none', bandC: BAND[fmt] || '#999',
+align: n ? 'center' : 'left', tw: n ? 500 : 900, ts: doc ? '7.5px' : n ? '11px' : '13px', tsL: doc ? '12px' : n ? '19px' : '22px', tTop: doc ? '17px' : '18px', tTopL: doc ? '28px' : '32px',
+ratio: doc ? '1 / 1.414' : '1 / 1.48', pct: /%$/.test(st) ? st : '0%', bar: /%$/.test(st) ? 'block' : 'none',
+stackShow: series ? 'block' : 'none', w: series ? '82%' : '100%', ml: series ? '18%' : '0',
+state: st, pillShow: isPill ? 'inline-block' : 'none', textShow: isPill ? 'none' : 'inline', docTitle: doc ? 'block' : 'none' }; };
+const list = [bk('2025 행정업무운영 편람', 'HWP', '42%'), bk('코트 위의 여름', 'CBZ', '24권의 책', true), bk('어린 왕자', 'EPUB', '80%'),
+bk('데미안', 'EPUB', '새 책'), bk('2025년도 아동양육시설 운영비 보조금 교부 신청서', 'HWPX', '새 책'), bk('동물농장', 'EPUB', '다 읽음'),
+bk('인사 규정', 'PDF', '65%'), bk('등대지기', 'EPUB', '새 책'), bk('겨울의 정원', 'EPUB', '다 읽음')];
+const light = { label: '① 전체 — 밝게 (휴대폰 3열)', bg: '#FFFFFF', fg: '#111316', sub: '#8E8E93', btn: 'rgba(255,255,255,0.9)', btnLine: '0 0 0 1px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.08)', pillBg: '#1E5FB4', pillFg: '#FFFFFF', books: list };
+const dark = { label: '② 전체 — 어둡게', bg: '#000000', fg: '#FFFFFF', sub: '#98989F', btn: '#1C1C1E', btnLine: 'inset 0 0 0 1px rgba(255,255,255,0.08)', pillBg: '#0A3D7A', pillFg: '#9FD0FF', books: list };
+return { phones: [light, dark], tab: list.concat([bk('회의 자료', 'PDF', '새 책')]) };
+}
+}
+</script>
+</body>
+</html>
