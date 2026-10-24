@@ -24,14 +24,14 @@ class MetaAccuracyProbe {
     private val cases = listOf(
         "데미안 - 헤르만 헤세.epub" to ("데미안" to "헤세"),
         "어린왕자(생텍쥐페리)_완역본.epub" to ("어린 왕자" to "생텍쥐페리"),
-        "1984 - George Orwell.epub" to ("1984" to "Orwell"),
-        "Animal Farm (George Orwell) [EN].epub" to ("Animal Farm" to "Orwell"),
+        "1984 - George Orwell.epub" to ("1984" to "Orwell|오웰"),
+        "Animal Farm (George Orwell) [EN].epub" to ("Animal Farm" to "Orwell|오웰"),
         "채식주의자_한강.epub" to ("채식주의자" to "한강"),
         "소년이 온다 - 한강 [창비].epub" to ("소년이 온다" to "한강"),
         "아몬드 손원평.epub" to ("아몬드" to "손원평"),
         "82년생 김지영.epub" to ("82년생 김지영" to "조남주"),
-        "The Great Gatsby - F. Scott Fitzgerald.epub" to ("Great Gatsby" to "Fitzgerald"),
-        "Pride and Prejudice by Jane Austen.epub" to ("Pride and Prejudice" to "Austen"),
+        "The Great Gatsby - F. Scott Fitzgerald.epub" to ("Great Gatsby" to "Fitzgerald|피츠제럴드"),
+        "Pride and Prejudice by Jane Austen.epub" to ("Pride and Prejudice" to "Austen|오스틴"),
         "[대원] 슬램덩크 03권 (완) 1200px.cbz" to ("슬램덩크" to "이노우에"),
         "원피스_vol.012.cbz" to ("원피스" to "오다"),
         "나루토 1권.cbz" to ("나루토" to "키시모토"),
@@ -39,15 +39,15 @@ class MetaAccuracyProbe {
         "드래곤볼 완전판 01.cbz" to ("드래곤볼" to "토리야마"),
         "명탐정 코난 10권.cbz" to ("명탐정 코난" to "아오야마"),
         "귀멸의 칼날 1권 (scan).cbz" to ("귀멸의 칼날" to "고토게"),
-        "One Piece v01 (Digital).cbz" to ("One Piece" to "Oda"),
-        "Naruto Vol. 3.cbz" to ("Naruto" to "Kishimoto"),
-        "Berserk 01 [HQ].cbz" to ("Berserk" to "Miura"),
+        "One Piece v01 (Digital).cbz" to ("One Piece" to "Oda|오다"),
+        "Naruto Vol. 3.cbz" to ("Naruto" to "Kishimoto|키시모토"),
+        "Berserk 01 [HQ].cbz" to ("Berserk" to "Miura|미우라"),
         "총균쇠_재레드다이아몬드_스캔.pdf" to ("총 균 쇠" to "다이아몬드"),
         "사피엔스 (유발 하라리) 600dpi.pdf" to ("사피엔스" to "하라리"),
         "코스모스 칼세이건 scan.pdf" to ("코스모스" to "세이건"),
         "정의란 무엇인가 - 마이클 샌델.pdf" to ("정의란 무엇인가" to "샌델"),
         "이기적 유전자 (리처드 도킨스) 스캔본.pdf" to ("이기적 유전자" to "도킨스"),
-        "The Selfish Gene - Richard Dawkins.pdf" to ("Selfish Gene" to "Dawkins"),
+        "The Selfish Gene - Richard Dawkins.pdf" to ("Selfish Gene" to "Dawkins|도킨스"),
         "토지 1권 박경리.pdf" to ("토지" to "박경리"),
         "해리포터와 마법사의 돌 1.epub" to ("해리 포터와 마법사의 돌" to "롤링"),
         "삼국지 1권 이문열.epub" to ("삼국지" to "이문열"),
@@ -92,7 +92,7 @@ class MetaAccuracyProbe {
     private fun right(c: MetaRules.Candidate, title: String, author: String): Boolean {
         val t = MetaRules.norm(c.title); val want = MetaRules.norm(title)
         val titleOk = t.contains(want) || MetaRules.similarity(c.title, title) >= 85
-        val authorOk = c.author.isBlank() || MetaRules.norm(c.author).contains(MetaRules.norm(author))
+        val authorOk = c.author.isBlank() || author.split('|').any { MetaRules.norm(c.author).contains(MetaRules.norm(it)) }
         return titleOk && authorOk
     }
 

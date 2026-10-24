@@ -54,6 +54,30 @@ class MetaRulesTest {
         assertEquals("수레바퀴 아래서", r.last().first.title)
     }
 
+    private fun cand(title: String, author: String) = MetaRules.Candidate(title, author, "", "", "", "", "카카오")
+
+    @Test
+    fun authorSplitFromFileName() {
+        assertEquals(MetaRules.Query("정의란 무엇인가", 0, "마이클 샌델"), MetaRules.query("정의란 무엇인가 - 마이클 샌델"))
+        assertEquals(MetaRules.Query("어린왕자", 0, "생텍쥐페리"), MetaRules.query("어린왕자(생텍쥐페리)_완역본"))
+        assertEquals(MetaRules.Query("Pride and Prejudice", 0, "Jane Austen"), MetaRules.query("Pride and Prejudice by Jane Austen"))
+        assertEquals(MetaRules.Query("Animal Farm", 0, "George Orwell"), MetaRules.query("Animal Farm (George Orwell) [EN]"))
+        // 권수 괄호는 지은이가 아님
+        assertEquals(MetaRules.Query("나루토", 3, ""), MetaRules.query("나루토 (3)"))
+    }
+
+    @Test
+    fun noAutoForWrongAuthorOrDerivedBook() {
+        val q = MetaRules.query("정의란 무엇인가 - 마이클 샌델")
+        assertTrue(MetaRules.match(q, cand("정의란 무엇인가", "마이클 샌델")).auto)
+        assertFalse("요약·해설서", MetaRules.match(q, cand("[필독서 따라잡기] 정의란 무엇인가(마이클 샌델)", "베리타스알파 편집국")).auto)
+        assertFalse("지은이가 다름", MetaRules.match(MetaRules.query("1984 - George Orwell"), cand("1984 George Orwell", "송성태")).auto)
+        assertFalse("세트", MetaRules.match(MetaRules.query("드래곤볼 완전판 01"), cand("드래곤볼 완전판 세트(1-34권)", "토리야마 아키라")).auto)
+        assertFalse("만화판", MetaRules.match(MetaRules.query("토지 1권"), cand("만화 토지 1", "박경리")).auto)
+        assertEquals(true, MetaRules.sameAuthor("George Orwell", "Orwell George"))
+        assertEquals(null, MetaRules.sameAuthor("", "조지 오웰"))
+    }
+
     @Test
     fun isbnOnlyDigits() {
         assertEquals("9788937460449", MetaRules.isbn("978-89-374-6044-9"))

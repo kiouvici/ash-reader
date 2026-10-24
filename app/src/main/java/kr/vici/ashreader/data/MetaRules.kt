@@ -13,8 +13,11 @@ object MetaRules {
     /** 자동으로 바꾸는 최소 일치도. */
     const val AUTO_MIN = 90
 
-    /** 검색어: 정리한 제목 + 권수(없으면 0). 보내는 것은 이것뿐(책 내용·경로·파일 전체 이름 안 보냄). */
-    data class Query(val title: String, val volume: Int)
+    /**
+     * 검색어: 정리한 제목 + 권수(없으면 0). 보내는 것은 이것뿐(책 내용·경로·파일 전체 이름 안 보냄).
+     * [author] = 파일 이름에 든 지은이("제목 - 지은이"·"(지은이)"·"by 지은이"·"제목_지은이"). 보내지 않고 후보 고를 때만 쓴다.
+     */
+    data class Query(val title: String, val volume: Int, val author: String = "")
 
     /** 인터넷 후보 하나. [source] = "국립중앙도서관"·"카카오"·"구글 북스". */
     data class Candidate(
@@ -22,8 +25,14 @@ object MetaRules {
         val coverUrl: String, val source: String,
     )
 
-    data class Match(val score: Int, val volumeOk: Boolean) {
-        val auto: Boolean get() = score >= AUTO_MIN && volumeOk
+    /**
+     * [authorOk] = 파일 이름의 지은이와 후보 지은이가 맞나(null = 어느 한쪽이 없어 모름).
+     * [derived] = 후보가 그 책의 해설·요약·만화판·오디오북·세트 같은 딸린 책으로 보임.
+     * 자동 적용: 일치도 90 이상 + 권수 맞음 + 딸린 책 아님 + 지은이가 틀리지 않음(모르면 제목이 완전히 같을 때만).
+     */
+    data class Match(val score: Int, val volumeOk: Boolean, val authorOk: Boolean? = null, val derived: Boolean = false) {
+        val auto: Boolean get() = score >= AUTO_MIN && volumeOk && !derived &&
+            (authorOk == true || (authorOk == null && score == 100))
     }
 
     private val badPeople = setOf(
@@ -70,7 +79,20 @@ object MetaRules {
         s = s.replace(Regex("\\b(v|ver)\\.?\\s?\\d+(\\.\\d+)*\\b", RegexOption.IGNORE_CASE), " ")
         s = s.replace(Regex("\\b\\d{3,4}\\s?(px|dpi|p)\\b", RegexOption.IGNORE_CASE), " ")
         s = s.replace(Regex("\\b(scan|scanned|c2c|hq|hd|epub|pdf|cbz|cbr|zip|rar)\\b", RegexOption.IGNORE_CASE), " ")
-        s = s.replace(Regex("(스캔본|스캔|고화질|저화질|완결|합본|전자책|이북)"), " ")
+        s = s.replace(Regex("(스캔본|스캔|고화질|저화질|완결|합본|전자책|이북|완역본|완역|개정판|특별판|무삭제판)"), " ")
+        // 지은이(보내지 않음): "제목 by 지은이" / "제목 - 지은이" / "제목 (지은이)" — 권수 아닌 글자일 때만
+        var author = ""
+        fun looksName(x: String) = x.isNotBlank() && x.length <= 40 && x.any { it.isLetter() } &&
+            !Regex("^(제?\\s?\\d+\\s?(권|화|부|편)|(vol|volume|v|no)\\.?\\s?\\d+)$", RegexOption.IGNORE_CASE).matches(x.trim())
+        Regex("\\s+by\\s+(.+)$", RegexOption.IGNORE_CASE).find(s)?.let { m ->
+            if (looksName(m.groupValues[1])) { author = m.groupValues[1].trim(); s = s.removeRange(m.range) }
+        }
+        if (author.isEmpty()) Regex("\\s[-–—]\\s+(.+)$").find(s)?.let { m ->
+            if (looksName(m.groupValues[1])) { author = m.groupValues[1].trim(); s = s.removeRange(m.range) }
+        }
+        if (author.isEmpty()) Regex("\\(([^()]+)\\)").find(s)?.let { m ->
+            if (looksName(m.groupValues[1])) { author = m.groupValues[1].trim(); s = s.removeRange(m.range) }
+        }
         // 권수: "03권"·"제3권"·"vol.3"·"Vol 3"·"#3"·"3화"·끝의 숫자
         var vol = 0
         val volPatterns = listOf(
@@ -87,7 +109,31 @@ object MetaRules {
         }
         s = s.replace(Regex("\\(\\s*\\)"), " ").replace(Regex("[\\-–—·:,]+\\s*$"), " ")
         s = s.replace(Regex("\\s+"), " ").trim().trim('-', '.', ',', ' ')
-        return Query(s.ifBlank { fileTitle.trim() }, vol)
+        return Query(s.ifBlank { fileTitle.trim() }, vol, author.replace(Regex("\\s+"), " "))
+    }
+
+    /** 이름 낱말(2자 이상, 비교용으로 정리). */
+    private fun nameTokens(s: String): List<String> = s.split(Regex("[^\\p{L}\\p{N}]+")).map { norm(it) }.filter { it.length >= 2 }
+
+    /** 파일 이름 지은이 [a] 와 후보 지은이 [b] 가 같은 사람인가. 한쪽이 비면 null(모름). */
+    fun sameAuthor(a: String, b: String): Boolean? {
+        if (a.isBlank() || b.isBlank()) return null
+        val na = norm(a); val nb = norm(b)
+        return nameTokens(a).any { nb.contains(it) } || nameTokens(b).any { na.contains(it) }
+    }
+
+    /** 딸린 책(해설·요약·만화판·오디오북·세트 등) 표시 낱말. 검색어에 같은 낱말이 있으면 딸린 책으로 보지 않는다. */
+    private val derivedWords = listOf(
+        "따라잡기", "깊게읽기", "깊이읽기", "읽기가이드", "해설", "요약", "줄거리", "필독서", "논술", "워크북", "독후감", "가이드", "오디오북",
+        "세트", "만화", "인스타리드", "스터디", "서평", "핵심정리", "한권으로", "쉽게읽는", "원작", "studyguide", "summary", "sparknotes",
+        "cliffsnotes", "analysis", "workbook", "audiobook", "boxset", "boxedset", "companion",
+    )
+
+    private fun derived(q: Query, rawTitle: String, authorOk: Boolean?): Boolean {
+        val t = norm(rawTitle); val qt = norm(q.title)
+        if (derivedWords.any { t.contains(it) && !qt.contains(it) }) return true
+        // 제목에 지은이 이름이 든 책은 대개 그 책을 다룬 다른 책(예: "[필독서] 정의란 무엇인가(마이클 샌델)") — 지은이가 맞을 때만 봐 준다
+        return authorOk != true && q.author.isNotBlank() && nameTokens(q.author).any { t.contains(it) && !qt.contains(it) }
     }
 
     /** 비교용: 소문자·NFC·띄어쓰기·문장부호 없앰. */
@@ -116,14 +162,29 @@ object MetaRules {
     /** 검색어와 후보의 일치도. 권수: 둘 다 없거나 같으면 맞음. */
     fun match(q: Query, c: Candidate): Match {
         val cq = query(c.title)
-        val score = similarity(q.title, cq.title)
+        // 후보 제목에 붙은 지은이 이름("데미안+헤르만 헤세")은 떼고 견준다
+        var ct = cq.title
+        for (tok in (c.author + " " + q.author).split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 2 }) {
+            val stripped = ct.replace(tok, " ", ignoreCase = true).replace(Regex("\\s+"), " ").trim()
+            if (norm(stripped).isNotEmpty()) ct = stripped
+        }
+        val score = maxOf(similarity(q.title, cq.title), similarity(q.title, ct))
         val volOk = q.volume == cq.volume || (q.volume == 0 && cq.volume == 1)
-        return Match(score, volOk)
+        val authorOk = sameAuthor(q.author, c.author)
+        return Match(score, volOk, authorOk, derived(q, c.title, authorOk))
     }
 
-    /** 일치도 순 정렬(같으면 표지 있는 것 먼저). */
+    /** 일치도 순 정렬: 자동 적용감 먼저, 지은이 맞는 것, 일치도, 표지 있는 것. */
     fun rank(q: Query, list: List<Candidate>): List<Pair<Candidate, Match>> =
-        list.map { it to match(q, it) }.sortedWith(compareByDescending<Pair<Candidate, Match>> { it.second.score }.thenByDescending { it.first.coverUrl.isNotEmpty() })
+        list.map { it to match(q, it) }.sortedWith(
+            compareByDescending<Pair<Candidate, Match>> { it.second.auto }
+                .thenByDescending { it.second.authorOk == true }
+                .thenByDescending { !it.second.derived }
+                .thenByDescending { it.second.score }
+                // 같으면 군더더기 없는 제목("데미안" > "데미안 (영한 대역)")
+                .thenByDescending { similarity(q.title, it.first.title) }
+                .thenByDescending { it.first.coverUrl.isNotEmpty() },
+        )
 
     /** ISBN-10/13 만 남김(숫자·X). 아니면 "". */
     fun isbn(s: String?): String {
