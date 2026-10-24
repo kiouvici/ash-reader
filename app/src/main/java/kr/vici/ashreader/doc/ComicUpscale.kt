@@ -242,8 +242,8 @@ class ComicUpscale(context: Context, private val doc: ComicReaderDoc) : Closeabl
 
         fun root(c: Context) = File(c.cacheDir, "upscale")
 
-        /** 캐시 판. 결과를 만드는 방식이 바뀌면 올린다(3: 흑백 그림은 흑백 결과 — 작업 03). */
-        private const val CACHE_VERSION = 3
+        /** 캐시 판. 결과를 만드는 방식이 바뀌면 올린다(3: 흑백 그림은 흑백 결과, 4: 타일 gap 동기화 — 작업 03). */
+        private const val CACHE_VERSION = 4
 
         /** 옛 판으로 만든 결과(흑백 만화가 붉게 물든 것 등)를 한 번 지운다. 엔진을 처음 쓸 때 부른다. */
         @Synchronized

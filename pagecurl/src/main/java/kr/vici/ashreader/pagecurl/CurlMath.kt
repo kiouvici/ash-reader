@@ -126,6 +126,20 @@ object CurlMath {
         return k * k * (3f - 2f * k) * (1f - u)
     }
 
+    /**
+     * 진행도 [u] 에서 잡은 점이 끌려가는 목표 y. [gy] = 잡은 높이, [py] = 지금 손가락 높이, [h] = 쪽 높이.
+     * 작업 03: 실제 책처럼 잡은 높이에 따라 기울기가 달라진다 — 아래쪽을 잡으면 아래 모서리가, 위쪽을 잡으면
+     * 위 모서리가 먼저 넘어가고 가운데를 잡으면 곧게 넘어간다(예전엔 늘 위로 들어 올려 아래가 앞서는 모양으로 고정).
+     */
+    fun fingerY(gy: Float, py: Float, h: Float, u: Float): Float {
+        val lift = dampLift(py - gy, h * 0.08f) * liftWeight(u)
+        val bias = ((gy / h.coerceAtLeast(1f)) - 0.5f).coerceIn(-0.5f, 0.5f) * 2f // 위 -1 … 가운데 0 … 아래 +1
+        return gy + lift - (h * CORNER_LEAD) * bias * 4f * u * (1f - u)
+    }
+
+    /** 모서리가 앞서는 정도(쪽 높이 비율, 진행 중간·쪽 끝을 잡았을 때). */
+    const val CORNER_LEAD = 0.08f
+
     /** [liftWeight] 가 0 에서 다 오르는 진행도. */
     private const val LIFT_EASE = 0.2f
 

@@ -628,9 +628,8 @@ class PageCurlView @JvmOverloads constructor(
         val gx = viewW
         val radius = CurlMath.radiusFor(u, pw * 0.18f)
         val fx = CurlMath.fingerX(gx, pw, u)
-        // I-716: 손가락 위아래는 조금만 따라가고(최대 쪽 높이의 8%) 평평할 때·다 넘어갈 때 0 으로(작업 03: 되감기 끝 꺾임·깜빡임)
-        val lift = CurlMath.dampLift(py - gy, h * 0.08f) * CurlMath.liftWeight(u)
-        val fy = gy + lift - (h * 0.06f) * 4f * u * (1f - u)
+        // I-716·작업 03: 손가락 위아래는 조금만 따라가고, 잡은 높이에 따라 위·아래 모서리가 먼저 넘어간다
+        val fy = CurlMath.fingerY(gy, py, h, u)
         val curl = CurlMath.curlFor(gx, gy, fx, fy, radius)
         if (rewind) {
             // 뒤집힌 화면: 0 자리 = 실제 오른쪽, pw 자리 = 실제 왼쪽. position(p) 은 이미 이전 펼침(돌아갈 곳)이다.

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Real-CUGAN 2x(ncnn) 화질 향상 JNI. 타일 처리는 nihui/realcugan-ncnn-vulkan(MIT) realcugan.cpp 의 process_cpu
-// (TTA 끔, syncgap 0) 흐름을 따른다: 타일 + prepadding 18, 0~1 정규화, in0 → out0.
+// (TTA 끔) 흐름을 따른다: 타일 + prepadding 18, 0~1 정규화, in0 → out0.
+// 작업 03: SE 모델은 타일마다 전역 평균(gap0~3)을 따로 잡아 고른 망점에서 타일 경계가 네모로 보였다 →
+// realcugan 의 syncgap=2(빠른 동기화)처럼 쪽 전체를 타일 하나 크기로 줄여 gap 을 한 번 구하고 모든 타일에 넣는다.
 // Vulkan 장치가 있고 useGpu=true 이면 ncnn Vulkan 연산, 아니면 CPU(NEON).
 #include <jni.h>
 #include <android/bitmap.h>
@@ -20,7 +22,26 @@ struct Upscaler {
     bool gpu = false;
     int tile = 200;
     int prepadding = 18;  // scale 2
+    bool se = false;      // gap0~gap3 이 있는 SE 모델
 };
+
+const char* const kGap[4] = {"gap0", "gap1", "gap2", "gap3"};
+
+// 쪽 전체를 타일 하나 크기로 줄여 SE 전역 평균 gap0~3 을 구한다(realcugan syncgap=2). 실패하면 false(동기화 없이 처리).
+bool roughGaps(Upscaler* u, const unsigned char* px, int w, int h, int stride, ncnn::Mat gaps[4]) {
+    const int T = u->tile, pre = u->prepadding;
+    const float s = std::min(1.f, (float)T / (float)std::max(w, h));
+    const int sw = std::max(2, (int)(w * s) / 2 * 2), sh = std::max(2, (int)(h * s) / 2 * 2);
+    ncnn::Mat in = ncnn::Mat::from_pixels_resize(px, ncnn::Mat::PIXEL_RGBA2RGB, w, h, stride, sw, sh);
+    const float norm[3] = {1 / 255.f, 1 / 255.f, 1 / 255.f};
+    in.substract_mean_normalize(nullptr, norm);
+    ncnn::Mat padded;
+    ncnn::copy_make_border(in, padded, pre, pre, pre, pre, 2, 0.f, u->net.opt);
+    ncnn::Extractor ex = u->net.create_extractor();
+    ex.input("in0", padded);
+    for (int k = 0; k < 4; k++) if (ex.extract(kGap[k], gaps[k]) != 0) return false;
+    return true;
+}
 
 void throwIo(JNIEnv* env, const char* msg) { env->ThrowNew(env->FindClass("java/io/IOException"), msg); }
 }  // namespace
@@ -59,7 +80,8 @@ Java_kr_vici_ashreader_engine_comic_NativeComic_upscalerCreate(JNIEnv* env, jcla
     env->ReleaseStringUTFChars(jparam, p);
     env->ReleaseStringUTFChars(jbin, b);
     if (r1 != 0 || r2 != 0) { delete u; throwIo(env, "모델을 읽을 수 없음"); return 0; }
-    LOGI("upscaler gpu=%d threads=%d tile=%d", u->gpu, u->net.opt.num_threads, u->tile);
+    for (const ncnn::Blob& bl : u->net.blobs()) if (bl.name == "gap3") { u->se = true; break; }
+    LOGI("upscaler gpu=%d threads=%d tile=%d se=%d", u->gpu, u->net.opt.num_threads, u->tile, u->se);
     return reinterpret_cast<jlong>(u);
 }
 
@@ -92,6 +114,9 @@ Java_kr_vici_ashreader_engine_comic_NativeComic_upscalerRun(JNIEnv* env, jclass,
     const int w = (int)si.width, hgt = (int)si.height, T = u->tile, pre = u->prepadding;
     const unsigned char* px = static_cast<const unsigned char*>(sp);
     bool ok = true;
+    // 타일이 둘 이상일 때만 동기화(한 타일이면 원래 그대로 같은 값)
+    ncnn::Mat gaps[4];
+    const bool sync = u->se && (w > T || hgt > T) && roughGaps(u, px, w, hgt, (int)si.stride, gaps);
     for (int yi = 0; ok && yi < (hgt + T - 1) / T; yi++) {
         const int th = std::min((yi + 1) * T, hgt) - yi * T;
         const int preB = pre + ((th + 1) / 2 * 2 - th);
@@ -113,6 +138,7 @@ Java_kr_vici_ashreader_engine_comic_NativeComic_upscalerRun(JNIEnv* env, jclass,
             ncnn::Mat out;
             ncnn::Extractor ex = u->net.create_extractor();
             ex.input("in0", padded);
+            if (sync) for (int k = 0; k < 4; k++) ex.input(kGap[k], gaps[k]);
             if (ex.extract("out0", out) != 0) { ok = false; break; }
             const float mean[3] = {0, 0, 0};
             const float scale255[3] = {255.f, 255.f, 255.f};

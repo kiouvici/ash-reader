@@ -44,13 +44,25 @@ class CurlReleaseTest {
         val pw = 1000f; val h = 2000f
         val gx = pw; val gy = 1000f; val py = gy + 300f // 손가락을 아래로 끌며 되감음
         for (t in listOf(0.1f, 0.05f, 0.02f, 0.005f)) {
-            val lift = CurlMath.dampLift(py - gy, h * 0.08f) * CurlMath.liftWeight(t)
             val fx = CurlMath.fingerX(gx, pw, t)
-            val fy = gy + lift - (h * 0.06f) * 4f * t * (1f - t)
+            val fy = CurlMath.fingerY(gy, py, h, t)
             val c = CurlMath.curlFor(gx, gy, fx, fy, CurlMath.radiusFor(t, pw * 0.18f))
             // 접힌 선의 방향(dirY 가 크면 축이 기울어 위·아래가 꺾여 보인다)
             assertTrue("t=$t dirY=${c.dirY}", abs(c.dirY) < 0.35f)
         }
+    }
+
+    /** 작업 03: 잡은 높이에 따라 기울기가 반대 — 위를 잡으면 위가, 아래를 잡으면 아래가 앞선다. 가운데는 곧게. */
+    @Test fun grabHeightDecidesWhichCornerLeads() {
+        val pw = 1000f; val h = 2000f; val u = 0.4f
+        fun dirY(gy: Float): Float {
+            val c = CurlMath.curlFor(pw, gy, CurlMath.fingerX(pw, pw, u), CurlMath.fingerY(gy, gy, h, u), CurlMath.radiusFor(u, pw * 0.18f))
+            return c.dirY
+        }
+        val top = dirY(h * 0.1f); val mid = dirY(h * 0.5f); val bottom = dirY(h * 0.9f)
+        assertTrue("위·아래 기울기가 반대여야 함 top=$top bottom=$bottom", top * bottom < 0f)
+        assertEquals(0f, mid, 1e-3f)
+        assertEquals(abs(top), abs(bottom), 1e-3f)
     }
 
     @Test fun releaseCurveContinuesVelocityWithoutJump() {
