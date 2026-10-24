@@ -311,7 +311,7 @@ fun ThemeSheet(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
             ) {
                 Icon(Icons.Gear, null, tint = k.fg, modifier = Modifier.size(18.dp))
-                Text("  사용자화 (글꼴·줄 간격·여백·넘김 효과)", fontSize = 14.5.sp, color = k.fg, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("사용자화 (글꼴·줄 간격·여백·넘김 효과)", modifier = Modifier.padding(start = 8.dp), fontSize = 14.5.sp, color = k.fg, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
     }

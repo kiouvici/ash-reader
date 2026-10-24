@@ -251,9 +251,13 @@ abstract class E2eTest {
     protected fun stackItem(row: String) {
         repeat(3) {
             openMenu()
-            if (!device.hasObject(By.desc(Pattern.compile("테마 및 설정.*")))) runCatching { find(By.desc("메뉴"), 2_500)?.click() }
-            val ok = runCatching { find(By.desc(Pattern.compile(Pattern.quote(row) + ".*")), 3_000)?.click() != null }.getOrDefault(false)
+            // 떠 있는 메뉴는 따로 창(작업 07): 이미 열려 있으면('메뉴 닫기') 다시 누르지 않는다(누르면 닫힌다)
+            if (!device.hasObject(By.desc("메뉴 닫기")) && !device.hasObject(By.desc(Pattern.compile("테마 및 설정.*")))) {
+                runCatching { find(By.desc("메뉴"), 2_500)?.click() }
+            }
+            val ok = runCatching { find(By.desc(Pattern.compile(Pattern.quote(row) + ".*")), 5_000)?.click() != null }.getOrDefault(false)
             if (ok) { SystemClock.sleep(600); return }
+            SystemClock.sleep(500)
         }
         shot("stack-$row"); fail("떠 있는 메뉴에 '$row' 이 없음")
     }
@@ -290,8 +294,8 @@ abstract class E2eTest {
             "책갈피" -> {
                 repeat(3) {
                     openMenu()
-                    if (!device.hasObject(By.desc(Pattern.compile("테마 및 설정.*")))) runCatching { find(By.desc("메뉴"), 2_500)?.click() }
-                    val ok = runCatching { find(By.desc(Pattern.compile("책갈피( 빼기)?")), 3_000)?.click() != null }.getOrDefault(false)
+                    if (!device.hasObject(By.desc("메뉴 닫기")) && !device.hasObject(By.desc(Pattern.compile("테마 및 설정.*")))) runCatching { find(By.desc("메뉴"), 2_500)?.click() }
+                    val ok = runCatching { find(By.desc(Pattern.compile("책갈피( 빼기)?")), 5_000)?.click() != null }.getOrDefault(false)
                     if (ok) { SystemClock.sleep(600); return }
                 }
                 shot("bookmark-btn"); fail("책갈피 단추가 없음")
