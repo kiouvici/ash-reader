@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -65,6 +66,8 @@ fun LibraryScreen(
     homeKey: Int = 0,
     /** 가로 화면: 제목 줄 오른쪽 내비게이션(작업 06). */
     navBar: (@Composable () -> Unit)? = null,
+    /** 책 정보(작업 06): 문서 메뉴 → '책 정보·표지 바꾸기'. */
+    onBookInfo: ((Book) -> Unit)? = null,
 ) {
     var menuFor by remember { mutableStateOf<Book?>(null) }
     LibraryPane(
@@ -82,6 +85,7 @@ fun LibraryScreen(
             onOpen = { menuFor = null; onOpen(b) },
             onRemove = { menuFor = null; onRemove(b) },
             onExport = { menuFor = null; onExport(b) },
+            onInfo = onBookInfo?.let { f -> { menuFor = null; f(b) } },
         )
     }
 }
@@ -102,8 +106,10 @@ fun Pill(label: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 fun rememberCover(b: Book): ImageBitmap? {
     val context = LocalContext.current
-    val img by produceState(Covers.peek(b)?.asImageBitmap(), b.id, b.path) {
-        Covers.load(context, b)?.let { bmp -> value = bmp.asImageBitmap() }
+    // 작업 06: 고른 표지가 바뀌면(Covers.rev) 다시 읽는다
+    val rev by Covers.rev.collectAsState()
+    val img by produceState(Covers.peek(b)?.asImageBitmap(), b.id, b.path, b.coverSource, rev) {
+        value = Covers.load(context, b)?.asImageBitmap()
     }
     return img
 }
@@ -111,7 +117,7 @@ fun rememberCover(b: Book): ImageBitmap? {
 @Composable
 fun Cover(b: Book, modifier: Modifier = Modifier) {
     val f = DocFormat.of(b.format)
-    val img = if (Covers.supported(f)) rememberCover(b) else null
+    val img = if (Covers.supported(f) || b.coverSource != Book.COVER_AUTO) rememberCover(b) else null
     androidx.compose.foundation.layout.BoxWithConstraints(modifier.aspectRatio(3f / 4.2f).clip(RoundedCornerShape(6.dp)).background(f.coverColor())) {
         // 7G: 작은 표지(문서 메뉴 48dp 등)에서는 형식 표시를 작게 — 'DO / C' 처럼 두 줄로 꺾이지 않게
         val small = maxWidth < 80.dp

@@ -96,6 +96,31 @@ class B02LibraryTest : E2eTest() {
         }
     }
 
+    /** 작업 06: 문서 메뉴 → 책 정보 → 표지 고르기·원래대로·다른 정보 찾기(인터넷 꺼짐 → 묻는 창만) → 뒤로. */
+    @Test
+    fun bookInfo_open_reset() {
+        launchApp()
+        // 이북 한 권(압축 파일은 인터넷 찾기 대상이 아니다)을 검색으로 찾아 길게 누른다
+        obj(By.desc("검색"), 30_000).click()
+        obj(By.clazz("android.widget.EditText")).text = "e2e-epub"
+        SystemClock.sleep(600)
+        obj(By.desc(Pattern.compile("e2e-epub 소설, EPUB, .*")), 10_000).longClick()
+        obj(By.text("열기"), 8_000)
+        (scrollFind(By.text("책 정보·표지 바꾸기")) ?: obj(By.text("책 정보·표지 바꾸기"))).click()
+        assertTrue("책 정보 화면이 아님", has(By.text("표지 고르기"), 8_000))
+        shot("book-info")
+        obj(By.desc("표지: 첫 쪽")).click(); SystemClock.sleep(1_500)
+        shot("book-info-first-page")
+        clickText("원래대로"); SystemClock.sleep(800)
+        obj(By.text("다른 정보 찾기")).click()
+        // 시험에서는 '인터넷에서 책 정보 찾기'가 꺼져 있다 → 켤지 묻는 창
+        assertTrue("인터넷을 켤지 묻지 않음", has(By.text("인터넷에서 찾을까요?"), 5_000))
+        shot("book-info-ask-net")
+        clickText("취소")
+        obj(By.desc("뒤로")).click(); SystemClock.sleep(800)
+        assertTrue(has(By.desc(Pattern.compile("전체, \\d+권")), 8_000))
+        assertAlive()
+    }
     @Test
     fun libraryFolders_pickerOpens_removeAndUndo() {
         launchApp()

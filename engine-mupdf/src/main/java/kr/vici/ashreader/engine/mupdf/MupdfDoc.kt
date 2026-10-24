@@ -27,6 +27,9 @@ class MupdfDoc private constructor(private val doc: Document) : Closeable {
 
     fun pageCount(): Int = doc.countPages()
 
+    /** 문서 정보(작업 06 책 정보): "info:Title"·"info:Author"·"info:Producer" 등. 없으면 null. */
+    fun metaData(key: String): String? = runCatching { doc.getMetaData(key) }.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+
     /** 쪽 세로/가로 비율(F-22 스크롤 보기 자리 잡기). */
     fun pageAspect(i: Int): Float {
         val page = doc.loadPage(i)

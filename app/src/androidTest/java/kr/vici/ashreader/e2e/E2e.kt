@@ -81,7 +81,8 @@ abstract class E2eTest {
     // ───────────── 상태 준비 ─────────────
 
     protected fun resetPrefs(storageAsked: Boolean = true, tapGuideShown: Boolean = true) = runBlocking {
-        app.prefs.update { cur -> Settings(storageAsked = storageAsked, tapGuideShown = tapGuideShown, storeInit = cur.storeInit, ttsVolumeHint = true) }
+        // 작업 06: 책 정보 "인터넷에서 찾을까요?" 는 이미 물은 것으로(시험 중 창이 가리지 않게)
+        app.prefs.update { cur -> Settings(storageAsked = storageAsked, tapGuideShown = tapGuideShown, storeInit = cur.storeInit, ttsVolumeHint = true, metaAsked = true) }
     }
 
     /** Download 를 모으는 폴더로 두고 한 번 모은다(시험 파일이 서재에 들어오게). 읽은 위치·보기 방식은 처음으로. */

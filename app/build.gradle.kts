@@ -8,7 +8,7 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// N-05 음성 시험 전용: -Pash.negativeTest=true 일 때만 INTERNET 권한을 넣은 빌드 유형(negativeProbe)을 만든다.
+// N-05 음성 시험 전용: -Pash.negativeTest=true 일 때만 금지 권한(위치)을 넣은 빌드 유형(negativeProbe)을 만든다.
 val negativeTest: Boolean = providers.gradleProperty("ash.negativeTest").orNull == "true"
 
 // 실험 ② APK 크기 측정 전용: -Pash.withOffice=true 일 때만 :engine-office(POI HWPF 포함)를 넣고
@@ -82,7 +82,7 @@ android {
             }
         }
         if (negativeTest) {
-            // src/negativeProbe/AndroidManifest.xml 이 INTERNET 권한을 추가한다. 배포 금지.
+            // src/negativeProbe/AndroidManifest.xml 이 금지 권한(위치)을 추가한다. 배포 금지.
             create("negativeProbe") {
                 initWith(getByName("debug"))
                 signingConfig = signingConfigs.getByName("debug")
@@ -102,6 +102,13 @@ android {
         compose = true
         // AppInfo.VERSION_LABEL = BuildConfig.VERSION_NAME (CI 판 이름)
         buildConfig = true
+    }
+
+    // 작업 06: 책 정보 찾기 Open API 키(국립중앙도서관 인증키·카카오 REST API 키). 저장소에 넣지 않는다 — 노트북은 local.properties
+    // (ash.kakaoKey / ash.nlKey, 커밋 금지), CI 는 시크릿 → 환경변수(ASH_KAKAO_KEY / ASH_NL_KEY). 없으면 빈 값 = 구글 북스만.
+    defaultConfig {
+        buildConfigField("String", "KAKAO_KEY", "\"${ashSecret("ash.kakaoKey", "ASH_KAKAO_KEY")}\"")
+        buildConfigField("String", "NL_KEY", "\"${ashSecret("ash.nlKey", "ASH_NL_KEY")}\"")
     }
 }
 
@@ -148,13 +155,14 @@ dependencies {
     androidTestImplementation(libs.androidx.test.uiautomator)
 }
 
-// N-05 ①: 병합된 매니페스트 INTERNET 권한 검사 (구현은 buildSrc/AshBuild.kt)
+// N-05 ①: 병합된 매니페스트 금지 권한 검사(본 앱은 책 정보 찾기용 INTERNET 만 허용) ⑤: 네트워크는 net/ 에서만 (구현은 buildSrc/AshBuild.kt)
 androidComponents {
     onVariants { variant ->
-        registerNoInternetCheck(variant.name, variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+        registerPermissionCheck(variant.name, variant.artifacts.get(SingleArtifact.MERGED_MANIFEST), allowInternet = true)
     }
 }
-wireNoInternetChecks()
+wirePermissionChecks()
+registerNetworkConfinedCheck(file("src/main/java/kr/vici/ashreader/net"))
 
 // C1: 오픈소스 고지 목록 갱신용(손으로 돌림). ./gradlew --no-configuration-cache :app:ashThirdPartyDeps
 registerThirdPartyDepsTask()

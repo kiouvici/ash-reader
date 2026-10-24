@@ -37,6 +37,7 @@ class F06SettingsTest : E2eTest() {
     /** 하위 화면 → 줄(지금 S-51 표의 모든 줄이 어디로 옮겨졌는지도 이 표가 보여 준다). */
     private val pages = linkedMapOf(
         "서재 폴더" to Page(switches = listOf("서점 바로가기 줄 보이기"), screens = listOf("파일 접근 권한", "서점 바로가기 편집", "폴더 추가·빼기")),
+        "책 정보" to Page(switches = listOf("인터넷에서 책 정보 찾기"), dialogs = listOf("지금 모든 책 정보 다시 찾기")),
         "백업과 기록" to Page(switches = listOf("한 번만 보기 기록 지우기"), screens = listOf("형광펜·메모 모두 내보내기")),
         "글자와 화면" to Page(
             switches = listOf("TXT 끊긴 줄 합치기", "TXT 줄 앞 공백 정리"),
@@ -70,8 +71,9 @@ class F06SettingsTest : E2eTest() {
         SystemClock.sleep(400)
     }
 
+    /** 하위 화면 닫기: 기기 '뒤로'(화면을 내려 둔 채면 위의 뒤로 단추가 화면 밖이라 누를 수 없다). 태블릿 가로 두 칸이면 할 일 없음. */
     private fun closePage() {
-        if (backCount() > 0) { compose.onAllNodesWithContentDescription("뒤로")[0].performClick(); compose.waitForIdle(); SystemClock.sleep(300) }
+        if (backCount() > 0) { device.pressBack(); compose.waitForIdle(); SystemClock.sleep(400) }
     }
 
     /** 줄이 없으면(기기에서 숨김 등) 건너뛰고 false. */

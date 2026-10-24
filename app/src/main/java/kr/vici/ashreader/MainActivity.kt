@@ -81,6 +81,10 @@ import kr.vici.ashreader.ui.ReaderScreen
 import kr.vici.ashreader.ui.ReaderTarget
 import kr.vici.ashreader.ui.FloatingNavBar
 import kr.vici.ashreader.ui.HeaderNav
+import kr.vici.ashreader.doc.BookMeta
+import kr.vici.ashreader.doc.Covers
+import kr.vici.ashreader.ui.BookInfoScreen
+import kr.vici.ashreader.ui.MetaAskDialog
 import kr.vici.ashreader.ui.SeriesScreen
 import kr.vici.ashreader.ui.StatsScreen
 import kr.vici.ashreader.ui.VolumeKeys
@@ -102,6 +106,8 @@ internal sealed interface Screen {
     data object BackupImport : Screen
     /** S-15 서점 바로가기 편집 */
     data object StoreEdit : Screen
+    /** 작업 06 책 정보(지은이·출판사·표지 찾기·고치기) */
+    data class BookInfo(val id: String) : Screen
 }
 
 /**
@@ -172,6 +178,7 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
                 Screen.BackupImport -> putString("k", "backupImport")
                 is Screen.Folders -> { putString("k", "folders"); putBoolean("intro", sc.intro) }
                 is Screen.Series -> { putString("k", "series"); putString("key", sc.key) }
+                is Screen.BookInfo -> { putString("k", "bookInfo"); putString("id", sc.id) }
                 is Screen.Reader -> {
                     putString("k", "reader")
                     val t = sc.target
@@ -195,6 +202,7 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
             "backupImport" -> Screen.BackupImport
             "folders" -> Screen.Folders(b.getBoolean("intro"))
             "series" -> b.getString("key")?.let { Screen.Series(it) }
+            "bookInfo" -> b.getString("id")?.let { Screen.BookInfo(it) }
             "reader" -> {
                 val id = b.getString("id"); val path = b.getString("path")
                 if (id.isNullOrEmpty() || path.isNullOrEmpty()) null
@@ -348,6 +356,16 @@ private fun AshRoot(nav: NavModel) {
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (ready && nav.screen !is Screen.StorageIntro) scan() }
 
+    // 작업 06 책 정보: 아직 찾지 않은 책을 조금씩 채운다(1순위 파일 정보 → 설정·연결이 허락하면 2순위 인터넷 자동 매칭).
+    // 한 번에 40권씩 — 끝나면 DB 가 바뀌어 남은 책 수가 줄고 다시 돈다. 남은 책이 없으면 아무것도 안 한다.
+    val pendingMeta = books.count { it.metaCheckedAt == 0L }
+    LaunchedEffect(ready, pendingMeta, settings.metaNet, settings.metaAuto) {
+        if (!ready || pendingMeta == 0) return@LaunchedEffect
+        kotlinx.coroutines.delay(2_000)
+        val st = settings
+        app.appScope.launch { runCatching { BookMeta.autoFill(context.applicationContext, dao, st, dao.visibleBooks()) } }
+    }
+
     /**
      * 파일 접근 허용됨(S-02) → 서재 폴더 고르기(S-17). 예전처럼 Download 만 몰래 넣지 않고 사용자가 고른다
      * (Download 는 그 화면의 '바로 추가' 한 번으로).
@@ -454,6 +472,8 @@ private fun AshRoot(nav: NavModel) {
     when (val sc = nav.screen) {
         is Screen.Reader -> {
             BackHandler { nav.screen = nav.tab }
+            // 읽는 동안 서재 표지 뽑기·책 정보 채우기는 쉰다(CPU 를 읽기 화면에)
+            DisposableEffect(Unit) { Covers.reading.value = true; onDispose { Covers.reading.value = false } }
             val bookId = sc.target.id
             // 필수 5: 한 번만 보기 문서를 닫으면(회전은 제외) 변환 캐시·사본 정리. 암호도 메모리에서 지운다.
             val activity = context as? Activity
@@ -587,6 +607,7 @@ private fun AshRoot(nav: NavModel) {
                         folderRoots = allFolders.filter { it.include }.map { it.label },
                         homeKey = libHome,
                         navBar = if (land) { { HeaderNav(listOf("서재", "독서 기록", "설정"), 0, ::pickTab) } } else null,
+                        onBookInfo = { b -> nav.screen = Screen.BookInfo(b.id) },
                     )
                     Screen.Stats -> {
                         val since = remember { statsSince() }
@@ -620,6 +641,11 @@ private fun AshRoot(nav: NavModel) {
                     Screen.Licenses -> {
                         BackHandler { nav.screen = Screen.Settings }
                         LicensesScreen(onBack = { nav.screen = Screen.Settings })
+                    }
+                    is Screen.BookInfo -> {
+                        val b = books.firstOrNull { it.id == sc.id }
+                        if (b == null) LaunchedEffect(Unit) { nav.screen = Screen.Library }
+                        else BookInfoScreen(b, books, settings, onSettings = ::change, onBack = { nav.screen = Screen.Library })
                     }
                     is Screen.Series -> {
                         BackHandler { nav.screen = Screen.Library }
@@ -664,6 +690,11 @@ private fun AshRoot(nav: NavModel) {
         }
         }
     }
+    // 작업 06 C: 처음 서재를 열 때 한 번 묻기(기본 꺼짐)
+    if (ready && !settings.metaAsked && books.isNotEmpty() && nav.screen == Screen.Library) MetaAskDialog(
+        onOn = { change { it.copy(metaNet = true, metaAsked = true) } },
+        onLater = { change { it.copy(metaAsked = true) } },
+    )
     zipPick?.let { z -> ZipPickSheet(z.title, z.items, onPick = { openInner(z, it) }, onDismiss = { zipPick = null }) }
     if (zipEmpty) androidx.compose.material3.AlertDialog(
         onDismissRequest = { zipEmpty = false },

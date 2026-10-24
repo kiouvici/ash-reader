@@ -185,7 +185,7 @@ private fun plainOf(title: String): Pair<Color, Color> {
 @Composable
 fun ShelfCover(b: Book, modifier: Modifier = Modifier, fan: Boolean = false, bar: Boolean = false, dim: Boolean = false) {
     val f = DocFormat.of(b.format)
-    val img = if (Covers.supported(f)) rememberCover(b) else null
+    val img = if (Covers.supported(f) || b.coverSource != Book.COVER_AUTO) rememberCover(b) else null
     val shape = if (fan) RoundedCornerShape(topStart = 1.dp, topEnd = 2.dp)
     else RoundedCornerShape(topStart = 1.dp, bottomStart = 1.dp, topEnd = 3.dp, bottomEnd = 3.dp)
     val shadow = if (fan) Modifier else Modifier.shadow(7.dp, shape, ambientColor = Color.Black.copy(alpha = 0.12f), spotColor = Color.Black.copy(alpha = 0.45f))
@@ -218,19 +218,20 @@ private fun coverSp(w: Dp, ratio: Float) = with(LocalDensity.current) { (w * rat
 /** 기본 표지: 위 밝고 아래 진한 단색 그러데이션, 안쪽 가는 테두리, 제목 위 가운데(이북 3줄·만화 2줄), 형식 아래 가운데. */
 @Composable
 private fun PlainFace(b: Book, f: DocFormat, w: Dp) {
-    val (top, bottom) = plainOf(b.title)
+    val (top, bottom) = plainOf(b.shownTitle)
     val s = w / 98.dp
     val comic = f.group == FormatGroup.COMIC
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom)))) {
         Box(Modifier.fillMaxSize().padding(start = 9.dp * s, top = 5.dp * s, end = 5.dp * s, bottom = 5.dp * s).border(1.dp, Color.White.copy(alpha = 0.16f)))
-        val ts = coverSp(w, if (b.title.length > 6) 0.112f else 0.128f)
+        val ts = coverSp(w, if (b.shownTitle.length > 6) 0.112f else 0.128f)
         Text(
-            b.title, color = Color.White, fontSize = ts, lineHeight = ts * 1.25f, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
+            b.shownTitle, color = Color.White, fontSize = ts, lineHeight = ts * 1.25f, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
             maxLines = if (comic) 2 else 3, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(start = 12.dp * s, end = 9.dp * s, top = 20.dp * s),
         )
+        // 지은이가 있으면 지은이(애플 북스 기본 표지), 없으면 형식
         Text(
-            f.badge, color = Color.White.copy(alpha = 0.75f), fontSize = coverSp(w, 0.087f), maxLines = 1, textAlign = TextAlign.Center,
+            b.author.ifBlank { f.badge }, color = Color.White.copy(alpha = 0.75f), fontSize = coverSp(w, 0.087f), maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 12.dp * s, start = 10.dp * s, end = 7.dp * s),
         )
     }
@@ -245,7 +246,7 @@ private fun DocFace(b: Book, f: DocFormat, w: Dp) {
         Box(Modifier.padding(start = 12.dp * s, end = 9.dp * s, top = 10.dp * s).fillMaxWidth().height(3.dp * s).background(band))
         val ts = coverSp(w, 0.08f)
         Text(
-            b.title, color = Color(0xFF26282B), fontSize = ts, lineHeight = ts * 1.25f, fontWeight = FontWeight.Black, maxLines = 3, overflow = TextOverflow.Ellipsis,
+            b.shownTitle, color = Color(0xFF26282B), fontSize = ts, lineHeight = ts * 1.25f, fontWeight = FontWeight.Black, maxLines = 3, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(start = 12.dp * s, end = 9.dp * s, top = 19.dp * s),
         )
         Box(
@@ -581,7 +582,10 @@ private fun GroupDetail(
     var status by rememberSaveable(g.id) { mutableStateOf(-1) }
     val all = remember(g, sort) { sort.apply(g.books) }
     val q = query?.trim().orEmpty()
-    val shown = all.filter { b -> (status < 0 || (status == FAVORITES && b.favorite) || b.status == status) && (q.isEmpty() || b.title.contains(q, ignoreCase = true)) }
+    val shown = all.filter { b ->
+        (status < 0 || (status == FAVORITES && b.favorite) || b.status == status) &&
+            (q.isEmpty() || b.title.contains(q, ignoreCase = true) || b.shownTitle.contains(q, ignoreCase = true) || b.author.contains(q, ignoreCase = true))
+    }
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
     if (startSearch) androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     val reading = remember(g) { g.books.filter { it.status == Book.READING && it.lastOpenedAt > 0 }.sortedByDescending { it.lastOpenedAt } }
@@ -600,7 +604,11 @@ private fun GroupDetail(
             verticalArrangement = Arrangement.spacedBy(26.dp),
         ) {
             item(key = "top", span = { GridItemSpan(maxLineSpan) }) {
-                Column(Modifier.padding(top = 66.dp)) {
+                // 검색(첫 화면 '검색'): 큰 제목·상태 칸 없이 찾기 칸만 — 키보드가 올라와도 결과가 바로 아래 보이게
+                if (startSearch) OutlinedTextField(
+                    value = query.orEmpty(), onValueChange = { query = it }, singleLine = true, placeholder = { Text("모든 책에서 제목으로 찾기") },
+                    modifier = Modifier.fillMaxWidth().padding(top = 60.dp).focusRequester(focus),
+                ) else Column(Modifier.padding(top = 66.dp)) {
                     Text(g.name, fontSize = 30.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(LibGroups.detailSub(g), fontSize = 14.sp, color = c.sub, modifier = Modifier.padding(top = 2.dp))
                     if (query != null) OutlinedTextField(
@@ -735,8 +743,12 @@ private fun GridBook(b: Book, c: ShelfColors, unavailable: Boolean, now: Long, o
         Box(Modifier.fillMaxWidth().aspectRatio(1f / 1.48f), contentAlignment = Alignment.BottomCenter) {
             ShelfCover(b, Modifier.fillMaxWidth().aspectRatio(coverRatio(b)), dim = unavailable)
         }
-        Text(b.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
-        Text(DocFormat.of(b.format).badge, fontSize = 11.5.sp, color = c.sub2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
+        Text(b.shownTitle, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
+        // 지은이 · 형식(작업 06), 자동으로 못 맞춘 책은 '확인 필요'
+        Text(
+            listOfNotNull(b.author.ifBlank { null }, DocFormat.of(b.format).badge, if (b.needsReview) "확인 필요" else null).joinToString(" · "),
+            fontSize = 11.5.sp, color = c.sub2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp),
+        )
         val col = if (st.reading) c.blue else c.ink.copy(alpha = 0.8f)
         Box(
             Modifier.padding(top = 5.dp).border(1.5.dp, col, RoundedCornerShape(6.dp))
@@ -750,7 +762,7 @@ private fun GridBook(b: Book, c: ShelfColors, unavailable: Boolean, now: Long, o
 
 /** 책 한 권의 TalkBack·시험 이름: "제목, 형식, 42% 읽음" / "…, 열 수 없음". */
 private fun bookLabel(b: Book, unavailable: Boolean) =
-    "${b.title}, ${DocFormat.of(b.format).badge}, " + if (unavailable) "열 수 없음" else "${(b.progress() * 100).toInt()}% 읽음"
+    "${b.shownTitle}, ${DocFormat.of(b.format).badge}, " + if (unavailable) "열 수 없음" else "${(b.progress() * 100).toInt()}% 읽음"
 
 /** 상태 칸 '즐겨찾기' 값(F-71). */
 private const val FAVORITES = 3

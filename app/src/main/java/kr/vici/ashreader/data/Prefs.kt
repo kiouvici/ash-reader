@@ -132,6 +132,12 @@ data class Settings(
     /** F-03 서재 정렬([kr.vici.ashreader.ui.LibSort] 순서)과 내림차순. */
     val libSort: Int = 0,
     val libSortDesc: Boolean = false,
+    /** 작업 06 책 정보: 인터넷에서 찾기(기본 꺼짐, D-024). */
+    val metaNet: Boolean = false,
+    /** 자동으로 찾는 때: 0 = 와이파이에서만(기본), 1 = 와이파이 + 모바일 데이터, 2 = 직접 찾을 때만. */
+    val metaAuto: Int = 0,
+    /** 처음 서재를 열 때 한 번 물었나. */
+    val metaAsked: Boolean = false,
 )
 
 /** F-44 자동 스크롤 속도 눈금(1~10) → 초당 이동 dp. */
@@ -199,6 +205,9 @@ class Prefs(private val context: Context) {
         val txtTocCustom = stringPreferencesKey("txt_toc_custom")
         val libSort = intPreferencesKey("lib_sort")
         val libSortDesc = booleanPreferencesKey("lib_sort_desc")
+        val metaNet = booleanPreferencesKey("meta_net")
+        val metaAuto = intPreferencesKey("meta_auto")
+        val metaAsked = booleanPreferencesKey("meta_asked")
     }
 
     val settings: Flow<Settings> = context.dataStore.data
@@ -263,6 +272,9 @@ class Prefs(private val context: Context) {
         txtTocCustom = (p[K.txtTocCustom] ?: "").take(200),
         libSort = (p[K.libSort] ?: 0).coerceAtLeast(0),
         libSortDesc = p[K.libSortDesc] ?: false,
+        metaNet = p[K.metaNet] ?: false,
+        metaAuto = (p[K.metaAuto] ?: 0).coerceIn(0, 2),
+        metaAsked = p[K.metaAsked] ?: false,
     )
 
     /**
@@ -329,6 +341,9 @@ class Prefs(private val context: Context) {
             p[K.txtTocCustom] = s.txtTocCustom
             p[K.libSort] = s.libSort
             p[K.libSortDesc] = s.libSortDesc
+            p[K.metaNet] = s.metaNet
+            p[K.metaAuto] = s.metaAuto
+            p[K.metaAsked] = s.metaAsked
         }
     }
 

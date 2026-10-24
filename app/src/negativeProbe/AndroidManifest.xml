@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-<!-- N-05 음성 시험 전용 (-Pash.negativeTest=true). 검사가 이 권한을 잡아 실패하는지 확인한다. 배포 금지. -->
+<!-- N-05 음성 시험 전용 (-Pash.negativeTest=true). 검사가 이 금지 권한(위치)을 잡아 실패하는지 확인한다. 배포 금지. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 </manifest>

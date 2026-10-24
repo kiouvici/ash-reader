@@ -98,6 +98,7 @@ private fun setColors(): SetColors {
 /** 하위 화면 하나: 이름·아이콘 색·아이콘 선(24 격자). */
 private enum class SetPage(val title: String, val color: Long, val path: String) {
     FOLDERS("서재 폴더", 0xFF0A84FF, "M3 7.5A1.5 1.5 0 0 1 4.5 6h4.3l2 2.2h8.7A1.5 1.5 0 0 1 21 9.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"),
+    META("책 정보", 0xFF5E5CE6, "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v6M12 7.5v.01"),
     BACKUP("백업과 기록", 0xFF30B0C7, "M12 3v12M7 10l5 5 5-5M4 19h16"),
     TEXT("글자와 화면", 0xFFFF9F0A, "M5 6h14M12 6v13M9 19h6"),
     THEME("테마와 밝기", 0xFF5856D6, "M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"),
@@ -120,7 +121,7 @@ private enum class SetPage(val title: String, val color: Long, val path: String)
 
 /** 첫 화면 묶음(목업 순서). */
 private val SET_GROUPS = listOf(
-    "서재" to listOf(SetPage.FOLDERS, SetPage.BACKUP),
+    "서재" to listOf(SetPage.FOLDERS, SetPage.META, SetPage.BACKUP),
     "읽기 화면" to listOf(SetPage.TEXT, SetPage.THEME, SetPage.TURN, SetPage.READING),
     "형식별" to listOf(SetPage.COMIC, SetPage.DOC),
     "기능" to listOf(SetPage.AI, SetPage.LISTEN),
@@ -166,6 +167,7 @@ fun AppSettingsScreen(
     /** 첫 화면 항목 아래 지금 값 요약. */
     fun hint(p: SetPage): String = when (p) {
         SetPage.FOLDERS -> folderNames.joinToString(" · ").ifEmpty { "아직 고른 폴더가 없어요" }
+        SetPage.META -> if (s.metaNet) "인터넷에서 찾기 · " + META_AUTO[s.metaAuto] else "인터넷에서 찾기 꺼짐 · 파일 속 정보만"
         SetPage.BACKUP -> "백업 · 가져오기 · 내보내기"
         SetPage.TEXT -> "${s.font.label.substringBefore(" (")} · ${s.fontSize} · ${if (s.align == 1) "왼쪽" else "양쪽"}"
         SetPage.THEME -> s.theme.label + if (s.warmAuto) " · 따뜻한 색 자동" else ""
@@ -194,6 +196,40 @@ fun AppSettingsScreen(
                     Value("파일 접근 권한", if (access) "허용됨" else "허용 안 됨", c, sub = "기기 안 책·문서를 찾는 권한(S-02 다시 보기)", onClick = onStorage)
                     Toggle("서점 바로가기 줄 보이기", s.showStores, c, sub = "서재 첫 화면 아래 '내 서점 앱' 줄") { v -> onChange { it.copy(showStores = v) } }
                     Value("서점 바로가기 편집", "", c, sub = "더하기·빼기·순서", onClick = onStoreEdit)
+                }
+            }
+            SetPage.META -> {
+                // 작업 06(D-024): 인터넷에서 책 정보 찾기 — 기본 꺼짐, 정리한 제목만 보냄, 한글·Word 는 자동으로 찾지 않음
+                Section("인터넷에서 찾기", c, foot = "파일 안에 정확한 정보가 있는 책은 그대로 둬요. 정리한 제목만 보내고 책 내용·폴더 이름은 보내지 않아요. 한글·Word 문서는 자동으로 찾지 않아요(책 정보에서 직접 찾을 수는 있어요).") {
+                    Toggle("인터넷에서 책 정보 찾기", s.metaNet, c, sub = "표지·지은이·출판사") { v ->
+                        onChange { it.copy(metaNet = v, metaAsked = true) }
+                        // 켜면 전에 인터넷 없이 훑은 책도 다시 찾게
+                        if (v) context.ash.appScope.launch { context.ash.db.books().resetMetaChecked() }
+                    }
+                    if (s.metaNet) Value("찾을 책", "이북·만화·스캔 PDF", c, chevron = false) {}
+                }
+                if (s.metaNet) Section("자동으로 찾기", c) {
+                    META_AUTO.forEachIndexed { i, label -> Value(label, if (s.metaAuto == i) "✓" else "", c, chevron = false) { onChange { it.copy(metaAuto = i) } } }
+                }
+                Section("관리", c) {
+                    Act("지금 모든 책 정보 다시 찾기", c, sub = "직접 고른 책은 그대로") {
+                        context.ash.appScope.launch { context.ash.db.books().resetMetaChecked() }
+                        info = "서재의 책 정보를 다시 찾아요. 서재 화면에서 조금씩 채워져요."
+                    }
+                    Act("인터넷에서 받은 정보 모두 지우기", c, sub = "파일 정보로 되돌려요") {
+                        context.ash.appScope.launch {
+                            val dao = context.ash.db.books()
+                            dao.allBooks().filter { it.coverSource == kr.vici.ashreader.data.Book.COVER_INTERNET }.forEach { kr.vici.ashreader.doc.Covers.deleteChosen(context, it.id) }
+                            dao.clearNetInfo()
+                            kr.vici.ashreader.net.BookInfoNet.clearCache(context)
+                        }
+                        info = "인터넷에서 받은 지은이·출판사·표지를 지웠어요. 파일 속 정보는 다시 읽어요."
+                    }
+                }
+                Section("정보 출처", c) {
+                    Value("국립중앙도서관", if (kr.vici.ashreader.BuildConfig.NL_KEY.isBlank()) "키 없음" else "씀", c, chevron = false) {}
+                    Value("카카오 책 검색", if (kr.vici.ashreader.BuildConfig.KAKAO_KEY.isBlank()) "키 없음" else "씀", c, chevron = false) {}
+                    Value("구글 북스", "씀", c, chevron = false) {}
                 }
             }
             SetPage.BACKUP -> {
@@ -398,6 +434,9 @@ fun AppSettingsScreen(
         confirmButton = { TextButton(onClick = { infoItems = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("닫기") } },
     )
 }
+
+/** 책 정보 자동으로 찾는 때(Settings.metaAuto 순서). */
+private val META_AUTO = listOf("와이파이에서만", "와이파이 + 모바일 데이터", "직접 찾을 때만")
 
 private fun turnLabel(s: Settings) = when { s.noTurnEffect -> "없음"; s.curl -> "종이책"; else -> "슬라이드" }
 

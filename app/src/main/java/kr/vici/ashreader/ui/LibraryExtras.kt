@@ -292,7 +292,7 @@ private fun AppPickerDialog(exclude: Set<String>, onPick: (StoreRepo.LauncherApp
 /** S-14 문서 메뉴(길게 누르기): 상태(F-71)·즐겨찾기·처음부터·형광펜 내보내기·문서 정보·서재에서 빼기. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookMenuSheet(b: Book, onDismiss: () -> Unit, onOpen: () -> Unit, onRemove: () -> Unit, onExport: () -> Unit) {
+fun BookMenuSheet(b: Book, onDismiss: () -> Unit, onOpen: () -> Unit, onRemove: () -> Unit, onExport: () -> Unit, onInfo: (() -> Unit)? = null) {
     val context = LocalContext.current
     val app = context.ash
     val scope = rememberCoroutineScope()
@@ -309,7 +309,7 @@ fun BookMenuSheet(b: Book, onDismiss: () -> Unit, onOpen: () -> Unit, onRemove: 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Cover(b, Modifier.width(48.dp))
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text(b.title, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(b.shownTitle, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text("${f.badge} · ${sizeLabel(b.sizeBytes)} · ${(b.progress() * 100).toInt()}%", fontSize = 13.sp, color = cs.onSurfaceVariant)
                 }
             }
@@ -326,6 +326,8 @@ fun BookMenuSheet(b: Book, onDismiss: () -> Unit, onOpen: () -> Unit, onRemove: 
                 ) { Text(if (fav) "★" else "☆", fontSize = 24.sp, color = if (fav) Ash.Gold else cs.onSurfaceVariant) }
             }
             MenuLine("열기", onClick = onOpen)
+            // 작업 06: 책 정보(지은이·출판사·표지 찾기·고치기)
+            if (onInfo != null) MenuLine("책 정보·표지 바꾸기", onClick = onInfo)
             MenuLine("처음부터 읽기") { scope.launch { app.db.books().restart(b.id); onOpen() } }
             // F-62 시리즈 직접 묶기·빼기
             if (SeriesGroups.keyOf(b) != null && b.seriesKey.isNotBlank()) MenuLine("시리즈에서 빼기") {
