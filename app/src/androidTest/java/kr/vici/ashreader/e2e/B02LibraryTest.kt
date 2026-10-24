@@ -67,9 +67,10 @@ class B02LibraryTest : E2eTest() {
         assertTrue(has(By.desc(tileP), 30_000))
         for (home in listOf("형식, \\d+가지", "폴더, \\d+개")) {
             obj(By.desc(Pattern.compile(home))).click()
-            val card = obj(By.desc(Pattern.compile(".+, \\d+권")), 10_000)
+            obj(By.desc(Pattern.compile(".+, \\d+권")), 10_000)
             shot("cards-${home.substringBefore(',')}")
-            card.click()
+            // 찍는 사이 다시 그려질 수 있어 누르기 직전에 새로 찾는다(StaleObjectException)
+            obj(By.desc(Pattern.compile(".+, \\d+권"))).click()
             assertTrue("카드를 눌렀는데 묶음 화면이 아님", has(By.text("모든 책"), 8_000))
             assertTrue(has(By.desc("뒤로")))
             shot("group-${home.substringBefore(',')}")
@@ -103,8 +104,17 @@ class B02LibraryTest : E2eTest() {
         obj(By.clazz("android.widget.EditText")).text = "e2e-epub"
         SystemClock.sleep(600)
         obj(By.desc(Pattern.compile("e2e-epub 소설, EPUB, .*")), 10_000).longClick()
-        // 작업 07 책 ⋯ 메뉴의 위 아이콘 
-        assertTrue("책 정보 화면이 아님", has(By.text("표지 고르기"), 8_000))
+        // 작업 07 책 ⋯ 메뉴의 위 아이콘 '책 정보'. 검색 글자판이 닫히며 메뉴 자리가 옮겨질 수 있어,
+        // 자리를 잡은 뒤 새로 찾아 누르고 넘어가지 않으면 다시 누른다
+        obj(By.desc("책 정보"), 8_000)
+        var opened = false
+        repeat(3) {
+            if (opened) return@repeat
+            SystemClock.sleep(700)
+            device.findObject(By.desc("책 정보"))?.click()
+            opened = has(By.text("표지 고르기"), 4_000)
+        }
+        assertTrue("책 정보 화면이 아님", opened)
         shot("book-info")
         obj(By.desc("표지: 첫 쪽")).click(); SystemClock.sleep(1_500)
         shot("book-info-first-page")
@@ -168,7 +178,8 @@ class B02LibraryTest : E2eTest() {
         device.wait(Until.hasObject(By.pkg(Pattern.compile(".*documentsui.*"))), 10_000)
         shot("system-picker")
         device.pressBack()
-        // 가로 태블릿은 제목 줄(내비게이션)이 위로 밀려 있어 
+        // 가로 태블릿은 제목 줄(내비게이션)이 위로 밀려 있어 '+ 책 추가'로도 본다
+        assertTrue("고르기를 닫은 뒤 서재로 돌아오지 않음", device.wait(Until.hasObject(By.text(Pattern.compile("독서 기록|\\+ 책 추가"))), 10_000))
         assertAlive()
     }
 
