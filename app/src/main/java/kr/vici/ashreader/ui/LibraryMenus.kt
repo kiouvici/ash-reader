@@ -128,7 +128,7 @@ fun BlurBehind(radius: Dp = 24.dp, dim: Float = 0.10f) {
                     dimAmount = dimNow
                     if (canBlur) blurBehindRadius = px
                     if (Build.VERSION.SDK_INT >= 30) fitInsetsTypes = 0
-                    layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                    if (Build.VERSION.SDK_INT >= 30) layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
                 }
                 val ok = runCatching { act.windowManager.addView(veil, lp) }.isSuccess
                 return@DisposableEffect onDispose { if (ok) runCatching { act.windowManager.removeViewImmediate(veil) } }
