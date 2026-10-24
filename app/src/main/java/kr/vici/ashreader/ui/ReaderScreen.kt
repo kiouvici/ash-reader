@@ -17,6 +17,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -349,6 +351,8 @@ fun ReaderScreen(
     // 작업 07 E: 떠 있는 메뉴 쌓기 · 테마 및 설정 · 사용자화 · 안내선(켜짐, 띠 자리 = 화면 높이 비율)
     var stackOpen by remember { mutableStateOf(false) }
     var stackClosedAt by remember { mutableStateOf(0L) }
+    // 넘김 화면에서 시작한 두 손가락 확대를 확대 덧화면으로 넘기는 통로(손을 떼면 닫힘)
+    var pinchFeed by remember { mutableStateOf<kotlinx.coroutines.channels.ReceiveChannel<PinchStep>?>(null) }
     var themeOpen by remember { mutableStateOf(false) }
     var customOpen by remember { mutableStateOf(false) }
     var guideOn by rememberSaveable(target.id) { mutableStateOf(false) }
@@ -1024,22 +1028,30 @@ fun ReaderScreen(
                                         }
                                     }
                                 } else Modifier.pointerInput(page, spreadNow) {
-                                    // 두 손가락을 대면 확대 덧화면으로(넘김 화면에는 취소가 간다)
+                                    // 두 손가락을 대면 확대 덧화면을 1배로 열고, 손을 뗄 때까지 손가락 움직임을 그대로 넘긴다
+                                    // (대표님 01:55: 예전에는 1.5배로 툭 커진 뒤에야 자연스럽게 커졌다). 넘김 화면에는 취소가 간다
                                     awaitEachGesture {
                                         awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                        var feed: kotlinx.coroutines.channels.Channel<PinchStep>? = null
                                         while (true) {
                                             val ev = awaitPointerEvent(PointerEventPass.Initial)
                                             val down = ev.changes.filter { it.pressed }
                                             if (down.isEmpty()) break
-                                            if (down.size >= 2) {
+                                            val f = feed
+                                            if (f == null && down.size >= 2) {
                                                 val cx = down.map { it.position.x }.average().toFloat()
                                                 val cy = down.map { it.position.y }.average().toFloat()
                                                 ev.changes.forEach { it.consume() }
                                                 tapState.job?.cancel()
-                                                openZoom(cx / size.width, cy / size.height, 1.5f)
-                                                break
+                                                val ch = kotlinx.coroutines.channels.Channel<PinchStep>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+                                                feed = ch; pinchFeed = ch
+                                                openZoom(cx / size.width, cy / size.height, 1f)
+                                            } else if (f != null) {
+                                                if (down.size >= 2) f.trySend(PinchStep(ev.calculateCentroid(useCurrent = true), ev.calculatePan(), ev.calculateZoom()))
+                                                ev.changes.forEach { it.consume() }
                                             }
                                         }
+                                        feed?.let { it.trySend(PinchStep(Offset.Zero, Offset.Zero, 1f, end = true)); it.close() }
                                     }
                                 },
                             )
@@ -1061,7 +1073,7 @@ fun ReaderScreen(
                                 }
                             },
                             tapAction = tapOf, menuVisible = false,
-                            onToggleMenu = { zoomAt = null; jumpReq = page; menu = true },
+                            onToggleMenu = { zoomAt = null; pinchFeed = null; jumpReq = page; menu = true },
                             onPage = { if (it != page) { page = it; pagesTurned++ } },
                             onLongPress = if (comicDoc != null) ({ i: Int -> comicMenuOf(comicDoc.sourceOf(i)) }) else null,
                             // 7B 확대 덧화면에서도 글자 선택(확대·이동한 칸으로 좌표를 맞춘다)
@@ -1069,9 +1081,10 @@ fun ReaderScreen(
                             turnRequest = turnReq, turnForward = turnFwd,
                             reloadKey = source,
                             initialZoom = z.zoom, initialFocus = Offset(z.fx, z.fy),
-                            onExit = { zoomAt = null; jumpReq = page },
+                            onExit = { zoomAt = null; pinchFeed = null; jumpReq = page },
+                            livePinch = pinchFeed,
                         )
-                        BackHandler { if (sel != null) sel = null else { zoomAt = null; jumpReq = page } }
+                        BackHandler { if (sel != null) sel = null else { zoomAt = null; pinchFeed = null; jumpReq = page } }
                     }
                     if (doc is ComicReaderDoc) {
                         // solid CBR 풀기 진행·쪽 준비 중(S-41). 보이는 쪽이 풀리면 다시 그린다.
