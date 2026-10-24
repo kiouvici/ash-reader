@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>설정 새 구성</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&amp;display=swap">
+<style>body{margin:0} button{font-family:inherit;cursor:pointer}</style>
+</helmet>
+<div style="width: 1280px; height: 1820px; background: #FFFFFF; font-family: 'Noto Sans KR', sans-serif; color: #111316">
+
+<div style="display: flex; gap: 80px">
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">① 설정 첫 화면 (휴대폰)</div>
+<div style="width: 390px; height: 844px; overflow-y: auto; background: #F2F2F7">
+<div style="padding: 22px 20px 6px; font-size: 32px; font-weight: 900; letter-spacing: -0.02em">설정</div>
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="5">
+<div style="padding: 18px 20px 6px; font-size: 13px; font-weight: 700; color: #6C6C70">{{g.title}}</div>
+<div style="margin: 0 16px; border-radius: 12px; background: #FFFFFF; overflow: hidden">
+<sc-for list="{{g.items}}" as="it" hint-placeholder-count="3">
+<button onClick="{{it.go}}" style="width: 100%; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 14px; border: none; background: none; text-align: left; color: #111316">
+<span style="width: 30px; height: 30px; border-radius: 8px; background: {{it.c}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; overflow: hidden"><span style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0) 55%)"></span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position: relative"><path d="{{it.d}}"></path></svg></span>
+<span style="flex-grow: 1; min-width: 0; display: flex; align-items: center; min-height: 52px; border-bottom: {{it.line}}">
+<span style="flex-grow: 1; min-width: 0"><span style="display: block; font-size: 16px; font-weight: 500">{{it.name}}</span><span style="display: block; font-size: 12px; color: #8E8E93; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{it.hint}}</span></span>
+<svg width="8" height="14" viewBox="0 0 9 15" aria-hidden="true" style="flex-shrink: 0; margin-left: 8px"><path d="M1.5 1.5L7.5 7.5 1.5 13.5" fill="none" stroke="#C4C4C8" stroke-width="2" stroke-linecap="round"></path></svg>
+</span>
+</button>
+</sc-for>
+</div>
+</sc-for>
+<div style="height: 30px"></div>
+</div>
+</div>
+
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">② 하위 화면 — {{page.name}} (휴대폰)</div>
+<div style="width: 390px; height: 844px; overflow-y: auto; background: #F2F2F7">
+<div style="height: 56px; display: flex; align-items: center; padding: 0 12px"><div style="width: 44px; height: 44px; border-radius: 12px; background: #FFFFFF; box-shadow: 0 0 0 1px rgba(0,0,0,0.06); display: flex; align-items: center; justify-content: center"><svg width="11" height="18" viewBox="0 0 11 18" aria-hidden="true"><path d="M9 2L2 9l7 7" fill="none" stroke="#111316" stroke-width="2.2" stroke-linecap="round"></path></svg></div></div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 6px 20px 4px">
+<span style="width: 36px; height: 36px; border-radius: 10px; background: {{page.c}}; display: flex; align-items: center; justify-content: center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{page.d}}"></path></svg></span>
+<span style="font-size: 28px; font-weight: 900; letter-spacing: -0.02em">{{page.name}}</span>
+</div>
+<sc-for list="{{page.secs}}" as="sc" hint-placeholder-count="3">
+<div style="padding: 20px 20px 6px; font-size: 13px; font-weight: 700; color: #6C6C70">{{sc.h}}</div>
+<div style="margin: 0 16px; border-radius: 12px; background: #FFFFFF; overflow: hidden">
+<sc-for list="{{sc.rows}}" as="r" hint-placeholder-count="2">
+<div style="display: flex; align-items: center; min-height: 52px; margin-left: 14px; padding-right: 14px; border-bottom: {{r.line}}">
+<div style="flex-grow: 1; min-width: 0; padding: 8px 0"><div style="font-size: 15.5px; color: {{r.color}}">{{r.k}}</div><div style="display: {{r.subShow}}; font-size: 12px; color: #8E8E93; margin-top: 2px">{{r.sub}}</div></div>
+<div style="display: {{r.valShow}}; font-size: 14.5px; color: #8E8E93; margin-left: 8px; white-space: nowrap">{{r.v}}</div>
+<svg style="display: {{r.valShow}}; margin-left: 6px" width="8" height="14" viewBox="0 0 9 15" aria-hidden="true"><path d="M1.5 1.5L7.5 7.5 1.5 13.5" fill="none" stroke="#C4C4C8" stroke-width="2" stroke-linecap="round"></path></svg>
+<span style="display: {{r.swShow}}; width: 51px; height: 31px; border-radius: 16px; background: {{r.swBg}}; position: relative; flex-shrink: 0; margin-left: 8px"><span style="position: absolute; left: {{r.knob}}; top: 2px; width: 27px; height: 27px; border-radius: 14px; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.2)"></span></span>
+</div>
+</sc-for>
+</div>
+<div style="display: {{sc.footShow}}; padding: 8px 20px 0; font-size: 12.5px; line-height: 1.6; color: #6C6C70">{{sc.foot}}</div>
+</sc-for>
+<div style="height: 30px"></div>
+</div>
+</div>
+</div>
+
+<div style="height: 56px; display: flex; align-items: center; margin-top: 24px; font-size: 15px; font-weight: 700; color: #6C6C70">③ 태블릿 가로 — 왼쪽 목록 · 오른쪽 하위 화면 (왼쪽 항목을 눌러 보세요)</div>
+<div style="width: 1280px; height: 800px; display: flex; background: #F2F2F7; box-shadow: 0 0 0 1px #E5E5EA">
+<div style="width: 400px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid #E5E5EA">
+<div style="padding: 24px 24px 4px; font-size: 32px; font-weight: 900">설정</div>
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="5">
+<div style="padding: 16px 24px 6px; font-size: 13px; font-weight: 700; color: #6C6C70">{{g.title}}</div>
+<div style="margin: 0 16px; border-radius: 12px; background: #FFFFFF; overflow: hidden">
+<sc-for list="{{g.items}}" as="it" hint-placeholder-count="3">
+<button onClick="{{it.go}}" style="width: 100%; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 12px; border: none; background: {{it.selBg}}; text-align: left; color: {{it.selFg}}">
+<span style="width: 28px; height: 28px; border-radius: 7px; background: {{it.c}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{it.d}}"></path></svg></span>
+<span style="flex-grow: 1; font-size: 15.5px; font-weight: 500">{{it.name}}</span>
+</button>
+</sc-for>
+</div>
+</sc-for>
+<div style="height: 24px"></div>
+</div>
+<div style="flex-grow: 1; overflow-y: auto; padding: 0 40px">
+<div style="display: flex; align-items: center; gap: 14px; padding: 30px 0 6px">
+<span style="width: 40px; height: 40px; border-radius: 11px; background: {{page.c}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{page.d}}"></path></svg></span>
+<span style="font-size: 30px; font-weight: 900">{{page.name}}</span>
+</div>
+<sc-for list="{{page.secs}}" as="sc" hint-placeholder-count="3">
+<div style="padding: 20px 4px 6px; font-size: 13px; font-weight: 700; color: #6C6C70">{{sc.h}}</div>
+<div style="border-radius: 12px; background: #FFFFFF; overflow: hidden">
+<sc-for list="{{sc.rows}}" as="r" hint-placeholder-count="2">
+<div style="display: flex; align-items: center; min-height: 52px; margin-left: 16px; padding-right: 16px; border-bottom: {{r.line}}">
+<div style="flex-grow: 1; min-width: 0; padding: 8px 0"><div style="font-size: 15.5px; color: {{r.color}}">{{r.k}}</div><div style="display: {{r.subShow}}; font-size: 12px; color: #8E8E93; margin-top: 2px">{{r.sub}}</div></div>
+<div style="display: {{r.valShow}}; font-size: 14.5px; color: #8E8E93; margin-left: 8px">{{r.v}}</div>
+<svg style="display: {{r.valShow}}; margin-left: 6px" width="8" height="14" viewBox="0 0 9 15" aria-hidden="true"><path d="M1.5 1.5L7.5 7.5 1.5 13.5" fill="none" stroke="#C4C4C8" stroke-width="2" stroke-linecap="round"></path></svg>
+<span style="display: {{r.swShow}}; width: 51px; height: 31px; border-radius: 16px; background: {{r.swBg}}; position: relative; flex-shrink: 0; margin-left: 8px"><span style="position: absolute; left: {{r.knob}}; top: 2px; width: 27px; height: 27px; border-radius: 14px; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.2)"></span></span>
+</div>
+</sc-for>
+</div>
+<div style="display: {{sc.footShow}}; padding: 8px 4px 0; font-size: 12.5px; line-height: 1.6; color: #6C6C70">{{sc.foot}}</div>
+</sc-for>
+<div style="height: 30px"></div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1820}}'>
+class Component extends DCLogic {
+constructor(p) { super(p); this.state = { sel: 'meta' }; }
+renderVals() {
+const s = this.state;
+const I = {
+folder: 'M3 7.5A1.5 1.5 0 0 1 4.5 6h4.3l2 2.2h8.7A1.5 1.5 0 0 1 21 9.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z',
+info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v6M12 7.5v.01',
+backup: 'M12 3v12M7 10l5 5 5-5M4 19h16',
+text: 'M5 6h14M12 6v13M9 19h6',
+theme: 'M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z',
+page: 'M12 6.8C10 5.3 7 4.8 3.5 5.1v12.6c3.5-.3 6.5.2 8.5 1.7 2-1.5 5-2 8.5-1.7V5.1C17 4.8 14 5.3 12 6.8zM12 6.8v12.6',
+read: 'M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+comic: 'M4 4h16v16H4zM4 11.5h8.5M12.5 4v16M12.5 14.5H20',
+doc: 'M6.5 3h7.5l4 4v14H6V3.5zM14 3v4h4M9 12h6M9 15.5h6',
+ai: 'M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8zM18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z',
+listen: 'M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4',
+about: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 8v.01M11 12h1v5h1'
+};
+const sw = (k, sub, on) => ({ k, sub, on, type: 'sw' });
+const val = (k, v, sub) => ({ k, v, sub, type: 'val' });
+const act = (k, sub) => ({ k, sub, type: 'act' });
+const P = {
+folders: { name: '서재 폴더', c: '#0A84FF', d: I.folder, secs: [
+{ h: '고른 폴더', rows: [val('Download', '23권'), val('업무 문서', '64권'), val('만화', '41권'), act('폴더 추가')] },
+{ h: '묶기', rows: [sw('시리즈 자동으로 묶기', '같은 폴더, 이름 끝 권·화 번호만 다른 책', true), val('서재 기본 보기', '표지')] }] },
+meta: { name: '책 정보', c: '#5E5CE6', d: I.info, secs: [
+{ h: '인터넷에서 찾기', rows: [sw('인터넷에서 책 정보 찾기', '표지·지은이·출판사', true), val('자동으로 찾기', '와이파이에서만'), val('찾을 책', '이북·만화·스캔 PDF')],
+foot: '파일 안에 정확한 정보가 있는 책은 그대로 둬요. 정리한 제목만 보내고 책 내용·폴더 이름은 보내지 않아요. 한글·Word 문서는 자동으로 찾지 않아요(책 정보에서 직접 찾을 수는 있어요).' },
+{ h: '자동으로 찾기 고르기', rows: [val('와이파이에서만', '✓'), val('와이파이 + 모바일 데이터', ''), val('직접 찾을 때만', '')] },
+{ h: '관리', rows: [act('지금 모든 책 정보 다시 찾기'), act('인터넷에서 받은 정보 모두 지우기', '파일 정보로 되돌려요')] },
+{ h: '정보 출처', rows: [val('국립중앙도서관', ''), val('알라딘', ''), val('구글 북스', '')] }] },
+backup: { name: '백업과 기록', c: '#30B0C7', d: I.backup, secs: [
+{ h: '백업', rows: [act('지금 백업하기'), act('백업 가져오기')] },
+{ h: '기록', rows: [act('형광펜·메모 모두 내보내기'), act('독서 기록 지우기')] }] },
+text: { name: '글자와 화면', c: '#FF9F0A', d: I.text, secs: [
+{ h: '글꼴', rows: [val('글꼴', '나눔명조'), val('글자 크기', '18'), act('내 글꼴 관리')] },
+{ h: '문단', rows: [val('줄 간격', '1.7'), val('여백', '보통'), val('정렬', '양쪽'), val('줄 바꿈 단위', '띄어쓰기')] },
+{ h: 'TXT 파일', rows: [val('기본 인코딩', '자동'), sw('TXT 정리', '빈 줄·들여쓰기 정리', true)] }] },
+theme: { name: '테마와 밝기', c: '#5856D6', d: I.theme, secs: [
+{ h: '읽기 테마', rows: [val('테마', '주간'), act('내 테마 만들기'), sw('따뜻한 색 자동', '해 진 뒤 자동으로', false)] },
+{ h: '밝기', rows: [sw('가장자리로 밝기 조절', '', true)] },
+{ h: '앱 화면', rows: [val('앱 테마', '시스템'), sw('배경화면 색 따르기', '', false)] }] },
+turn: { name: '넘김과 조작', c: '#34C759', d: I.page, secs: [
+{ h: '넘김', rows: [val('넘김 효과', '종이책'), val('쪽·스크롤', '쪽')] },
+{ h: '누르기와 버튼', rows: [val('화면 누르는 곳', '좌우'), sw('왼손잡이', '', false), sw('볼륨 키로 넘기기', '', true)] },
+{ h: '자동', rows: [val('자동 넘김 간격', '10초'), sw('두 손가락으로 글자 크기', '', false)] }] },
+reading: { name: '읽는 동안', c: '#FF375F', d: I.read, secs: [
+{ h: '화면', rows: [val('화면 꺼짐', '시스템'), val('화면 회전', '자동')] },
+{ h: '표시', rows: [val('아래 정보줄', '쪽·시각·배터리'), sw('메뉴 버튼 이름 보이기', '', true)] }] },
+comic: { name: '만화', c: '#FF9500', d: I.comic, secs: [
+{ h: '보기', rows: [val('읽는 방향', '왼→오'), val('두 쪽', '자동'), sw('첫 쪽 단독', '', true), val('가로로 긴 쪽', '반으로 나눔')] },
+{ h: '화면 맞춤', rows: [val('맞춤', '화면'), sw('테두리 자르기', '', true), val('확대 방식', '고품질·약'), sw('웹툰 제안', '', true)] }] },
+doc: { name: '문서', c: '#007AFF', d: I.doc, secs: [
+{ h: '한글·Word', rows: [val('처음 열 때', '원본')] },
+{ h: 'PDF·한글·Word 공통', rows: [sw('야간에 그림 반전 안 함', '', true), sw('여백 자르기 기본', '', false), val('두 번 탭 확대', '2배')] }] },
+ai: { name: 'AI 화질 향상', c: '#AF52DE', d: I.ai, secs: [
+{ h: '켜기', rows: [sw('새 만화에 기본으로 켜기', '책마다 바꿀 수 있어요', false), sw('문서 그림 AI 화질 향상', '이북·PDF 속 작은 그림·사진', false)] },
+{ h: '저장 공간', rows: [val('저장 공간 상한', '1GB'), act('처리한 그림 지우기', '지금 312MB')] }] },
+listen: { name: '듣기와 사전', c: '#FF2D55', d: I.listen, secs: [
+{ h: '듣기', rows: [act('읽어 주기 엔진 설정 열기'), val('기본 속도', '1.0×'), val('잠자기 타이머', '끔')] },
+{ h: '사전', rows: [val('사전 앱', '말글사전')] }] },
+about: { name: '앱 정보', c: '#8E8E93', d: I.about, secs: [
+{ h: '앱', rows: [val('버전', '1.0.0'), act('오픈소스 고지'), act('소스 코드 받는 법'), act('처음 안내 다시 보기')] }] }
+};
+const hint = { folders: 'Download · 업무 문서 · 만화', meta: '인터넷에서 찾기 · 와이파이에서만', backup: '백업 · 가져오기 · 내보내기', text: '나눔명조 · 18 · 양쪽', theme: '주간 · 앱은 시스템', turn: '종이책 · 좌우', reading: '화면 꺼짐 · 회전 · 정보줄', comic: '왼→오 · 두 쪽 자동', doc: '처음 열 때 원본', ai: '만화 끔 · 문서 그림 끔', listen: '1.0× · 말글사전', about: '1.0.0' };
+const GR = [['서재', ['folders', 'meta', 'backup']], ['읽기 화면', ['text', 'theme', 'turn', 'reading']], ['형식별', ['comic', 'doc']], ['기능', ['ai', 'listen']], ['앱', ['about']]];
+const groups = GR.map(([t, ks]) => ({ title: t, items: ks.map((k, i) => ({
+name: P[k].name, hint: hint[k], c: P[k].c, d: P[k].d, line: i < ks.length - 1 ? '1px solid #ECECEF' : 'none',
+selBg: s.sel === k ? '#0A84FF' : '#FFFFFF', selFg: s.sel === k ? '#FFFFFF' : '#111316',
+go: () => this.setState({ sel: k }) })) }));
+const pg = P[s.sel];
+const page = { name: pg.name, c: pg.c, d: pg.d, secs: pg.secs.map(sc => ({ h: sc.h, foot: sc.foot || '', footShow: sc.foot ? 'block' : 'none',
+rows: sc.rows.map((r, i) => ({ k: r.k, sub: r.sub || '', subShow: r.sub ? 'block' : 'none', v: r.v || '',
+valShow: r.type === 'val' ? 'flex' : 'none', swShow: r.type === 'sw' ? 'block' : 'none',
+swBg: r.on ? '#34C759' : '#E5E5EA', knob: r.on ? '22px' : '2px', color: r.type === 'act' ? '#0A6CD6' : '#111316',
+line: i < sc.rows.length - 1 ? '1px solid #ECECEF' : 'none' })) })) };
+return { groups, page };
+}
+}
+</script>
+</body>
+</html>

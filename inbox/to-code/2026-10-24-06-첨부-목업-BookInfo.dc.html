@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>책 정보 찾기·고치기</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&amp;display=swap">
+<style>body{margin:0} button{font-family:inherit;cursor:pointer}</style>
+</helmet>
+<div style="width: 1330px; height: 900px; display: flex; gap: 80px; background: #FFFFFF; font-family: 'Noto Sans KR', sans-serif; color: #111316">
+
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">① 책 정보 (표지를 길게 누름 → 책 정보)</div>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #F2F2F4">
+<div style="height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: #FFFFFF; box-shadow: 0 0 0 1px rgba(0,0,0,0.06); display: flex; align-items: center; justify-content: center"><svg width="11" height="18" viewBox="0 0 11 18" aria-hidden="true"><path d="M9 2L2 9l7 7" fill="none" stroke="#111316" stroke-width="2.2" stroke-linecap="round"></path></svg></div>
+<div style="font-size: 16px; font-weight: 700">책 정보</div>
+<button onClick="{{reset}}" style="height: 36px; padding: 0 10px; border: none; background: none; color: #0A6CD6; font-size: 14px; font-weight: 500">원래대로</button>
+</div>
+<div style="display: flex; gap: 16px; padding: 10px 20px 18px">
+<div style="position: relative; width: 112px; aspect-ratio: 1 / 1.48; flex-shrink: 0; border-radius: 1px 3px 3px 1px; background: {{cur.bg}}; box-shadow: 0 1px 1px rgba(0,0,0,0.08), 0 14px 18px -10px rgba(0,0,0,0.45); overflow: hidden">
+<div style="position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: linear-gradient(90deg, rgba(255,255,255,0.35), rgba(0,0,0,0.18))"></div>
+<div style="position: absolute; inset: 6px 6px 6px 10px; border: 1px solid rgba(255,255,255,0.18)"></div>
+<div style="position: absolute; left: 14px; right: 10px; top: 22px; text-align: center; font-size: 13px; font-weight: 500; line-height: 1.25; color: #FFFFFF; word-break: keep-all">{{cur.title}}</div>
+<div style="position: absolute; left: 10px; right: 10px; bottom: 14px; text-align: center; font-size: 9px; color: rgba(255,255,255,0.8)">{{cur.author}}</div>
+</div>
+<div style="flex-grow: 1; min-width: 0; padding-top: 4px">
+<div style="font-size: 19px; font-weight: 900; line-height: 1.3; word-break: keep-all">{{cur.title}}</div>
+<div style="font-size: 14px; color: #3A3A3C; margin-top: 4px">{{cur.author}}</div>
+<div style="font-size: 12.5px; color: #8E8E93; margin-top: 2px">{{cur.pub}}</div>
+<div style="display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; height: 24px; padding: 0 8px; border-radius: 6px; background: {{cur.tagBg}}; color: {{cur.tagFg}}; font-size: 11.5px; font-weight: 700">{{cur.tag}}</div>
+</div>
+</div>
+<div style="margin: 0 16px; border-radius: 12px; background: #FFFFFF; overflow: hidden">
+<sc-for list="{{fields}}" as="fd" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; min-height: 50px; padding: 0 14px; border-bottom: 1px solid #ECECEF">
+<div style="width: 64px; font-size: 13px; color: #8E8E93">{{fd.k}}</div>
+<div style="flex-grow: 1; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{fd.v}}</div>
+<div style="font-size: 11px; color: {{fd.srcC}}; margin-left: 8px">{{fd.src}}</div>
+</div>
+</sc-for>
+</div>
+<div style="margin: 14px 16px 0; font-size: 13px; color: #6C6C70">표지 고르기</div>
+<div style="display: flex; gap: 12px; padding: 10px 16px 0">
+<sc-for list="{{covers}}" as="cv" hint-placeholder-count="4">
+<div style="text-align: center">
+<div style="width: 64px; height: 94px; border-radius: 2px; background: {{cv.bg}}; outline: {{cv.ring}}; outline-offset: 3px; box-shadow: 0 6px 10px -6px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; color: #8E8E93; font-size: 22px">{{cv.plus}}</div>
+<div style="font-size: 11px; color: #6C6C70; margin-top: 7px">{{cv.k}}</div>
+</div>
+</sc-for>
+</div>
+<button onClick="{{openSearch}}" style="position: absolute; left: 16px; right: 16px; bottom: 26px; height: 50px; border: none; border-radius: 12px; background: #111316; color: #FFFFFF; font-size: 15px; font-weight: 700">다른 정보 찾기</button>
+</div>
+</div>
+
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">② 다른 정보 찾기 (인터넷 검색 결과에서 고르기)</div>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #F2F2F4">
+<div style="padding: 14px 16px 10px">
+<div style="font-size: 16px; font-weight: 700; text-align: center; margin-bottom: 12px">다른 정보 찾기</div>
+<div style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; border-radius: 12px; background: #FFFFFF; box-shadow: 0 0 0 1px rgba(0,0,0,0.06)">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg>
+<div style="flex-grow: 1; font-size: 15px">데미안 헤세</div>
+<div style="font-size: 12px; color: #8E8E93">파일 이름에서</div>
+</div>
+<div style="font-size: 12px; color: #8E8E93; margin-top: 8px">검색어를 고쳐 다시 찾을 수 있어요 · 국립중앙도서관 · 알라딘 · 구글 북스</div>
+</div>
+<div style="margin: 4px 16px 0; border-radius: 12px; background: #FFFFFF; overflow: hidden">
+<sc-for list="{{results}}" as="r" hint-placeholder-count="4">
+<button onClick="{{r.pick}}" style="width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: none; border-bottom: 1px solid #ECECEF; background: {{r.sel}}; text-align: left; color: #111316">
+<div style="width: 46px; height: 68px; flex-shrink: 0; border-radius: 1px 2px 2px 1px; background: {{r.bg}}; box-shadow: 0 4px 8px -4px rgba(0,0,0,0.4)"></div>
+<div style="flex-grow: 1; min-width: 0">
+<div style="font-size: 14.5px; font-weight: 700">{{r.title}}</div>
+<div style="font-size: 12.5px; color: #3A3A3C; margin-top: 2px">{{r.author}}</div>
+<div style="font-size: 11.5px; color: #8E8E93; margin-top: 2px">{{r.pub}}</div>
+</div>
+<div style="font-size: 11.5px; font-weight: 700; color: {{r.scoreC}}">{{r.score}}</div>
+</button>
+</sc-for>
+</div>
+<div style="margin: 12px 20px 0; font-size: 12px; line-height: 1.6; color: #6C6C70">고르면 표지·지은이·출판사를 바꿔요. 파일은 고치지 않고 서재 정보만 바꿔요. '원래대로'로 언제든 되돌릴 수 있어요.</div>
+</div>
+</div>
+
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">③ 설정 › 책 정보</div>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #F2F2F4">
+<div style="padding: 18px 20px 10px; font-size: 28px; font-weight: 900">책 정보</div>
+<div style="margin: 0 16px; border-radius: 12px; background: #FFFFFF; overflow: hidden">
+<div style="display: flex; align-items: center; min-height: 64px; padding: 0 14px; border-bottom: 1px solid #ECECEF">
+<div style="flex-grow: 1"><div style="font-size: 15px; font-weight: 500">인터넷에서 책 정보 찾기</div><div style="font-size: 12px; color: #8E8E93; margin-top: 2px">표지·지은이·출판사</div></div>
+<button onClick="{{toggleNet}}" role="switch" aria-checked="{{netOn}}" aria-label="인터넷에서 책 정보 찾기" style="width: 52px; height: 32px; border-radius: 16px; border: none; padding: 0; background: {{netBg}}; position: relative"><span style="position: absolute; left: {{netKnob}}; top: 4px; width: 24px; height: 24px; border-radius: 12px; background: #FFFFFF; transition: left .2s"></span></button>
+</div>
+<div style="display: {{netShow}}; align-items: center; min-height: 50px; padding: 0 14px; border-bottom: 1px solid #ECECEF"><div style="flex-grow: 1; font-size: 14.5px">자동으로 찾기</div><div style="font-size: 14px; color: #8E8E93">와이파이에서만 ›</div></div>
+<div style="display: {{netShow}}; align-items: center; min-height: 50px; padding: 0 14px; border-bottom: 1px solid #ECECEF"><div style="flex-grow: 1; font-size: 14.5px">찾을 책</div><div style="font-size: 14px; color: #8E8E93">이북·만화·스캔 PDF ›</div></div>
+<div style="display: {{netShow}}; align-items: center; min-height: 50px; padding: 0 14px"><div style="flex-grow: 1; font-size: 14.5px; color: #0A6CD6">지금 모든 책 정보 다시 찾기</div></div>
+</div>
+<div style="margin: 10px 20px 0; font-size: 12px; line-height: 1.65; color: #6C6C70">파일 안에 정확한 정보가 있는 책은 그대로 둬요. 파일 이름(제목)만 보내고, 책 내용은 보내지 않아요. 한글·Word 문서는 찾지 않아요.</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1330,"height":900}}'>
+class Component extends DCLogic {
+constructor(p) { super(p); this.state = { pick: 0, net: true }; }
+renderVals() {
+const s = this.state;
+const G = (a, b) => 'linear-gradient(180deg, ' + a + ' 0%, ' + b + ' 100%)';
+const R = [
+{ title: '데미안', author: '헤르만 헤세 · 전영애 옮김', pub: '민음사 · 2000', bg: G('#3E6B8A', '#173244'), score: '자동 매칭 96%', tag: '인터넷 · 자동 매칭' },
+{ title: '데미안', author: '헤르만 헤세 · 안인희 옮김', pub: '문학동네 · 2013', bg: G('#C9A86A', '#6B5226'), score: '91%', tag: '인터넷 · 직접 고름' },
+{ title: '데미안 (영한 대역)', author: '헤르만 헤세', pub: '더클래식 · 2016', bg: G('#2D2D33', '#0E0E12'), score: '74%', tag: '인터넷 · 직접 고름' },
+{ title: '데미안 – 에밀 싱클레어의 청소년 시절', author: '헤르만 헤세 · 김인순 옮김', pub: '열린책들 · 2009', bg: G('#B21E1E', '#4A0B0B'), score: '70%', tag: '인터넷 · 직접 고름' }
+];
+const c = R[s.pick];
+return {
+cur: { title: c.title, author: c.author, pub: c.pub, bg: c.bg, tag: c.tag, tagBg: 'rgba(10,132,255,0.10)', tagFg: '#0A6CD6' },
+fields: [
+{ k: '제목', v: c.title, src: '파일 이름', srcC: '#8E8E93' },
+{ k: '지은이', v: c.author, src: '인터넷', srcC: '#0A6CD6' },
+{ k: '출판사', v: c.pub, src: '인터넷', srcC: '#0A6CD6' },
+{ k: '시리즈', v: '— (없음)', src: '', srcC: '#8E8E93' }
+],
+covers: [
+{ k: '인터넷', bg: c.bg, ring: '2px solid #0A84FF', plus: '' },
+{ k: '첫 쪽', bg: '#FFFFFF', ring: 'none', plus: '' },
+{ k: '파일 속 그림', bg: '#D9D9DE', ring: 'none', plus: '' },
+{ k: '사진에서', bg: '#FFFFFF', ring: 'none', plus: '+' }
+],
+results: R.map((r, i) => ({ title: r.title, author: r.author, pub: r.pub, bg: r.bg, score: r.score, scoreC: i === 0 ? '#0A6CD6' : '#8E8E93', sel: i === s.pick ? 'rgba(10,132,255,0.07)' : '#FFFFFF', pick: () => this.setState({ pick: i }) })),
+reset: () => this.setState({ pick: 0 }), openSearch: () => {},
+toggleNet: () => this.setState({ net: !s.net }), netOn: s.net ? 'true' : 'false', netBg: s.net ? '#34C759' : '#D1D1D6', netKnob: s.net ? '24px' : '4px', netShow: s.net ? 'flex' : 'none'
+};
+}
+}
+</script>
+</body>
+</html>
