@@ -40,6 +40,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -259,7 +261,10 @@ private fun Handle(at: Offset, c: ReadingColors, label: String, onDrag: (Offset)
     }
 }
 
-/** S-26 본문 검색 화면. 백그라운드에서 쪽마다 찾고, 글을 바꾸면 앞 검색은 취소된다. */
+/**
+ * S-26 본문 검색(작업 07 ReaderNew ④ 책 검색 시트): 위에서 내려온 시트 — 찾기 칸 + "이 책에서 N곳" + 장·쪽과 문장(검색어 노랗게).
+ * 누르면 그 쪽으로 가고, 읽기 화면 위 띠의 ‹ › 로 찾은 곳 사이를 옮긴다. 백그라운드에서 쪽마다 찾고, 글을 바꾸면 앞 검색은 취소된다.
+ */
 @Composable
 fun SearchPanel(
     doc: ReaderDoc,
@@ -267,7 +272,10 @@ fun SearchPanel(
     onClose: () -> Unit,
     /** 처음 넣어 둘 검색어(글자 선택 '검색', 7B). */
     initialQuery: String = "",
-    onPick: (Hit) -> Unit,
+    /** 쪽 → 장 이름(목차가 있을 때). */
+    chapterOf: (Int) -> String? = { null },
+    /** 고른 곳과 찾은 곳 모두(‹ › 이동용). */
+    onPick: (Hit, List<Hit>) -> Unit,
 ) {
     var query by remember { mutableStateOf(initialQuery) }
     val results = remember { mutableStateListOf<Hit>() }
@@ -296,14 +304,18 @@ fun SearchPanel(
         progress = when {
             noText == n -> "이 문서는 글자 정보가 없어 본문 검색을 할 수 없어요."
             results.isEmpty() -> "‘$q’을(를) 찾지 못했어요."
-            results.size >= 500 -> "500곳 넘게 찾아서 앞쪽 500곳만 보여 줘요."
-            else -> "${results.size}곳을 찾았어요."
+            results.size >= 500 -> "이 책에서 500곳 넘게 찾아 앞쪽 500곳만 보여 줘요."
+            else -> "이 책에서 ${results.size}곳"
         }
     }
 
-    Column(Modifier.fillMaxSize().background(c.bgC).statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().background(c.barC).padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose, modifier = Modifier.size(48.dp)) { Icon(Icons.Back, "검색 닫기", tint = c.fgC) }
+    // 뒤 화면 흐리게 + 위에서 86dp 아래로 내려온 둥근 시트(목업)
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)).clickable(onClick = onClose).semantics { contentDescription = "검색 닫기" })
+    Column(
+        Modifier.fillMaxSize().statusBarsPadding().padding(start = 8.dp, end = 8.dp, top = 40.dp, bottom = 8.dp)
+            .clip(RoundedCornerShape(22.dp)).background(c.bgC).clickable(enabled = false) {},
+    ) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = query, onValueChange = { query = it },
                 placeholder = { Text("본문에서 찾기", fontSize = 15.sp) },
@@ -316,18 +328,33 @@ fun SearchPanel(
                 modifier = Modifier.weight(1f).focusRequester(focus),
             )
             if (query.isNotEmpty()) IconButton(onClick = { query = "" }, modifier = Modifier.size(48.dp)) { Icon(Icons.Close, "지우기", tint = c.fgC) }
+            TextButton(onClick = onClose, modifier = Modifier.heightIn(min = 48.dp)) { Text("닫기", color = c.fgC, fontSize = 15.sp) }
         }
-        HorizontalDivider(color = c.lineC)
-        if (progress.isNotEmpty()) Text(progress, fontSize = 13.sp, color = c.subC, modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
+        if (progress.isNotEmpty()) Text(progress, fontSize = 12.5.sp, color = c.subC, modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp))
+        val q = query.trim()
         LazyColumn(Modifier.fillMaxSize()) {
             items(results) { h ->
-                Column(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { onPick(h) }.padding(horizontal = 20.dp, vertical = 10.dp)) {
-                    Text("${h.page + 1}쪽", fontSize = 12.sp, color = c.accentC, fontWeight = FontWeight.Bold)
-                    Text(h.snippet, fontSize = 15.sp, color = c.fgC, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Column(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { onPick(h, results.toList()) }.padding(horizontal = 18.dp, vertical = 10.dp)) {
+                    Row {
+                        Text(chapterOf(h.page).orEmpty(), fontSize = 12.sp, color = c.subC, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text("${h.page + 1}쪽", fontSize = 12.sp, color = c.subC)
+                    }
+                    Text(markQuery(h.snippet, q), fontSize = 14.sp, lineHeight = 21.sp, color = c.fgC, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
                 }
                 HorizontalDivider(color = c.lineC)
             }
         }
+    }
+}
+
+/** 문장 속 검색어를 노란 바탕·굵게(목업 #FFE58A). 글자색은 검정(어두운 테마에서도 노란 칠 위가 읽히게). */
+private fun markQuery(s: String, q: String): androidx.compose.ui.text.AnnotatedString = androidx.compose.ui.text.buildAnnotatedString {
+    append(s)
+    if (q.isEmpty()) return@buildAnnotatedString
+    var i = s.indexOf(q, ignoreCase = true)
+    while (i >= 0) {
+        addStyle(androidx.compose.ui.text.SpanStyle(background = Color(0xFFFFE58A), color = Color.Black, fontWeight = FontWeight.Bold), i, i + q.length)
+        i = s.indexOf(q, i + q.length, ignoreCase = true)
     }
 }
 

@@ -79,6 +79,7 @@ fun SeriesScreen(
             Box {
                 IconButton(onClick = { more = true }, modifier = Modifier.size(48.dp)) { Icon(Icons.More, contentDescription = "시리즈 메뉴") }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                    BlurBehind()
                     DropdownMenuItem(text = { Text("권 추가(직접 묶기)") }, onClick = { more = false; adding = true }, modifier = Modifier.heightIn(min = 48.dp))
                     DropdownMenuItem(text = { Text("이름 바꾸기") }, onClick = { more = false; rename = true }, modifier = Modifier.heightIn(min = 48.dp))
                     DropdownMenuItem(text = { Text("묶기 풀기") }, onClick = { more = false; confirmUngroup = true }, modifier = Modifier.heightIn(min = 48.dp))

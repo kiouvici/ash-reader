@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,6 +52,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,7 +85,9 @@ import kr.vici.ashreader.doc.ComicUpscale
 fun ScreenTitle(t: String, onBack: (() -> Unit)? = null) {
     Row(Modifier.padding(start = if (onBack == null) 20.dp else 4.dp, top = 12.dp, bottom = 8.dp, end = 20.dp), verticalAlignment = Alignment.CenterVertically) {
         if (onBack != null) IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) { Icon(Icons.Back, contentDescription = "뒤로") }
-        Text(t, fontFamily = Myeongjo, fontWeight = FontWeight.Bold, fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
+        // 애플식 제목(대표님 01:10): 맨 위 화면은 큰 제목(34, 아주 굵게, 글자색), 들어간 화면은 22 굵게 — 서재·설정과 같은 모양
+        if (onBack == null) Text(t, fontWeight = FontWeight.Black, fontSize = LARGE_TITLE.sp, letterSpacing = (-0.02).em, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.semantics { heading() })
+        else Text(t, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.semantics { heading() })
     }
 }
 
@@ -96,20 +101,19 @@ fun formatDuration(ms: Long): String {
 fun StatsScreen(sessions: List<ReadingSession>, streak: Int, books: List<Book>, timeByBook: Map<String, Long>) {
     val cs = MaterialTheme.colorScheme
     var monthly by rememberSaveable { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    // 애플식(대표님 01:10): 설정과 같은 회색 바탕 + 흰 카드, 큰 제목, 구분 단추, 파란 막대, 책은 표지와 책 제목으로
+    val dark = LocalAshDark.current
+    Column(Modifier.fillMaxSize().background(if (dark) Color.Black else Color(0xFFF2F2F7)).verticalScroll(rememberScrollState())) {
         ScreenTitle("독서 기록")
-        Row(Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill("주간", !monthly) { monthly = false }
-            Pill("월간", monthly) { monthly = true }
-        }
+        AppleSegmented(listOf("주간", "월간"), if (monthly) 1 else 0, { monthly = it == 1 }, Modifier.padding(horizontal = 20.dp).padding(bottom = 14.dp).widthIn(max = 280.dp))
         if (!monthly) WeekStats(sessions, streak, books) else MonthStats(sessions, streak, books)
-        Text("최근 읽은 책", fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 6.dp))
+        StatsHead("최근 읽은 책")
         books.filter { it.lastOpenedAt > 0 }.sortedByDescending { it.lastOpenedAt }.take(5).forEach { b ->
             val f = DocFormat.of(b.format)
             Row(Modifier.padding(horizontal = 20.dp, vertical = 6.dp).heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.size(36.dp, 48.dp).clip(RoundedCornerShape(4.dp)).background(f.badgeColor()))
+                ShelfCover(b, Modifier.size(36.dp, 50.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(b.title, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(b.shownTitle, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val st = if (b.status == Book.DONE) "다 읽음" else "${(b.progress() * 100).toInt()}%"
                     Text("${f.badge} · $st · ${formatDuration(timeByBook[b.id] ?: 0)}", fontSize = 12.sp, color = cs.onSurfaceVariant)
                 }
@@ -139,7 +143,7 @@ private fun WeekStats(sessions: List<ReadingSession>, streak: Int, books: List<B
         StatCard("다 읽은 책", "${doneThisWeek}권", Modifier.weight(1f))
         StatCard("연속", "${streak}일", Modifier.weight(1f))
     }
-    Text("요일별 읽은 시간", fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 10.dp))
+    StatsHead("요일별 읽은 시간")
     Bars("월화수목금토일".map { it.toString() }, perDay, today, barWidth = 22, describe = { i -> "${"월화수목금토일"[i]}요일 ${formatDuration(perDay[i])}" })
     if (total == 0L) Text("이번 주에는 아직 기록이 없어요.", fontSize = 13.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, top = 8.dp))
 }
@@ -167,7 +171,7 @@ private fun MonthStats(sessions: List<ReadingSession>, streak: Int, books: List<
         StatCard("읽은 날", "${readDays}일", Modifier.weight(1f))
         StatCard("다 읽은 책", "${doneThisMonth}권", Modifier.weight(1f))
     }
-    Text("날짜별 읽은 시간", fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 10.dp))
+    StatsHead("날짜별 읽은 시간")
     val today = now.get(Calendar.DAY_OF_MONTH) - 1
     Bars((1..days).map { d -> if (d == 1 || d % 5 == 0) "$d" else "" }, perDay, today, barWidth = 6,
         describe = { i -> "${month}월 ${i + 1}일 ${formatDuration(perDay[i])}" })
@@ -179,7 +183,7 @@ private fun MonthStats(sessions: List<ReadingSession>, streak: Int, books: List<
         months[5 - k] = sessions.filter { it.startedAt in from until to }.sumOf { it.durationMs }
         labels += "${Calendar.getInstance().apply { timeInMillis = from }.get(Calendar.MONTH) + 1}월"
     }
-    Text("달별 읽은 시간 (최근 6개월)", fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 10.dp))
+    StatsHead("달별 읽은 시간 (최근 6개월)")
     Bars(labels, months, 5, barWidth = 22, describe = { i -> "${labels[i]} ${formatDuration(months[i])}" })
     Text("이번 달 하루 평균 ${formatDuration(if (readDays == 0) 0 else total / readDays)} (읽은 날 기준) · 연속 ${streak}일",
         fontSize = 13.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, top = 10.dp, end = 20.dp))
@@ -193,7 +197,8 @@ private fun Bars(labels: List<String>, values: LongArray, highlight: Int, barWid
     Row(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(150.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
         labels.forEachIndexed { i, d ->
             Column(Modifier.weight(1f).fillMaxHeight().semantics { contentDescription = describe(i) }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
-                Box(Modifier.width(barWidth.dp).fillMaxHeight(0.85f * values[i] / max + 0.01f).clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)).background(if (i == highlight) cs.secondary else cs.primary))
+                Box(Modifier.width(barWidth.dp).fillMaxHeight(0.85f * values[i] / max + 0.01f).clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                    .background(if (values[i] == 0L) cs.onSurfaceVariant.copy(alpha = 0.2f) else if (i == highlight) AppleBlue else AppleBlue.copy(alpha = 0.45f)))
                 Text(d, fontSize = 12.sp, maxLines = 1, softWrap = false, color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp).wrapContentWidth(unbounded = true))
             }
         }
@@ -218,10 +223,17 @@ fun weekStart(): Long = Calendar.getInstance().apply {
 
 @Composable
 private fun StatCard(label: String, value: String, modifier: Modifier) {
-    Column(modifier.clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainer).padding(12.dp)) {
-        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+    val dark = LocalAshDark.current
+    Column(modifier.clip(RoundedCornerShape(12.dp)).background(if (dark) Color(0xFF1C1C1E) else Color.White).padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
     }
+}
+
+/** 독서 기록 묶음 제목(20 굵게, 서재 '모든 책'과 같은 모양). */
+@Composable
+private fun StatsHead(t: String) {
+    Text(t, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 10.dp).semantics { heading() })
 }
 
 /** S-45 다음 권 확인창. */
@@ -229,6 +241,7 @@ private fun StatCard(label: String, value: String, modifier: Modifier) {
 @Composable
 fun NextVolumeSheet(done: Book, next: Book, onLibrary: () -> Unit, onOpenNext: () -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        BlurBehind(dim = 0f)
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 28.dp)) {
             Text("${kr.vici.ashreader.data.SeriesGroups.volumeLabel(done)}을 다 읽었어요", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("이어서 ${kr.vici.ashreader.data.SeriesGroups.volumeLabel(next)}을 열까요?", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, bottom = 20.dp))
@@ -245,20 +258,22 @@ fun NextVolumeSheet(done: Book, next: Book, onLibrary: () -> Unit, onOpenNext: (
  * [grid] = 칸별 뜻(행 우선 9개). 아무 곳이나 누르면 닫힘.
  */
 @Composable
-fun TapGuide(rtl: Boolean, grid: List<TapAction> = emptyList(), onChange: (() -> Unit)? = null, onOk: () -> Unit) {
+fun TapGuide(rtl: Boolean, grid: List<TapAction> = emptyList(), onChange: (() -> Unit)? = null, edge: Float = TapZones.EDGE, onOk: () -> Unit) {
     val prevLeft = !rtl
+    // 칸 폭 = 실제 탭 영역(좌우 [edge], 가운데 나머지). 내 방식(3등분)은 edge = 1/3
+    val colW = listOf(edge, 1f - 2 * edge, edge)
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable(onClick = onOk)) {
         if (grid.size != 9) Row(Modifier.fillMaxSize()) {
-            Zone(if (prevLeft) "이전 쪽" else "다음 쪽", Modifier.weight(0.3f), Color(0x552E4A6B))
-            Zone("메뉴", Modifier.weight(0.4f), Color(0x338C5A2B))
-            Zone(if (prevLeft) "다음 쪽" else "이전 쪽", Modifier.weight(0.3f), Color(0x552E4A6B))
+            Zone(if (prevLeft) "이전 쪽" else "다음 쪽", Modifier.weight(colW[0]), Color(0x552E4A6B))
+            Zone("메뉴", Modifier.weight(colW[1]), Color(0x338C5A2B))
+            Zone(if (prevLeft) "다음 쪽" else "이전 쪽", Modifier.weight(colW[2]), Color(0x552E4A6B))
         } else Column(Modifier.fillMaxSize()) {
             for (row in 0 until 3) Row(Modifier.weight(1f).fillMaxWidth()) {
                 for (col in 0 until 3) {
                     val a = grid[row * 3 + col]
                     Zone(
                         when (a) { TapAction.PREV -> "이전 쪽"; TapAction.NEXT -> "다음 쪽"; TapAction.MENU -> "메뉴"; TapAction.NONE -> "" },
-                        Modifier.weight(1f), zoneColor(a),
+                        Modifier.weight(colW[col]), zoneColor(a),
                     )
                 }
             }

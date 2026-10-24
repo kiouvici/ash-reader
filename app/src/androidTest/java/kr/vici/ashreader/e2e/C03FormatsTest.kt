@@ -36,10 +36,11 @@ class C03FormatsTest : E2eTest() {
         shot("$title-next")
         assertAlive()
         if (dual) {
-            // 위 막대의 보기 전환 단추(설명 = 바꿀 대상: "원본으로 보기" / "이북식(eBook)으로 보기")
+            // 작업 07: 보기 전환은 '테마 및 설정' 맨 윗줄의 한 칸(설명 = "보기 전환, 지금 원본, 누르면 eBook 보기")
             repeat(2) { i ->
-                openMenu()
-                val toggle = device.wait(Until.findObject(By.desc(EBOOK)), 3_000) ?: device.wait(Until.findObject(By.desc(ORIGINAL)), 3_000)
+                stackItem("테마 및 설정")
+                val toggle = device.wait(Until.findObject(By.desc(java.util.regex.Pattern.compile("보기 전환.*"))), 3_000)
+                    ?: device.wait(Until.findObject(By.desc(EBOOK)), 1_000) ?: device.wait(Until.findObject(By.desc(ORIGINAL)), 1_000)
                 if (toggle == null) { shot("$title-no-toggle"); fail("'$title': 원본/eBook 전환 단추가 없음") }
                 val to = toggle!!.contentDescription
                 toggle.click()

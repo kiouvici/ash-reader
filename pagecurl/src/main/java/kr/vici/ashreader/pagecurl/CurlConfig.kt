@@ -39,4 +39,10 @@ interface PageSource {
      * 강조(형광펜·검색·TTS)는 이 비트맵에 구워서 준다(M-03).
      */
     fun render(index: Int, width: Int, height: Int): Bitmap
+
+    /**
+     * 쪽 모양이 정해진 책(만화·PDF·한글 원본 등)인가. true 면 넘김 화면이 [render] 결과에서 바탕색 둘레를 재어 종이 자리를 찾고,
+     * 종이 부분만 말거나 밀며 둘레 여백은 가만히 둔다(대표님 2026-10-24 23:00). false = 칸 전체가 종이(이북류).
+     */
+    val paperOnly: Boolean get() = false
 }

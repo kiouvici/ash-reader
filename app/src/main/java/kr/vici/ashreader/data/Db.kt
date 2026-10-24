@@ -88,6 +88,8 @@ data class Book(
         const val HIDDEN_REMOVED = 2
         /** 압축 파일 안 문서: 서재에는 압축 파일 한 권으로만 보이고, 읽은 위치·책갈피는 이 기록에 둔다. */
         const val HIDDEN_INNER = 3
+        /** 사용자가 '서재에서 숨기기'(작업 07) — 모음 '숨긴 책'에서만 보이고, 다시 보이게 할 수 있다. */
+        const val HIDDEN_USER = 4
         const val SERIES_AUTO = 0
         const val SERIES_MANUAL = 1
         const val SERIES_EXCLUDED = 2
@@ -193,6 +195,31 @@ data class ReadingSession(
 )
 
 data class BookTime(val bookId: String, val total: Long)
+
+/** 새 모음(작업 07): 사용자가 고른 책 묶음. [ord] 작은 것부터(≡ 모음 목록 순서). */
+@Entity(tableName = "shelf_collection")
+data class ShelfCollection(
+    @PrimaryKey val id: String,
+    val name: String,
+    val ord: Int = 0,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+/** 모음에 든 책. [ord] = 모음 안 순서. */
+@Entity(tableName = "collection_book", primaryKeys = ["collectionId", "bookId"], indices = [Index("bookId")])
+data class CollectionBook(
+    val collectionId: String,
+    val bookId: String,
+    val ord: Int = 0,
+)
+
+/** '직접 정렬'(작업 07): 묶음([groupKey])마다 책 순서. 줄이 없는 책은 뒤에 최근 순으로. */
+@Entity(tableName = "book_order", primaryKeys = ["groupKey", "bookId"])
+data class BookOrder(
+    val groupKey: String,
+    val bookId: String,
+    val ord: Int,
+)
 
 @Dao
 interface BookDao {
@@ -362,9 +389,55 @@ interface BookDao {
     /** 읽은 위치·상태·즐겨찾기·시리즈 직접 묶기를 처음으로(책 목록·파일 위치는 그대로). */
     @Query("UPDATE book SET lastPage = 0, status = 0, lastOpenedAt = 0, favorite = 0, seriesManual = 0 WHERE seriesManual != 0 OR lastPage != 0 OR status != 0 OR lastOpenedAt != 0 OR favorite != 0")
     suspend fun resetReading()
+
+    // ---- 작업 07: 숨긴 책·새 모음·직접 정렬
+    /** '서재에서 숨기기'한 책(모음 '숨긴 책'). */
+    @Query("SELECT * FROM book WHERE hidden = 4 ORDER BY addedAt DESC")
+    fun hiddenByUser(): Flow<List<Book>>
+
+    @Query("SELECT * FROM shelf_collection ORDER BY ord, createdAt")
+    fun collections(): Flow<List<ShelfCollection>>
+
+    @Query("SELECT * FROM collection_book ORDER BY collectionId, ord")
+    fun collectionBooks(): Flow<List<CollectionBook>>
+
+    @Upsert suspend fun upsertCollection(c: ShelfCollection)
+
+    @Query("UPDATE shelf_collection SET name = :name WHERE id = :id")
+    suspend fun renameCollection(id: String, name: String)
+
+    @Query("DELETE FROM shelf_collection WHERE id = :id")
+    suspend fun deleteCollectionRow(id: String)
+
+    @Query("DELETE FROM collection_book WHERE collectionId = :id")
+    suspend fun clearCollection(id: String)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun addToCollection(rows: List<CollectionBook>)
+
+    @Query("DELETE FROM collection_book WHERE collectionId = :id AND bookId = :bookId")
+    suspend fun removeFromCollection(id: String, bookId: String)
+
+    @Query("SELECT * FROM book_order WHERE groupKey = :key ORDER BY ord")
+    fun order(key: String): Flow<List<BookOrder>>
+
+    @Query("DELETE FROM book_order WHERE groupKey = :key")
+    suspend fun clearOrder(key: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrder(rows: List<BookOrder>)
+
+    // 백업
+    @Query("SELECT * FROM shelf_collection") suspend fun allCollections(): List<ShelfCollection>
+    @Query("SELECT * FROM collection_book") suspend fun allCollectionBooks(): List<CollectionBook>
+    @Query("SELECT * FROM book_order") suspend fun allOrders(): List<BookOrder>
 }
 
-@Database(entities = [Book::class, Bookmark::class, Note::class, ReadingSession::class, Highlight::class, StoreApp::class, ScanFolder::class], version = 7, exportSchema = true)
+@Database(
+    entities = [Book::class, Bookmark::class, Note::class, ReadingSession::class, Highlight::class, StoreApp::class, ScanFolder::class,
+        ShelfCollection::class, CollectionBook::class, BookOrder::class],
+    version = 8, exportSchema = true,
+)
 abstract class AshDb : RoomDatabase() {
     abstract fun books(): BookDao
 
@@ -431,8 +504,27 @@ abstract class AshDb : RoomDatabase() {
             }
         }
 
+        /** 7 → 8: 새 모음(작업 07)·모음에 든 책·직접 정렬 순서 표. 기존 책·기록은 그대로. */
+        val M7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `shelf_collection` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `ord` INTEGER NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `collection_book` (`collectionId` TEXT NOT NULL, `bookId` TEXT NOT NULL, `ord` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`collectionId`, `bookId`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_collection_book_bookId` ON `collection_book` (`bookId`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `book_order` (`groupKey` TEXT NOT NULL, `bookId` TEXT NOT NULL, `ord` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`groupKey`, `bookId`))",
+                )
+            }
+        }
+
         /** 앱이 쓰는 모든 이전(이전 시험 AshDbMigrationTest 도 이 목록을 쓴다). */
-        val MIGRATIONS = arrayOf(M1_2, M2_3, M3_4, M4_5, M5_6, M6_7)
+        val MIGRATIONS = arrayOf(M1_2, M2_3, M3_4, M4_5, M5_6, M6_7, M7_8)
 
         @Volatile private var inst: AshDb? = null
         fun get(context: Context): AshDb = inst ?: synchronized(this) {

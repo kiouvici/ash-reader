@@ -85,6 +85,7 @@ fun ViewSettingsSheet(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        BlurBehind(dim = 0f)
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             // 작업 04: 맨 위 AI 화질 향상 칸(만화 설정과 같은 모양). 이북·PDF 는 앱 전체 한 값
             if (aiKind != null) AiQualityCard(aiKind, s.epubAiUpscale, onToggle = { v -> onChange { it.copy(epubAiUpscale = v) } }, onCompare = onAiCompare, modifier = Modifier.padding(bottom = 12.dp), limitMb = s.upscaleCacheMb)
@@ -122,9 +123,8 @@ fun ViewSettingsSheet(
                 if (fixed.fit != ComicBookPrefs.FIT_SCREEN) Hint("폭·높이 맞춤에서는 화면을 밀어 쪽 안을 보고, 끝에 닿으면 다음 쪽으로 가요. 글자 선택은 쪽 맞춤에서 돼요.")
                 if (fixed.cropAvailable) SwitchLine("여백 자르기 (이 책)", "쪽 둘레 흰 여백을 잘라 글자를 크게 보여요", fixed.crop) { v -> fixed.onCrop(v) }
             }
-            Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AaTab.entries.forEach { t -> Pill(t.label, t == tab) { tab = t } }
-            }
+            // 애플식 구분 단추(대표님 01:10)
+            AppleSegmented(AaTab.entries.map { it.label }, tab.ordinal, { tab = AaTab.entries[it] }, Modifier.padding(vertical = 12.dp))
             when (tab) {
                 AaTab.TEXT -> {
                     Label("글꼴")

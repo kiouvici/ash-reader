@@ -16,6 +16,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -388,6 +391,9 @@ private fun AshRoot(nav: NavModel) {
     var exportFor by remember { mutableStateOf<String?>(null) }
     /** 서재에서 아래 '서재'를 다시 누른 횟수(첫 화면으로 돌아가기, 작업 06). */
     var libHome by rememberSaveable { mutableStateOf(0) }
+    /** 아래 내비게이션 '모음'을 누른 자리·'검색'을 누른 횟수(작업 07). */
+    var libCollAt by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    var libSearch by rememberSaveable { mutableStateOf(0) }
     var exportAll by remember { mutableStateOf(false) }
     /** S-46 압축 파일 안 고르기: 압축 파일·식별값·한 번만 보기 여부·안의 문서들. */
     var zipPick by remember { mutableStateOf<ZipPick?>(null) }
@@ -604,17 +610,28 @@ private fun AshRoot(nav: NavModel) {
             nav.tab = tabs[i]; nav.screen = tabs[i]
         }
         val land = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+        // 아래 내비게이션의 모음·검색(대표님 2026-10-25 00:27) — 다른 탭에서 눌러도 서재로 가서 연다
+        val navActions = listOf("모음" to Icons.Menu, "검색" to Icons.Search)
+        fun navAction(i: Int, r: androidx.compose.ui.geometry.Rect) {
+            nav.tab = Screen.Library; nav.screen = Screen.Library
+            if (i == 0) libCollAt = r else libSearch++
+        }
         Scaffold(
             snackbarHost = { SnackbarHost(snack) },
             bottomBar = {
                 if (!(land && sc == Screen.Library)) {
-                    FloatingNavBar(listOf("서재" to Icons.Library, "독서 기록" to Icons.Chart, "설정" to Icons.Gear), tabs.indexOf(nav.tab), ::pickTab)
+                    FloatingNavBar(listOf("서재" to Icons.Library, "독서 기록" to Icons.Chart, "설정" to Icons.Gear), tabs.indexOf(nav.tab), ::pickTab, navActions, ::navAction)
                 }
             },
         ) { pad ->
-            Box(Modifier.fillMaxSize().padding(pad)) {
+            // 대표님 2026-10-25 00:24: 서재는 위(상태 표시줄)·아래(내비게이션) 막대 밑으로 목록이 지나가며 비쳐 보이게 — 각 화면이 여백을 직접 둔다
+            val throughBars = sc == Screen.Library
+            // 설정·독서 기록은 애플식 회색 바탕을 위아래 막대 자리까지(크림색 띠가 남지 않게)
+            val grouped = sc == Screen.Stats || sc == Screen.Settings
+            val groupedBg = if (kr.vici.ashreader.ui.LocalAshDark.current) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color(0xFFF2F2F7)
+            Box(Modifier.fillMaxSize().then(if (grouped) Modifier.background(groupedBg) else Modifier).then(if (throughBars) Modifier else Modifier.padding(pad))) {
                 when (sc) {
-                    Screen.Library -> LibraryScreen(
+                    Screen.Library -> androidx.compose.runtime.CompositionLocalProvider(kr.vici.ashreader.ui.LocalBarInsets provides pad) { LibraryScreen(
                         books = books, unavailable = unavailableBooks, onOpen = ::open, onAdd = { picker.launch(arrayOf("*/*")) },
                         onSeries = { nav.screen = Screen.Series(it) },
                         onRemove = { b -> scope.launch { app.library.remove(b) } },
@@ -624,10 +641,13 @@ private fun AshRoot(nav: NavModel) {
                         showStores = settings.showStores,
                         folderRoots = allFolders.filter { it.include }.map { it.label },
                         homeKey = libHome,
-                        navBar = if (land) { { HeaderNav(listOf("서재", "독서 기록", "설정"), 0, ::pickTab) } } else null,
+                        navBar = if (land) { { HeaderNav(listOf("서재", "독서 기록", "설정"), 0, ::pickTab, navActions, ::navAction) } } else null,
+                        collAt = libCollAt, onCollShown = { libCollAt = null }, searchKey = libSearch,
                         onBookInfo = { b -> nav.screen = Screen.BookInfo(b.id) },
-                        listMode = settings.libList, seriesAuto = settings.seriesAuto,
-                    )
+                        prefs = kr.vici.ashreader.ui.LibPrefs(settings.libColls, settings.libViews, settings.libList),
+                        onPrefs = { p -> change { it.copy(libColls = p.colls, libViews = p.views) } },
+                        seriesAuto = settings.seriesAuto,
+                    ) }
                     Screen.Stats -> {
                         val since = remember { statsSince() }
                         val week by remember { dao.sessionsSince(since) }.collectAsState(initial = emptyList())
@@ -703,6 +723,11 @@ private fun AshRoot(nav: NavModel) {
                     }
                     is Screen.Reader -> Unit
                 }
+                // 서재: 상태 표시줄 자리에 바탕색 막(메뉴와 같은 투명도 83%) — 위로 지나가는 책이 비쳐 보이게
+                if (throughBars) Box(
+                    Modifier.fillMaxWidth().height(pad.calculateTopPadding())
+                        .background(androidx.compose.material3.MaterialTheme.colorScheme.background.copy(alpha = kr.vici.ashreader.ui.GLASS_ALPHA)),
+                )
             }
             exportFor?.let { id -> ExportSheet(bookId = id) { exportFor = null } }
             if (exportAll) ExportSheet(bookId = null) { exportAll = false }

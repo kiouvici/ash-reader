@@ -17,6 +17,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -79,6 +81,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -87,6 +90,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -173,9 +179,12 @@ private sealed interface Load {
 private class GuardedSource(
     private val doc: ReaderDoc,
     private val colors: ReadingColors,
+    /** 쪽 모양이 정해진 문서(만화·PDF·한글 원본 등) — 넘길 때 종이만 움직이게 종이 비율을 알려 준다. */
+    private val fixed: Boolean = false,
     private val marks: (page: Int, tp: () -> TextPage?) -> List<Mark> = { _, _ -> emptyList() },
 ) : PageSource {
     override val pageCount: Int = doc.pageCount
+    override val paperOnly: Boolean get() = fixed
     override fun render(index: Int, width: Int, height: Int): Bitmap = synchronized(guard) {
         if (closed.contains(doc)) Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply { eraseColor(colors.bg) }
         else runCatching {
@@ -233,6 +242,9 @@ private class DocListenSource(private val doc: ReaderDoc, override val bookId: S
 }
 
 /** 듣기를 쓸 수 없는 문서면 그 까닭(S-27). null = 들을 수 있음. */
+/** 다 쓴 문서를 화면 스레드 밖에서 닫는다(엔진 닫기가 느릴 수 있음). */
+private fun closeDoc(d: ReaderDoc) { Thread { GuardedSource.close(d) }.start() }
+
 private fun cannotListen(doc: ReaderDoc, fmt: DocFormat): String? = when {
     doc is MupdfReaderDoc || doc is DjvuReaderDoc -> null
     fmt.group == FormatGroup.HWP -> "원본 보기에서는 들을 수 없어요. ‘eBook 보기’로 바꾸면 들을 수 있어요."
@@ -314,7 +326,37 @@ fun ReaderScreen(
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
     val colors = s.readingColors()
+    // 대표님 01:10 전수 검사: 어두운 종이(집중·내 테마)에서 아래 내비게이션 줄이 밝은 띠로 남고 위 상태 표시줄 글자가 묻혔다.
+    // 읽는 동안에는 위아래 줄을 종이 색에 맞춘다(투명 + 밝은/어두운 아이콘), 나가면 앱 테마로 되돌린다
+    run {
+        val paperDark = colors.bgC.luminance() < 0.4f
+        val appDark = LocalAshDark.current
+        val act = LocalContext.current as? Activity
+        DisposableEffect(act, paperDark) {
+            val w = act?.window
+            if (w != null) {
+                @Suppress("DEPRECATION")
+                w.navigationBarColor = android.graphics.Color.TRANSPARENT
+                if (android.os.Build.VERSION.SDK_INT >= 29) w.isNavigationBarContrastEnforced = false
+                androidx.core.view.WindowCompat.getInsetsController(w, w.decorView).run {
+                    isAppearanceLightStatusBars = !paperDark; isAppearanceLightNavigationBars = !paperDark
+                }
+            }
+            onDispose {
+                w?.let { androidx.core.view.WindowCompat.getInsetsController(it, it.decorView).run { isAppearanceLightStatusBars = !appDark; isAppearanceLightNavigationBars = !appDark } }
+            }
+        }
+    }
     var menu by remember { mutableStateOf(false) }
+    // 작업 07 E: 떠 있는 메뉴 쌓기 · 테마 및 설정 · 사용자화 · 안내선(켜짐, 띠 자리 = 화면 높이 비율)
+    var stackOpen by remember { mutableStateOf(false) }
+    var stackClosedAt by remember { mutableStateOf(0L) }
+    // 넘김 화면에서 시작한 두 손가락 확대를 확대 덧화면으로 넘기는 통로(손을 떼면 닫힘)
+    var pinchFeed by remember { mutableStateOf<kotlinx.coroutines.channels.ReceiveChannel<PinchStep>?>(null) }
+    var themeOpen by remember { mutableStateOf(false) }
+    var customOpen by remember { mutableStateOf(false) }
+    var guideOn by rememberSaveable(target.id) { mutableStateOf(false) }
+    var guideY by rememberSaveable(target.id) { mutableFloatStateOf(0.4f) }
     // 필수 2: 회전·복원에도 읽던 쪽 유지
     var page by rememberSaveable(target.id) { mutableIntStateOf(target.startPage) }
     var showAa by remember { mutableStateOf(false) }
@@ -333,6 +375,8 @@ fun ReaderScreen(
     /** 글자 선택 '검색'으로 연 검색어(7B). */
     var searchSeed by remember { mutableStateOf("") }
     var hit by remember { mutableStateOf<Hit?>(null) }
+    /** 작업 07 E4: 찾은 곳 모두(‹ › 이동). */
+    var hits by remember { mutableStateOf<List<Hit>>(emptyList()) }
     var jumpReq by remember { mutableStateOf<Int?>(null) }
     var tocTab by remember { mutableIntStateOf(0) }
     var openDoc by remember { mutableStateOf<ReaderDoc?>(null) }
@@ -408,8 +452,8 @@ fun ReaderScreen(
 
     fun stub(msg: String) { scope.launch { snack.showSnackbar(msg) } }
 
-    BackHandler(enabled = menu || sel != null || hit != null || foot != null) {
-        when { foot != null -> foot = null; sel != null -> sel = null; menu -> menu = false; else -> hit = null }
+    BackHandler(enabled = menu || sel != null || hit != null || foot != null || guideOn) {
+        when { foot != null -> foot = null; sel != null -> sel = null; stackOpen -> stackOpen = false; menu -> menu = false; guideOn -> guideOn = false; else -> hit = null }
     }
 
     // ── 화면·창 (F-42 밝기, F-65, F-67) ──
@@ -513,6 +557,8 @@ fun ReaderScreen(
     }
 
     val curLevel by rememberUpdatedState(effLevel ?: activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.5f)
+    // 지금 보이는 문서의 책 경로(같은 책을 다시 나누는지 알기)
+    var loadedPath by remember { mutableStateOf<String?>(null) }
     BoxWithConstraints(
         Modifier.fillMaxSize().background(colors.bgC).edgeBrightness(
             enabled = s.edgeBrightness, edge = 32.dp, band = 200.dp, current = { curLevel },
@@ -526,7 +572,7 @@ fun ReaderScreen(
         // F-22 스크롤 보기는 한 줄(칸)로: 이북류는 너무 넓지 않게 760dp 까지
         val pageWdp = if (scrollView) (if (reflow) minOf(wDp, 760f) else wDp) else if (spread) wDp / 2f else wDp
         val txtKey = if (fmt == DocFormat.TXT) listOf(s.txtBlank, s.txtJoin, s.txtTrim, s.txtDefaultEncoding, s.txtTocMask, s.txtTocCustom) else emptyList<Any>()
-        val styleKey = listOf(s.userFont, s.paraSpace, s.marginH, s.marginV, s.align, s.breakChar, s.hyphen, s.indent, s.dialogIndent)
+        val styleKey = listOf(s.userFont, s.paraSpace, s.marginH, s.marginV, s.align, s.breakChar, s.hyphen, s.indent, s.dialogIndent, s.theme == kr.vici.ashreader.data.ReadTheme.BOLD)
         // I-711 eBook 보기(쪽 넘김): 상태 표시줄·카메라 구멍·정보줄·내비게이션 줄 몫을 모든 쪽에서 비운다
         val pageFrame = rememberPageFrame(s)
         val frame = if (reflow && !scrollView) pageFrame else null
@@ -534,7 +580,12 @@ fun ReaderScreen(
             else listOf(spread, hwpEbook, pdfComic, fixedView.crop)
 
         val load by produceState<Load>(Load.Loading, target.path, layoutKey, pwTry) {
-            value = Load.Loading
+            // 대표님 01:00: 글자 크기·줄 간격 등을 바꿔 다시 나눌 때 '여는 중…'으로 번쩍이지 않게(그리고 열린 시트가 닫히지 않게),
+            // 같은 책이면 새 배치가 다 될 때까지 지금 문서를 그대로 보여 주고, 새 문서로 바꾼 뒤에 옛 문서를 닫는다
+            val prev = (value as? Load.Ok)?.doc
+            val relayout = prev != null && loadedPath == target.path
+            loadedPath = target.path
+            if (!relayout) { value = Load.Loading; prev?.let { closeDoc(it) } }
             val pw = password
             val crop = fixedView.crop && !reflow && !pdfComic
             fun openNow(): ReaderDoc = DocOpener.open(
@@ -562,7 +613,9 @@ fun ReaderScreen(
                     )
                     return@produceState
                 }
-            } else withContext(Dispatchers.IO) { runCatching { openNow() } }
+            } else withContext(Dispatchers.IO + kotlinx.coroutines.NonCancellable) { runCatching { openNow() } }
+            // 여는 사이에 또 바뀌었으면(막대를 연달아 움직임) 이 문서는 버린다 — 다음 차례가 지금 보이는 문서를 이어 보여 준다
+            if (!coroutineContext[kotlinx.coroutines.Job]!!.isActive) { r.getOrNull()?.let { closeDoc(it) }; return@produceState }
             value = r.fold({ Load.Ok(it) }, { e ->
                 when (e) {
                     is PasswordNeeded -> Load.Locked(e.wrong)
@@ -571,8 +624,11 @@ fun ReaderScreen(
                     else -> Load.Err(e.message ?: "문서를 열 수 없어요.")
                 }
             })
-            awaitDispose { r.getOrNull()?.let { d -> Thread { GuardedSource.close(d) }.start() } }
+            if (relayout) prev?.let { closeDoc(it) }
+            // 보이는 문서는 다음 차례(다시 나누기·다른 책) 또는 화면을 떠날 때 닫는다(아래 DisposableEffect)
         }
+        val shownLoad by rememberUpdatedState(load)
+        DisposableEffect(Unit) { onDispose { (shownLoad as? Load.Ok)?.doc?.let { closeDoc(it) } } }
 
         when (val l = load) {
             Load.Loading -> Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -756,7 +812,7 @@ fun ReaderScreen(
                     val source = remember(doc, colors, highlights, hit, speaking, comic?.layoutVersion) {
                         val hl = highlights; val h = hit; val sp = speaking
                         val spColor = mix(colors.accent, colors.bg, 0.45f)
-                        GuardedSource(doc, colors) { i, tpOf ->
+                        GuardedSource(doc, colors, fixed = !reflow) { i, tpOf ->
                             // 쪽 수가 바뀌어도(이북식 글꼴·크기) 위치 비율로 근처 쪽을 찾은 뒤 글자로 다시 맞춘다
                             val cand = hl.filter { kotlin.math.abs(locatorPage(it.page, it.frac, count) - i) <= near }
                             val spHere = sp != null && (sp.page == i || (sp.start2 >= 0 && sp.page + 1 == i))
@@ -972,22 +1028,30 @@ fun ReaderScreen(
                                         }
                                     }
                                 } else Modifier.pointerInput(page, spreadNow) {
-                                    // 두 손가락을 대면 확대 덧화면으로(넘김 화면에는 취소가 간다)
+                                    // 두 손가락을 대면 확대 덧화면을 1배로 열고, 손을 뗄 때까지 손가락 움직임을 그대로 넘긴다
+                                    // (대표님 01:55: 예전에는 1.5배로 툭 커진 뒤에야 자연스럽게 커졌다). 넘김 화면에는 취소가 간다
                                     awaitEachGesture {
                                         awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                        var feed: kotlinx.coroutines.channels.Channel<PinchStep>? = null
                                         while (true) {
                                             val ev = awaitPointerEvent(PointerEventPass.Initial)
                                             val down = ev.changes.filter { it.pressed }
                                             if (down.isEmpty()) break
-                                            if (down.size >= 2) {
+                                            val f = feed
+                                            if (f == null && down.size >= 2) {
                                                 val cx = down.map { it.position.x }.average().toFloat()
                                                 val cy = down.map { it.position.y }.average().toFloat()
                                                 ev.changes.forEach { it.consume() }
                                                 tapState.job?.cancel()
-                                                openZoom(cx / size.width, cy / size.height, 1.5f)
-                                                break
+                                                val ch = kotlinx.coroutines.channels.Channel<PinchStep>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+                                                feed = ch; pinchFeed = ch
+                                                openZoom(cx / size.width, cy / size.height, 1f)
+                                            } else if (f != null) {
+                                                if (down.size >= 2) f.trySend(PinchStep(ev.calculateCentroid(useCurrent = true), ev.calculatePan(), ev.calculateZoom()))
+                                                ev.changes.forEach { it.consume() }
                                             }
                                         }
+                                        feed?.let { it.trySend(PinchStep(Offset.Zero, Offset.Zero, 1f, end = true)); it.close() }
                                     }
                                 },
                             )
@@ -1009,7 +1073,7 @@ fun ReaderScreen(
                                 }
                             },
                             tapAction = tapOf, menuVisible = false,
-                            onToggleMenu = { zoomAt = null; jumpReq = page; menu = true },
+                            onToggleMenu = { zoomAt = null; pinchFeed = null; jumpReq = page; menu = true },
                             onPage = { if (it != page) { page = it; pagesTurned++ } },
                             onLongPress = if (comicDoc != null) ({ i: Int -> comicMenuOf(comicDoc.sourceOf(i)) }) else null,
                             // 7B 확대 덧화면에서도 글자 선택(확대·이동한 칸으로 좌표를 맞춘다)
@@ -1017,9 +1081,10 @@ fun ReaderScreen(
                             turnRequest = turnReq, turnForward = turnFwd,
                             reloadKey = source,
                             initialZoom = z.zoom, initialFocus = Offset(z.fx, z.fy),
-                            onExit = { zoomAt = null; jumpReq = page },
+                            onExit = { zoomAt = null; pinchFeed = null; jumpReq = page },
+                            livePinch = pinchFeed,
                         )
-                        BackHandler { if (sel != null) sel = null else { zoomAt = null; jumpReq = page } }
+                        BackHandler { if (sel != null) sel = null else { zoomAt = null; pinchFeed = null; jumpReq = page } }
                     }
                     if (doc is ComicReaderDoc) {
                         // solid CBR 풀기 진행·쪽 준비 중(S-41). 보이는 쪽이 풀리면 다시 그린다.
@@ -1047,6 +1112,17 @@ fun ReaderScreen(
                 }
                 comicMenuPage?.let { mp ->
                     if (comicDoc != null) ComicPageMenu(comicDoc, mp, target.title, target.id, target.path, target.once, onDismiss = { comicMenuPage = null }, onMessage = { stub(it) })
+                }
+
+                // 작업 07 B3: 서재 목록 보기의 '첫 문단 3줄' — 처음 열 때 앞 쪽 글을 기기 안에만 저장(만화·한 번만 보기 제외)
+                LaunchedEffect(doc) {
+                    if (target.once || comicDoc != null || kr.vici.ashreader.doc.FirstPara.load(context, target.id) != null) return@LaunchedEffect
+                    kotlinx.coroutines.delay(3_000)
+                    val text = withContext(Dispatchers.IO) {
+                        (0 until minOf(count, 4)).asSequence().map { i -> guarded(doc, null) { doc.pageText(i)?.text }.orEmpty().trim() }
+                            .firstOrNull { it.length >= 60 }
+                    }
+                    if (text != null) withContext(Dispatchers.IO) { kr.vici.ashreader.doc.FirstPara.save(context, target.id, text) }
                 }
 
                 // 볼륨 키 (화면 설계서 4.5): 메뉴·시트가 열려 있으면 시스템 음량
@@ -1105,47 +1181,25 @@ fun ReaderScreen(
                     onViewMode(if (pdfComic) Book.VIEW_COMIC else Book.VIEW_ORIGINAL)
                 }
                 val pdfToggle = fmt == DocFormat.PDF && (pdfComic || imageOnly == true)
-                if (fmt == DocFormat.PDF && imageOnly == true && !pdfComic && !comicOfferClosed && !menu && hit == null) {
-                    Row(
-                        Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 8.dp, start = 12.dp, end = 12.dp)
-                            .background(colors.barC, RoundedCornerShape(24.dp)).padding(start = 16.dp, end = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("그림으로 된 PDF예요", fontSize = 14.sp, color = colors.fgC)
-                        TextButton(onClick = { togglePdfComic() }, modifier = Modifier.heightIn(min = 48.dp)) {
-                            Text("만화로 보기", color = colors.accentC, fontWeight = FontWeight.Bold)
-                        }
-                        IconButton(onClick = { comicOfferClosed = true }, modifier = Modifier.size(48.dp)) { Icon(Icons.Close, "안내 닫기", tint = colors.fgC) }
-                    }
-                }
+                // 그림으로 된 PDF 의 '만화로 보기' 띠는 없앴다(대표님 2026-10-25 00:01) — 전환은 테마 및 설정 맨 위 'PDF | 만화'
                 val curBookmark = bookmarks.firstOrNull { locatorPage(it.page, it.frac, count) == page }
                 if (target.once) OnceBar(fmt, page, count, colors, ebook = hwpEbook, onAdd = onAddToLibrary, onEbookView = { toggleHwpView() },
                     modifier = Modifier.align(if (menu) Alignment.Center else Alignment.BottomCenter).padding(bottom = if (menu) 0.dp else 28.dp))
 
+                // 작업 07 E: 안내선(메뉴와 상관없이 켜 둔 동안 보임, 스크롤 보기에서도)
+                if (guideOn) GuideLine(colors, s.fontSize * s.lineHeight, guideY, onMove = { guideY = it }, onOff = { guideOn = false })
+
+                LaunchedEffect(menu) { if (!menu) stackOpen = false }
                 if (menu) {
                     val portraitNow = LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
-                    TopBar(target.title, colors, bookmarked = curBookmark != null, onBack = onBack,
-                        onBookmark = { onToggleBookmark(page, locatorFrac(page, count), curBookmark?.id) },
-                        onSearch = { if (doc is MupdfReaderDoc || doc is DjvuReaderDoc || doc is HwpReaderDoc) { menu = false; searchOpen = true } else stub(noTextMsg(fmt)) },
-                        rotationLocked = s.rotation != Rotation.AUTO,
-                        onRotate = {
-                            val r = if (s.rotation != Rotation.AUTO) Rotation.AUTO else if (portraitNow) Rotation.PORTRAIT else Rotation.LANDSCAPE
-                            onSettings { it.copy(rotation = r) }
-                            stub(if (r == Rotation.AUTO) "화면 회전을 풀었어요." else "화면 회전을 잠갔어요.")
-                        },
-                        viewToggle = when {
-                            dualView && !target.once -> if (hwpEbook) "원본" else "eBook"
-                            pdfToggle -> if (pdfComic) "PDF" else "만화"
-                            else -> null
-                        },
-                        viewToggleDesc = when {
-                            dualView -> if (hwpEbook) "원본으로 보기" else "eBook으로 보기"
-                            else -> if (pdfComic) "PDF 쪽 보기로" else "만화로 보기"
-                        },
-                        onViewToggle = { if (dualView) toggleHwpView() else togglePdfComic() },
-                        modifier = Modifier.align(Alignment.TopCenter))
-                    BottomMenu(
-                        page, count, colors, Modifier.align(Alignment.BottomCenter),
+                    val canSearch = doc is MupdfReaderDoc || doc is DjvuReaderDoc || doc is HwpReaderDoc
+                    // 작업 07 E: 예전 위·아래 막대 → 바깥 틀(챕터 남은 쪽·✕ / 쪽수·메뉴) + 떠 있는 메뉴 쌓기
+                    ReaderChrome(
+                        colors, page, count, chapterLeft, stackOpen,
+                        onClose = onBack,
+                        // 메뉴 밖을 눌러 닫힌 바로 그 누름이 ⋯ 이면 다시 열지 않는다(떠 있는 메뉴가 따로 창이라 누름이 둘 다에 간다)
+                        onMenu = { if (System.currentTimeMillis() - stackClosedAt > 400) stackOpen = !stackOpen },
+                        onSeek = { p -> jumpReq = p },
                         preview = { i, f ->
                             SliderPreview(
                                 i, f, colors, fixedPage = !reflow, cache = thumbs,
@@ -1160,16 +1214,53 @@ fun ReaderScreen(
                                 notReady = { idx -> comicDoc != null && !comicDoc.ready(comicDoc.sourceOf(idx)) },
                             )
                         },
-                        onGrid = if (comicDoc != null) ({ menu = false; gridOpen = true }) else null,
-                        onSeek = { p -> jumpReq = p },
-                        onToc = { showToc = true },
-                        onAa = { showAa = true },
-                        onTurn = { showTurn = true },
-                        onListen = { onListen() },
-                        onLight = { showLight = true },
-                        onMemo = { memoOpen = true },
-                        labels = s.menuLabels,
                     )
+                    // 대표님 01:00: 투명 메뉴가 뜨면 뒤를 흐리게 — 쪽 넘김 화면(SurfaceView)까지 흐리려고 따로 창(Popup)에 띄우고 창 흐림(BlurBehind)
+                    val density = LocalDensity.current
+                    val navB = WindowInsets.navigationBars.getBottom(density)
+                    if (stackOpen) androidx.compose.ui.window.Popup(
+                        alignment = Alignment.BottomEnd,
+                        offset = with(density) { IntOffset(-14.dp.roundToPx(), -(76.dp.roundToPx() + navB)) },
+                        onDismissRequest = { stackOpen = false; stackClosedAt = System.currentTimeMillis() },
+                        properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+                    ) {
+                    BlurBehind()
+                    ReaderMenuStack(
+                        colors, percent = if (count > 0) (page + 1) * 100 / count else 0, bookmarked = curBookmark != null, guideOn = guideOn,
+                        modifier = Modifier,
+                        onToc = { stackOpen = false; showToc = true },
+                        onSearch = { stackOpen = false; if (canSearch) { menu = false; searchOpen = true } else stub(noTextMsg(fmt)) },
+                        onTheme = { stackOpen = false; themeOpen = true },
+                        onShare = {
+                            stackOpen = false
+                            val p = page
+                            sharePageImage(context, p, render = {
+                                val a = guarded(doc, null) { doc.pageAspect(p) } ?: 1.414f
+                                guarded(doc, null) { doc.render(p, 1080, (1080 * a).toInt().coerceIn(1, 4320), colors) }
+                            }) { stub(it) }
+                        },
+                        onGuide = { stackOpen = false; guideOn = !guideOn; menu = false },
+                        onBookmark = { onToggleBookmark(page, locatorFrac(page, count), curBookmark?.id) },
+                    )
+                    }
+                    // 사용자화: 떠 있는 메뉴에 없는 예전 기능을 빠짐없이
+                    if (customOpen) CustomizeSheet(colors, buildList {
+                        if (comic == null) add(CustomItem(Icons.Toc, "글꼴·줄 간격·여백", if (reflow) "글꼴·크기·문단·내 글꼴" else "쪽 맞춤·여백 자르기·테마") { customOpen = false; showAa = true })
+                        else add(CustomItem(Icons.Grid, "만화 보기", "넘김 방향·두 쪽·맞춤·선명하게") { customOpen = false; showAa = true })
+                        add(CustomItem(Icons.Turn, "넘김 효과·자동 넘김", "넘김 방식·누르는 곳·볼륨 버튼") { customOpen = false; showTurn = true })
+                        add(CustomItem(Icons.Sun, "밝기·따뜻한 색", "추가 어둡게·따뜻한 색 시간") { customOpen = false; showLight = true })
+                        if (comicDoc == null) add(CustomItem(Icons.Speaker, "듣기", "읽어 주기") { customOpen = false; menu = false; onListen() })
+                        else add(CustomItem(Icons.Grid, "쪽 목록", "모든 쪽 그림") { customOpen = false; menu = false; gridOpen = true })
+                        add(CustomItem(Icons.Pen, "이 쪽에 메모", "${page + 1}쪽") { customOpen = false; memoOpen = true })
+                        val locked = s.rotation != Rotation.AUTO
+                        add(CustomItem(if (locked) Icons.RotateLock else Icons.Rotate, if (locked) "회전 잠금 풀기" else "회전 잠그기", null) {
+                            customOpen = false
+                            val r = if (locked) Rotation.AUTO else if (portraitNow) Rotation.PORTRAIT else Rotation.LANDSCAPE
+                            onSettings { it.copy(rotation = r) }
+                            stub(if (r == Rotation.AUTO) "화면 회전을 풀었어요." else "화면 회전을 잠갔어요.")
+                        })
+                        // 원본·eBook / PDF·만화 전환은 테마 및 설정 맨 위에만(대표님 2026-10-25 00:02)
+                    }) { customOpen = false }
                 }
 
                 // F-60 만화 쪽 목록 그리드(전체 화면). 원본 쪽 기준, 고르면 그 쪽이 처음 나오는 자리로
@@ -1185,13 +1276,24 @@ fun ReaderScreen(
                 }
 
                 hit?.let { h ->
+                    // 작업 07 E4: 찾은 곳 ‹ › 이동
+                    val at = hits.indexOf(h)
+                    fun goHit(k: Int) { hits.getOrNull(k)?.let { n -> hit = n; jumpReq = n.page } }
                     if (!menu && !searchOpen) Row(
                         Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 8.dp)
-                            .background(colors.barC, RoundedCornerShape(24.dp)).padding(horizontal = 8.dp),
+                            .background(colors.barC, RoundedCornerShape(24.dp)).padding(horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TextButton(onClick = { searchOpen = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("검색 결과로", color = colors.accentC) }
-                        IconButton(onClick = { hit = null }, modifier = Modifier.size(48.dp)) { Icon(Icons.Close, "검색 표시 지우기", tint = colors.fgC) }
+                        if (hits.size > 1) IconButton(onClick = { goHit(at - 1) }, enabled = at > 0, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Back, "앞에 찾은 곳", tint = colors.fgC.copy(alpha = if (at > 0) 1f else 0.3f))
+                        }
+                        TextButton(onClick = { searchOpen = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+                            Text(if (hits.size > 1 && at >= 0) "${at + 1} / ${hits.size}" else "검색 결과로", color = colors.accentC)
+                        }
+                        if (hits.size > 1) IconButton(onClick = { goHit(at + 1) }, enabled = at < hits.size - 1, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Chevron, "다음 찾은 곳", tint = colors.fgC.copy(alpha = if (at < hits.size - 1) 1f else 0.3f))
+                        }
+                        IconButton(onClick = { hit = null; hits = emptyList() }, modifier = Modifier.size(48.dp)) { Icon(Icons.Close, "검색 표시 지우기", tint = colors.fgC) }
                     }
                 }
 
@@ -1214,8 +1316,11 @@ fun ReaderScreen(
                     )
                 }
 
-                if (searchOpen) SearchPanel(doc, colors, onClose = { searchOpen = false; searchSeed = "" }, initialQuery = searchSeed) { h ->
-                    searchOpen = false; hit = h; jumpReq = h.page
+                if (searchOpen) SearchPanel(
+                    doc, colors, onClose = { searchOpen = false; searchSeed = "" }, initialQuery = searchSeed,
+                    chapterOf = { p -> tocForPreview?.let { chapterOf(it, p) } },
+                ) { h, all ->
+                    searchOpen = false; hit = h; hits = all; jumpReq = h.page
                 }
 
                 if (listening && !menu) ListenBar(listen, s.ttsRate, colors,
@@ -1232,6 +1337,30 @@ fun ReaderScreen(
 
                 // 만화 설정(S-33): 태블릿 가로는 화면 안 측면 시트(Box)라 쪽 화면들보다 '뒤'에 그리면 가려져 안 보였다(7D E2E).
                 // 쪽 화면·메뉴 다음에 그린다(휴대폰 바텀시트는 따로 창이라 상관없음).
+                // 작업 07 E: 테마 및 설정(가/가·쪽 넘김/스크롤·어둡게·밝기·테마 6개·사용자화).
+                // AI 화질 향상은 작업 04 자리 그대로 맨 위(이북·PDF = 앱 전체 한 값, 만화 = 책마다)
+                if (themeOpen) {
+                    val aiKind = (doc as? MupdfReaderDoc)?.takeIf { it.aiImages }?.let { if (reflow) AiKind.EBOOK else AiKind.PDF }
+                    ThemeSheet(
+                        s, colors, onSettings, onDismiss = { themeOpen = false }, reflow = reflow,
+                        scrollAvailable = !comicNow && fmt.group != FormatGroup.COMIC && !pdfComic,
+                        level = liveLight ?: LightMath.level(s.brightness.takeIf { it >= 0f } ?: (activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.5f), s.dim),
+                        onLive = { liveLight = it },
+                        ai = when {
+                            // 대표님 00:40: 한 줄(켜기·끄기 옆에 [전후 비교]) — 시트 세로를 줄인다
+                            comic != null -> ({ bg, fg -> ComicAiCard(comic, s.aiUpscale, upscale, s.upscaleCacheMb, { themeOpen = false; menu = false; compareOpen = true }, Modifier.padding(top = 6.dp), compact = true, compactBg = bg, compactFg = fg) })
+                            aiKind != null -> ({ bg, fg -> AiQualityCard(aiKind, s.epubAiUpscale, onToggle = { v -> onSettings { it.copy(epubAiUpscale = v) } }, onCompare = { themeOpen = false; menu = false; docCompareOpen = true }, modifier = Modifier.padding(top = 6.dp), limitMb = s.upscaleCacheMb, compact = true, compactBg = bg, compactFg = fg) })
+                            else -> null
+                        },
+                        onCustomize = { themeOpen = false; customOpen = true },
+                        // 대표님 23:57: 원본·eBook(그림 PDF는 PDF·만화) 전환을 맨 위에
+                        viewSwitch = when {
+                            dualView && !target.once -> ViewSwitch("원본", "eBook", hwpEbook) { want -> if (want != hwpEbook) { themeOpen = false; toggleHwpView() } }
+                            pdfToggle -> ViewSwitch("PDF", "만화", pdfComic) { want -> if (want != pdfComic) { themeOpen = false; togglePdfComic() } }
+                            else -> null
+                        },
+                    )
+                }
                 if (comic != null && showAa) ComicSettingsSheet(
                     comic, s.aiUpscale, upscale, s.upscaleCacheMb, onDismiss = { showAa = false }, side = spread,
                     onCompare = { showAa = false; menu = false; compareOpen = true },
@@ -1239,6 +1368,7 @@ fun ReaderScreen(
                 if (!s.tapGuideShown && !target.once) TapGuide(
                     rtl = doc.rtl,
                     grid = TapZones.grid(s.tapLayout, s.tapCustom, s.leftHanded, doc.rtl),
+                    edge = if (s.tapLayout == kr.vici.ashreader.data.TapLayout.CUSTOM) 1f / 3f else TapZones.EDGE,
                     onChange = { onSettings { it.copy(tapGuideShown = true) }; showTurn = true },
                 ) { onSettings { it.copy(tapGuideShown = true) } }
             }
@@ -1329,6 +1459,7 @@ fun ReaderScreen(
     }
     val docCount = openDoc?.pageCount ?: 0
     if (showToc) ModalBottomSheet(onDismissRequest = { showToc = false }) {
+        BlurBehind(dim = 0f)
         LazyColumn(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
@@ -1467,10 +1598,9 @@ private fun BottomMenu(
         HorizontalDivider(color = c.lineC)
         Row(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("1", fontSize = 12.sp, color = c.subC)
-            Slider(
+            AppleSlider(
                 value = drag, onValueChange = { drag = it; dragging = true }, onValueChangeFinished = { dragging = false; onSeek(drag.toInt()) },
                 valueRange = 0f..(count - 1).coerceAtLeast(1).toFloat(),
-                colors = SliderDefaults.colors(thumbColor = c.accentC, activeTrackColor = c.accentC, inactiveTrackColor = c.lineC),
                 modifier = Modifier.weight(1f).semantics { contentDescription = "쪽 이동" },
             )
             Text("${drag.toInt() + 1} / ${count}쪽", fontSize = 12.sp, color = c.subC)

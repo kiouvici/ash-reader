@@ -74,6 +74,12 @@ class PageCurlView @JvmOverloads constructor(
     private var position = 0
     private val textures = HashMap<Int, Int>()
     private val loading = HashSet<Int>()
+    /** 쪽 칸 안 종이 자리(u0, v0, u1, v1 — 0..1). 없으면 칸 전체(이북류). 대표님 23:05: 넘길 때 종이만 움직이고 여백은 가만히. */
+    private val papers = HashMap<Int, FloatArray>()
+    /** 새 문서가 온 뒤 직전 화면을 붙들어 둘 마감 시각(0 = 붙들지 않음). */
+    private var holdUntilNs = 0L
+    /** 아직 작은 미리보기 그림만 올라간 쪽(붙들어 두는 동안에는 선명한 그림을 기다린다). */
+    private val previewOnly = HashSet<Int>()
 
     private enum class Phase { IDLE, DRAG, ANIM }
     private var phase = Phase.IDLE
@@ -119,6 +125,12 @@ class PageCurlView @JvmOverloads constructor(
 
     fun setPageSource(src: PageSource, startPage: Int = 0) {
         gl.post {
+            // 대표님 01:00: 글자 크기·테마를 바꿔 새 문서가 오면, 새 쪽 그림이 준비될 때까지 지금 화면을 그대로 둔다(빈 화면으로 번쩍이지 않게).
+            // 이미 무엇이 그려져 있었을 때만, 길어도 1.5초까지
+            if (textures.isNotEmpty() && phase == Phase.IDLE) {
+                holdUntilNs = System.nanoTime() + HOLD_MAX_NS
+                gl.postDelayed({ requestFrame() }, HOLD_MAX_NS / 1_000_000L + 16)
+            }
             sourceGen++
             source = src
             position = startPage.coerceIn(0, max(0, src.pageCount - 1))
@@ -475,7 +487,7 @@ class PageCurlView @JvmOverloads constructor(
         val src = source ?: return
         if (viewW <= 0 || egl == null) return
         val range = wanted()
-        textures.keys.filter { it !in range }.forEach { renderer.deleteTexture(textures.remove(it)!!) }
+        textures.keys.filter { it !in range }.forEach { renderer.deleteTexture(textures.remove(it)!!); papers.remove(it); previewOnly.remove(it) }
         val maxTex = renderer.maxTextureSize
         val scale = min(1f, maxTex / max(pageW(), viewH))
         val pw = max(1, (pageW() * scale).toInt())
@@ -495,19 +507,23 @@ class PageCurlView @JvmOverloads constructor(
                     gl.post {
                         if (gen == sourceGen && egl != null && idx in wanted() && idx !in textures) {
                             textures[idx] = renderer.upload(small)
+                            previewOnly += idx
                             requestFrame()
                         }
                         small.recycle()
                     }
                 }
                 val bmp = render(src, idx, pw, ph)
+                val paper = if (bmp != null && src.paperOnly) runCatching { scanPaper(bmp) }.getOrNull() else null
                 gl.post {
                     loading -= idx
                     if (bmp == null) return@post
                     if (gen == sourceGen && egl != null && idx in wanted()) {
+                        if (paper != null) papers[idx] = paper else papers.remove(idx)
                         // 미리보기(작은 그림)가 있으면 선명한 그림으로 바꾼다
                         textures.remove(idx)?.let { renderer.deleteTexture(it) }
                         textures[idx] = renderer.upload(bmp)
+                        previewOnly -= idx
                         requestFrame()
                     }
                     bmp.recycle()
@@ -528,8 +544,39 @@ class PageCurlView @JvmOverloads constructor(
     private fun clearTextures() {
         textures.values.forEach { renderer.deleteTexture(it) }
         textures.clear()
+        papers.clear()
+        previewOnly.clear()
         loading.clear()
     }
+
+    /**
+     * 그린 쪽 그림에서 종이 자리(u0, v0, u1, v1)를 잰다: 모서리 색(바탕)과 다른 점이 처음 나오는 줄·칸까지가 여백.
+     * 만화(책등 쪽 붙임·여백 자르기)·PDF·한글 원본 모두 실제 그려진 자리를 따른다. 칸을 거의 다 채우면 null(칸 전체).
+     * 흰 종이를 흰 바탕에 그리면 글·그림이 있는 곳까지만 잡히지만, 흰 여백은 바탕과 같아 보이므로 넘김 모양은 같다.
+     */
+    private fun scanPaper(b: Bitmap): FloatArray? {
+        val w = b.width; val h = b.height
+        if (w < 8 || h < 8) return null
+        val bg = b.getPixel(0, 0)
+        fun far(c: Int): Boolean {
+            val d = abs(((c shr 16) and 0xFF) - ((bg shr 16) and 0xFF)) + abs(((c shr 8) and 0xFF) - ((bg shr 8) and 0xFF)) + abs((c and 0xFF) - (bg and 0xFF))
+            return d > 24
+        }
+        val row = IntArray(w)
+        fun rowHas(y: Int): Boolean { b.getPixels(row, 0, w, 0, y, w, 1); var x = 0; while (x < w) { if (far(row[x])) return true; x += 2 }; return false }
+        val col = IntArray(h)
+        fun colHas(x: Int): Boolean { b.getPixels(col, 0, 1, x, 0, 1, h); var y = 0; while (y < h) { if (far(col[y])) return true; y += 2 }; return false }
+        var top = 0; while (top < h && !rowHas(top)) top++
+        if (top >= h) return null // 빈 쪽
+        var bottom = h - 1; while (bottom > top && !rowHas(bottom)) bottom--
+        var left = 0; while (left < w && !colHas(left)) left++
+        var right = w - 1; while (right > left && !colHas(right)) right--
+        val u0 = left.toFloat() / w; val u1 = (right + 1f) / w; val v0 = top.toFloat() / h; val v1 = (bottom + 1f) / h
+        if (u1 - u0 > 0.985f && v1 - v0 > 0.985f) return null
+        return floatArrayOf(u0, v0, u1, v1)
+    }
+
+    private fun paper(i: Int): FloatArray? = if (i in 0 until count()) papers[i] else null
 
     private fun tex(i: Int): Int = if (i in 0 until count()) textures[i] ?: 0 else 0
 
@@ -567,6 +614,13 @@ class PageCurlView @JvmOverloads constructor(
             if (k >= 1f) ended = true
         }
         val animating = phase != Phase.IDLE
+        // 새 문서로 바뀐 직후: 보이는 쪽 그림이 아직 없으면 그리지도 바꾸지도 않는다(화면에는 직전 그림이 남아 있음)
+        if (holdUntilNs != 0L) {
+            fun sharp(i: Int) = i in textures && i !in previewOnly
+            val ready = sharp(position) && (!isSpread() || position + 1 >= count() || sharp(position + 1))
+            if (!ready && phase == Phase.IDLE && System.nanoTime() < holdUntilNs) return
+            holdUntilNs = 0L
+        }
         draw()
         val ok = core.swap()
         val done = System.nanoTime()
@@ -611,6 +665,29 @@ class PageCurlView @JvmOverloads constructor(
             return
         }
         if (config.effect == TurnEffect.SLIDE) {
+            // 대표님 23:05: 쪽 모양이 정해진 책은 화면 전체가 아니라 종이만 넘어간다(둘레 여백은 가만히).
+            // 한 쪽 = 다음 쪽은 제자리, 지금 종이만 밀려 나감. 두 쪽 펼침 = 오른쪽 한 장이 책등을 축으로 넘어가 왼쪽에 덮임.
+            val leafIdx = if (spread) p + 1 else p
+            val pr = paper(leafIdx)
+            if (pr != null) {
+                if (spread) {
+                    if (p >= 0) renderer.drawFlat(0f, 0f, pw, h, tex(p))
+                    renderer.drawFlat(pw, 0f, pw, h, tex(p + 3))
+                    if (t < 0.5f) {
+                        val lw = pr[2] * pw * (1f - 2f * t)
+                        renderer.drawFlat(pw, pr[1] * h, lw, (pr[3] - pr[1]) * h, tex(p + 1), uv = floatArrayOf(0f, pr[1], pr[2], pr[3]))
+                    } else {
+                        val back = paper(p + 2) ?: pr
+                        val lw = back[2] * pw * (2f * t - 1f)
+                        renderer.drawFlat(pw - lw, back[1] * h, lw, (back[3] - back[1]) * h, tex(p + 2), uv = floatArrayOf(1f - back[2], back[1], 1f, back[3]))
+                    }
+                } else {
+                    renderer.drawFlat(0f, 0f, pw, h, tex(p + 1))
+                    val lx = pr[0] * pw; val lw = (pr[2] - pr[0]) * pw
+                    renderer.drawFlat(lx - t * (lx + lw), pr[1] * h, lw, (pr[3] - pr[1]) * h, tex(p), uv = pr)
+                }
+                return
+            }
             val off = -t * viewW
             if (spread) {
                 if (p >= 0) renderer.drawFlat(off, 0f, pw, h, tex(p))
@@ -625,6 +702,54 @@ class PageCurlView @JvmOverloads constructor(
         }
         // 종이책 말림. 되감기는 t(1→0)를 이전 쪽 넘김 진행도 u = 1 - t 로 바꿔 뒤집힌 화면에서 앞 넘김처럼 그린다.
         val u = if (rewind) 1f - t else t
+        // 대표님 23:05: 쪽 모양이 정해진 책은 종이만 말린다(둘레 여백은 가만히). 말리는 장 = 한 쪽이면 지금 쪽, 펼침이면 넘기는 장의 앞면.
+        val leafIdx = if (spread) (if (rewind) p + 2 else p + 1) else (if (rewind) p + 1 else p)
+        val pr = paper(leafIdx)
+        if (pr != null) {
+            val ty = pr[1] * h; val lh = (pr[3] - pr[1]) * h
+            // 펼침: 책등(pw)부터 종이 바깥 끝까지가 한 장 — 다 넘어가면 맞은편 쪽 자리와 꼭 맞는다.
+            // 한 쪽: 종이만, 다 넘어가면 화면 왼쪽 밖으로.
+            val lx = if (spread) pw else pr[0] * pw
+            val lw = if (spread) pr[2] * pw else (pr[2] - pr[0]) * pw
+            val gxL = lx + lw
+            val travel = if (spread) lw else gxL
+            val radius = CurlMath.radiusFor(u, lw * 0.18f)
+            val fx = CurlMath.fingerX(gxL, travel, u)
+            val gyL = gy.coerceIn(ty + lh * 0.05f, ty + lh * 0.95f)
+            val fy = CurlMath.fingerY(gyL - ty, py - ty, lh, u) + ty
+            val curl = CurlMath.curlFor(gxL, gyL, fx, fy, radius)
+            val uv = if (spread) floatArrayOf(0f, pr[1], pr[2], pr[3]) else pr
+            // 아래 깔린 쪽은 먼저 그림자 없이 칸 전체(여백 = 바탕 그대로), 그다음 종이 위아래 띠 안에서만 그림자·말린 장을 그린다
+            // — 비스듬히 접힌 모서리·그림자가 위아래 여백으로 넘치지 않게(대표님 2026-10-25 00:16 '여백까지 효과가 들어간다')
+            fun under(x: Float, i: Int) { if (i in 0 until count()) renderer.drawFlat(x, 0f, pw, h, tex(i)) }
+            if (rewind) {
+                if (spread) {
+                    if (p + 3 < count()) renderer.drawFlat(0f, 0f, pw, h, tex(p + 3))
+                    under(pw, p)
+                    renderer.clipY(ty, ty + lh)
+                    if (p >= 0) renderer.drawFlat(pw, 0f, pw, h, tex(p), shadowFrom = curl)
+                    renderer.drawCurl(lx, ty, lw, lh, tex(p + 2), tex(p + 1), backIsTex = true, curl = curl, uv = uv)
+                } else {
+                    under(0f, p)
+                    renderer.clipY(ty, ty + lh)
+                    renderer.drawFlat(0f, 0f, pw, h, tex(p), shadowFrom = curl)
+                    renderer.drawCurl(lx, ty, lw, lh, tex(p + 1), 0, backIsTex = false, curl = curl, uv = uv)
+                }
+            } else if (spread) {
+                if (p >= 0) renderer.drawFlat(0f, 0f, pw, h, tex(p))
+                under(pw, p + 3)
+                renderer.clipY(ty, ty + lh)
+                if (p + 3 < count()) renderer.drawFlat(pw, 0f, pw, h, tex(p + 3), shadowFrom = curl)
+                renderer.drawCurl(lx, ty, lw, lh, tex(p + 1), tex(p + 2), backIsTex = true, curl = curl, uv = uv)
+            } else {
+                under(0f, p + 1)
+                renderer.clipY(ty, ty + lh)
+                renderer.drawFlat(0f, 0f, pw, h, tex(p + 1), shadowFrom = curl)
+                renderer.drawCurl(lx, ty, lw, lh, tex(p), 0, backIsTex = false, curl = curl, uv = uv)
+            }
+            renderer.noClip()
+            return
+        }
         val gx = viewW
         val radius = CurlMath.radiusFor(u, pw * 0.18f)
         val fx = CurlMath.fingerX(gx, pw, u)
@@ -656,5 +781,7 @@ class PageCurlView @JvmOverloads constructor(
     private companion object {
         /** 보이는 쪽 미리보기 크기 = 쪽 크기 / 이 값(화소 수 1/9 — 무거운 쪽도 금방 그린다). */
         const val PREVIEW_DIV = 3
+        /** 새 문서가 온 뒤 직전 화면을 붙들어 두는 가장 긴 시간. */
+        const val HOLD_MAX_NS = 1_500_000_000L
     }
 }

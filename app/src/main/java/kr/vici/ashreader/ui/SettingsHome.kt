@@ -91,8 +91,9 @@ private class SetColors(val bg: Color, val card: Color, val ink: Color, val sub:
 @Composable
 private fun setColors(): SetColors {
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    return if (dark) SetColors(Color(0xFF121417), Color(0xFF22252A), Color(0xFFE6E6E8), Color(0xFF9A9EA3), Color(0x1FFFFFFF), Color(0xFF5AA9FF), Color(0xFF6B6F75), Color(0xFF0A84FF))
-    else SetColors(Color(0xFFF2F2F7), Color.White, Color(0xFF111316), Color(0xFF8E8E93), Color(0xFFECECEF), Color(0xFF0A6CD6), Color(0xFFC4C4C8), Color(0xFF0A84FF))
+    // 작업 07 DarkMode 목업: 어둡게 바탕 #000·카드 #1C1C1E·선 #2C2C2E·보조 #98989F. 감수 1: 밝게 작은 보조 글자 #6C6C70
+    return if (dark) SetColors(Color.Black, Color(0xFF1C1C1E), Color.White, Color(0xFF98989F), Color(0xFF2C2C2E), Color(0xFF409CFF), Color(0xFF5A5A5E), Color(0xFF0A84FF))
+    else SetColors(Color(0xFFF2F2F7), Color.White, Color(0xFF111316), Color(0xFF6C6C70), Color(0xFFECECEF), Color(0xFF0A6CD6), Color(0xFFC4C4C8), Color(0xFF0A84FF))
 }
 
 /** 하위 화면 하나: 이름·아이콘 색·아이콘 선(24 격자). */
@@ -564,9 +565,9 @@ private fun turnLabel(s: Settings) = when { s.noTurnEffect -> "없음"; s.curl -
 /** 첫 화면 목록: 큰 제목 '설정' + 묶음 제목(13sp 굵게 회색, heading) + 흰 카드 속 항목(색 칸 아이콘 + 이름 + 지금 값 + ›). */
 @Composable
 private fun HomeList(c: SetColors, compact: Boolean, selected: SetPage?, hint: (SetPage) -> String, onPick: (SetPage) -> Unit) {
-    Text("설정", fontSize = 32.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 6.dp).semantics { heading() })
+    Text("설정", fontSize = LARGE_TITLE.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 6.dp).semantics { heading() })
     SET_GROUPS.forEach { (title, pages) ->
-        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = c.sub, modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 6.dp).semantics { heading() })
+        Text(title, fontSize = 13.sp, color = c.sub, modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 6.dp).semantics { heading() })
         Column(Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(12.dp)).background(c.card)) {
             pages.forEachIndexed { i, p ->
                 val sel = p == selected
@@ -604,7 +605,7 @@ private fun IconTile(p: SetPage, size: Int) {
 private fun PageTitle(p: SetPage, c: SetColors, big: Boolean) {
     Row(Modifier.padding(start = if (big) 4.dp else 20.dp, top = if (big) 30.dp else 6.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         IconTile(p, if (big) 40 else 36)
-        Text(p.title, fontSize = if (big) 30.sp else 28.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink, modifier = Modifier.padding(start = 12.dp).semantics { heading() })
+        Text(p.title, fontSize = LARGE_TITLE.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink, modifier = Modifier.padding(start = 12.dp).semantics { heading() })
     }
 }
 
@@ -620,7 +621,7 @@ private fun BackSquare(c: SetColors, onClick: () -> Unit) {
 /** 소제목(13sp 굵게 회색, heading) + 흰 카드 + 아래 설명. */
 @Composable
 private fun Section(title: String, c: SetColors, foot: String? = null, rows: @Composable ColumnScope.() -> Unit) {
-    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = c.sub, modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 6.dp).semantics { heading() })
+    Text(title, fontSize = 13.sp, color = c.sub, modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 6.dp).semantics { heading() })
     Column(Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(12.dp)).background(c.card), content = rows)
     if (foot != null) Text(foot, fontSize = 12.5.sp, lineHeight = 20.sp, color = c.sub, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp))
 }
@@ -650,12 +651,7 @@ private fun Toggle(name: String, on: Boolean, c: SetColors, sub: String = "", on
             Text(name, fontSize = 15.5.sp, color = c.ink)
             if (sub.isNotEmpty()) Text(sub, fontSize = 12.sp, color = c.sub, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         }
-        Switch(
-            checked = on, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp),
-            colors = androidx.compose.material3.SwitchDefaults.colors(
-                checkedTrackColor = Color(0xFF34C759), checkedThumbColor = Color.White, checkedBorderColor = Color.Transparent,
-            ),
-        )
+        AppleSwitch(checked = on, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
     }
     HorizontalDivider(color = c.line, modifier = Modifier.padding(start = 14.dp))
 }

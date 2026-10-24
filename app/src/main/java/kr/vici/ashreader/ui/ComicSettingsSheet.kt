@@ -120,7 +120,7 @@ fun ComicSettingsSheet(
                 }
             }
         }
-    } else ModalBottomSheet(onDismissRequest = onDismiss) { content() }
+    } else ModalBottomSheet(onDismissRequest = onDismiss) { BlurBehind(dim = 0f); content() }
 }
 
 @Composable
@@ -148,7 +148,7 @@ private fun SwitchLine(t: String, on: Boolean, enabled: Boolean = true, sub: Str
             Text(t, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             if (sub != null) Text(sub, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked = on, onCheckedChange = { if (enabled) onChange(it) }, enabled = enabled)
+        AppleSwitch(checked = on, onCheckedChange = { if (enabled) onChange(it) }, enabled = enabled)
     }
 }
 
@@ -156,7 +156,7 @@ private fun SwitchLine(t: String, on: Boolean, enabled: Boolean = true, sub: Str
 private fun SliderLine(t: String, value: Float, range: ClosedFloatingPointRange<Float>, text: String, enabled: Boolean = true, steps: Int = 0, onChange: (Float) -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).alpha(if (enabled) 1f else 0.38f), verticalAlignment = Alignment.CenterVertically) {
         Text(t, fontSize = 14.sp, modifier = Modifier.width(64.dp))
-        Slider(
+        AppleSlider(
             value = value, onValueChange = { if (enabled) onChange(it) }, valueRange = range, steps = steps, enabled = enabled,
             modifier = Modifier.weight(1f).semantics { contentDescription = "$t $text" },
         )
@@ -221,8 +221,13 @@ private fun ViewTab(cs: ComicSession, p: ComicBookPrefs) {
     Choices(listOf("끔", "약", "중", "강"), p.sharpen) { i -> cs.update { it.copy(sharpen = i) } }
 }
 
+/** 만화 AI 화질 향상 칸(책마다). 만화 설정 시트와 읽기 화면 '테마 및 설정' 맨 위(작업 07, 같은 자리)에 쓴다. */
 @Composable
-private fun ComicAiCard(cs: ComicSession, globalAi: Boolean, upscale: ComicUpscale?, limitMb: Int, onCompare: (() -> Unit)?, modifier: Modifier) {
+internal fun ComicAiCard(
+    cs: ComicSession, globalAi: Boolean, upscale: ComicUpscale?, limitMb: Int, onCompare: (() -> Unit)?, modifier: Modifier,
+    compact: Boolean = false, compactBg: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Transparent,
+    compactFg: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+) {
     val context = LocalContext.current
     val cap by produceState(AiCapability.cached(context)) { if (value == null) value = AiCapability.measureWithin(context) }
     LaunchedEffect(cap) { cap?.let { cs.aiVerdict = it.verdict } }
@@ -232,6 +237,7 @@ private fun ComicAiCard(cs: ComicSession, globalAi: Boolean, upscale: ComicUpsca
     AiQualityCard(
         AiKind.COMIC, on, onToggle = { v -> cs.update { it.copy(ai = if (v) 1 else 0) } },
         onCompare = if (cs.webtoon) null else onCompare, modifier = modifier, limitMb = limitMb,
+        compact = compact, compactBg = compactBg, compactFg = compactFg,
     ) {
         if (cs.webtoon) Text("웹툰 보기에서는 비교할 수 없어요", fontSize = 13.sp, color = sub, modifier = Modifier.padding(top = 4.dp))
         val paused = upscale?.paused?.collectAsState()?.value

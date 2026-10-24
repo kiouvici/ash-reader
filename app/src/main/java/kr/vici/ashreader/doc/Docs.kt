@@ -232,6 +232,8 @@ object DocOpener {
         // 스크롤 보기(frame = null): 쪽 사이 빈칸이 없게 본문 여백만(위·아래는 정보줄 몫 0.8em 을 더함)
         if (frame != null) sb.append("\n").append(PageFrame.css(frame, s.marginV, s.marginH, s.fontSize.toFloat()))
         else sb.append("\nbody { margin: ${em(s.marginV)} ${em(s.marginH)} ${em(s.marginV + 8)} ${em(s.marginH)} !important; }")
+        // 작업 07 '볼드' 읽기 테마: 본문을 굵게(번들 글꼴의 굵은 꼴)
+        if (s.theme == kr.vici.ashreader.data.ReadTheme.BOLD) sb.append("\nbody, p, li, blockquote, dd, td { font-weight: bold !important; }")
         // F-19 정렬: 왼쪽을 고르면 본문 문단을 왼쪽으로(양쪽은 문서 원래 정렬을 존중하는 기본값)
         if (s.align == 1) sb.append("\nbody, p, li, blockquote, dd { text-align: left !important; }")
         // F-19 문단 간격

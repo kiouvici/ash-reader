@@ -82,8 +82,9 @@ private class InfoColors(val bg: Color, val card: Color, val ink: Color, val ink
 @Composable
 private fun infoColors(): InfoColors {
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    return if (dark) InfoColors(Color(0xFF121417), Color(0xFF22252A), Color(0xFFE6E6E8), Color(0xFFC4C6CA), Color(0xFF8E9297), Color(0x1FFFFFFF), Color(0xFF5AA9FF), Color(0x295AA9FF), Color(0xFFE6E6E8), Color(0xFF111316))
-    else InfoColors(Color(0xFFF2F2F4), Color.White, Color(0xFF111316), Color(0xFF3A3A3C), Color(0xFF8E8E93), Color(0xFFECECEF), Color(0xFF0A6CD6), Color(0x1A0A84FF), Color(0xFF111316), Color.White)
+    // 작업 07: 어둡게는 애플 북스 다크(바탕 #000·카드 #1C1C1E), 작은 보조 글자는 감수 1 값
+    return if (dark) InfoColors(Color.Black, Color(0xFF1C1C1E), Color.White, Color(0xFFC7C7CC), Color(0xFF98989F), Color(0xFF2C2C2E), Color(0xFF409CFF), Color(0x29409CFF), Color.White, Color.Black)
+    else InfoColors(Color(0xFFF2F2F4), Color.White, Color(0xFF111316), Color(0xFF3A3A3C), Color(0xFF6C6C70), Color(0xFFECECEF), Color(0xFF0A6CD6), Color(0x1A0A84FF), Color(0xFF111316), Color.White)
 }
 
 /** 정보 출처 글자. */

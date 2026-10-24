@@ -208,6 +208,7 @@ fun TurnSheet(
     var editor by remember { mutableStateOf(false) }
     val scroll = continuous
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        BlurBehind(dim = 0f)
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             SheetLabel("넘김 효과")
             Row(
@@ -231,7 +232,7 @@ fun TurnSheet(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("속도", fontSize = 14.sp, modifier = Modifier.padding(end = 12.dp))
                     var v by remember(s.autoScrollSpeed) { mutableFloatStateOf(s.autoScrollSpeed.toFloat()) }
-                    Slider(
+                    AppleSlider(
                         value = v, onValueChange = { v = it }, valueRange = 1f..10f, steps = 8,
                         onValueChangeFinished = { val n = Math.round(v); onChange { it.copy(autoScrollSpeed = n) } },
                         modifier = Modifier.weight(1f).semantics { contentDescription = "자동 스크롤 속도" },
@@ -243,7 +244,7 @@ fun TurnSheet(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("간격", fontSize = 14.sp, modifier = Modifier.padding(end = 12.dp))
                     var v by remember(s.autoTurnSec) { mutableFloatStateOf(s.autoTurnSec.toFloat()) }
-                    Slider(
+                    AppleSlider(
                         value = v, onValueChange = { v = it }, valueRange = 3f..60f, steps = 56,
                         onValueChangeFinished = { val n = Math.round(v); onChange { it.copy(autoTurnSec = n) } },
                         modifier = Modifier.weight(1f).semantics { contentDescription = "자동 넘김 간격" },
@@ -321,6 +322,7 @@ fun LightSheet(
     var customOpen by remember { mutableStateOf(false) }
     var timeOpen by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = { onLive(null); onDismiss() }) {
+        BlurBehind(dim = 0f)
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             if (!fixed) {
                 SheetLabel("테마")
@@ -356,7 +358,7 @@ fun LightSheet(
                 var lv by remember(s.brightness, s.dim) { mutableFloatStateOf(LightMath.level(s.brightness, s.dim)) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Sun, null, Modifier.size(16.dp))
-                    Slider(
+                    AppleSlider(
                         value = lv, valueRange = -0.6f..1f,
                         onValueChange = { lv = it; onLive(it) },
                         onValueChangeFinished = { val (b, d) = LightMath.split(lv); onLive(null); onChange { it.copy(brightness = b, dim = d) } },
@@ -369,7 +371,7 @@ fun LightSheet(
             SheetLabel("따뜻한 색")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 var w by remember(s.warmth) { mutableFloatStateOf(s.warmth.toFloat()) }
-                Slider(
+                AppleSlider(
                     value = w, valueRange = 0f..80f, onValueChange = { w = it },
                     onValueChangeFinished = { val n = Math.round(w); onChange { it.copy(warmth = n) } },
                     modifier = Modifier.weight(1f).semantics { contentDescription = "따뜻한 색 강도" },
@@ -504,6 +506,7 @@ fun ListenBar(st: Listen.State, rate: Float, c: ReadingColors, onPlay: () -> Uni
                     )
                 }
                 DropdownMenu(expanded = sleepMenu, onDismissRequest = { sleepMenu = false }) {
+                    BlurBehind()
                     SLEEP_CHOICES.forEach { (m, label) ->
                         DropdownMenuItem(text = { Text(label) }, onClick = { sleepMenu = false; onSleep(m) }, modifier = Modifier.heightIn(min = 48.dp))
                     }
@@ -520,17 +523,18 @@ fun ListenBar(st: Listen.State, rate: Float, c: ReadingColors, onPlay: () -> Uni
 fun ListenTuneSheet(s: Settings, onChange: ((Settings) -> Settings) -> Unit, onOpenEngine: () -> Unit, onDismiss: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        BlurBehind(dim = 0f)
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             var r by remember(s.ttsRate) { mutableFloatStateOf(s.ttsRate) }
             var p by remember(s.ttsPitch) { mutableFloatStateOf(s.ttsPitch) }
             SheetLabel("속도  ${"%.1f".format(Locale.ROOT, r)}×")
-            Slider(
+            AppleSlider(
                 value = r, valueRange = 0.5f..3f, steps = 24, onValueChange = { r = it },
                 onValueChangeFinished = { val v = Math.round(r * 10) / 10f; Listen.setRate(v); onChange { it.copy(ttsRate = v) } },
                 modifier = Modifier.semantics { contentDescription = "읽기 속도" },
             )
             SheetLabel("높낮이  ${"%.1f".format(Locale.ROOT, p)}")
-            Slider(
+            AppleSlider(
                 value = p, valueRange = 0.5f..2f, steps = 14, onValueChange = { p = it },
                 onValueChangeFinished = { val v = Math.round(p * 10) / 10f; Listen.setPitch(v); onChange { it.copy(ttsPitch = v) } },
                 modifier = Modifier.semantics { contentDescription = "목소리 높낮이" },
@@ -582,6 +586,6 @@ fun SwitchLine(name: String, sub: String, on: Boolean, onToggle: (Boolean) -> Un
             Text(name, fontSize = 15.sp)
             if (sub.isNotEmpty()) Text(sub, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked = on, onCheckedChange = onToggle)
+        AppleSwitch(checked = on, onCheckedChange = onToggle)
     }
 }

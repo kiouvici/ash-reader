@@ -232,16 +232,44 @@ abstract class E2eTest {
         SystemClock.sleep(800)
     }
 
-    /** 읽기 메뉴(위·아래 막대)를 연다. */
+    /** 읽기 메뉴가 열려 있나(작업 07: 바깥 틀 — 위 오른쪽 '책 닫기' 단추). */
+    protected fun menuShown(): Boolean = device.hasObject(By.desc("책 닫기"))
+
+    /** 읽기 메뉴(작업 07 바깥 틀: 챕터 남은 쪽·✕ / 쪽수·안내선·메뉴)를 연다. */
     protected fun openMenu() {
-        if (device.hasObject(By.desc("쪽 이동"))) return
+        if (menuShown()) return
         // 가운데 → 맨 위 순으로(첫 탭이 쪽 준비 중에 묻힐 수 있어 몇 번 시도)
         for (y in listOf(0.5f, 0.07f, 0.5f, 0.07f)) {
             tap(0.5f, y)
-            if (has(By.desc("쪽 이동"), 2_500)) return
+            if (has(By.desc("책 닫기"), 2_500)) return
         }
         shot("menu-not-open")
         fail("읽기 메뉴가 열리지 않음")
+    }
+
+    /** 떠 있는 메뉴 쌓기(오른쪽 아래 '메뉴')를 열고 그 줄([row] 로 시작하는 이름)을 누른다. */
+    protected fun stackItem(row: String) {
+        repeat(3) {
+            openMenu()
+            if (!device.hasObject(By.desc(Pattern.compile("테마 및 설정.*")))) runCatching { find(By.desc("메뉴"), 2_500)?.click() }
+            val ok = runCatching { find(By.desc(Pattern.compile(Pattern.quote(row) + ".*")), 3_000)?.click() != null }.getOrDefault(false)
+            if (ok) { SystemClock.sleep(600); return }
+        }
+        shot("stack-$row"); fail("떠 있는 메뉴에 '$row' 이 없음")
+    }
+
+    /** 테마 및 설정 › 사용자화 › [item]. */
+    protected fun customItem(item: String) {
+        repeat(3) {
+            stackItem("테마 및 설정")
+            val c = find(By.textStartsWith("사용자화"), 5_000) ?: scrollFind(By.textStartsWith("사용자화"))
+            if (c != null && runCatching { c.click(); true }.getOrDefault(false)) {
+                val ok = runCatching { find(By.text(item), 4_000)?.click() != null }.getOrDefault(false)
+                if (ok) { SystemClock.sleep(600); return }
+            }
+            backToPage()
+        }
+        shot("custom-$item"); fail("사용자화에 '$item' 이 없음")
     }
 
     /** UiObject2 를 바로 찾아 쓰는 짧은 동작: 화면이 다시 그려져 낡았으면 몇 번 다시 한다. */
@@ -250,19 +278,36 @@ abstract class E2eTest {
         return null
     }
 
-    /** 읽기 메뉴의 단추(목차·보기·넘김·듣기·밝기·메모·쪽 목록)를 누른다. 메뉴가 그새 닫혔으면 다시 연다. */
+    /**
+     * 예전 읽기 메뉴 단추 이름으로 새 자리를 찾아 누른다(작업 07): 목차·검색·책갈피·테마 = 떠 있는 메뉴,
+     * 보기·넘김·밝기·듣기·메모·쪽 목록·만화 보기 = 테마 및 설정 › 사용자화.
+     */
     protected fun menuItem(label: String) {
-        repeat(3) {
-            openMenu()
-            // 누르기 전에 메뉴가 닫히면(칸 보기 등) 요소가 사라져 낡은 것이 된다 → 메뉴를 다시 열고 다시
-            val ok = runCatching { find(By.text(label), 2_500)?.click() != null }.getOrDefault(false)
-            if (ok) { SystemClock.sleep(500); return }
+        when (label) {
+            "목차" -> stackItem("목차")
+            "검색" -> stackItem("책 검색")
+            "테마" -> stackItem("테마 및 설정")
+            "책갈피" -> {
+                repeat(3) {
+                    openMenu()
+                    if (!device.hasObject(By.desc(Pattern.compile("테마 및 설정.*")))) runCatching { find(By.desc("메뉴"), 2_500)?.click() }
+                    val ok = runCatching { find(By.desc(Pattern.compile("책갈피( 빼기)?")), 3_000)?.click() != null }.getOrDefault(false)
+                    if (ok) { SystemClock.sleep(600); return }
+                }
+                shot("bookmark-btn"); fail("책갈피 단추가 없음")
+            }
+            else -> customItem(
+                when (label) {
+                    "보기" -> "글꼴·줄 간격·여백"; "넘김" -> "넘김 효과·자동 넘김"; "밝기" -> "밝기·따뜻한 색"
+                    "메모" -> "이 쪽에 메모"; else -> label
+                },
+            )
         }
-        shot("menu-item-$label"); fail("읽기 메뉴에 '$label' 이 없음")
     }
 
+    /** 읽기 메뉴를 닫는다(떠 있는 메뉴 → 바깥 틀 순으로 '뒤로'). */
     protected fun closeMenu() {
-        if (device.hasObject(By.desc("쪽 이동"))) { device.pressBack(); SystemClock.sleep(500) }
+        repeat(3) { if (menuShown()) { device.pressBack(); SystemClock.sleep(500) } }
     }
 
     /** 시트·창을 닫아 쪽 화면이 다시 보일 때까지 '뒤로'(최대 3번). 쪽이 이미 보이면 아무것도 안 한다. */
