@@ -18,31 +18,33 @@ import org.junit.runner.RunWith
 class B02LibraryTest : E2eTest() {
     private val tileP = Pattern.compile(".*, .*% 읽음")
 
+    /** 작업 06 B안: 첫 화면 카드(전체·형식·폴더·시리즈) → 들어가기 → 뒤로, '최근 ›', 전체의 상태 칸, 문서 메뉴. */
     @Test
-    fun shelves_sort_viewToggle_bookMenu() {
+    fun homeCards_statusChips_bookMenu() {
         launchApp()
         assertTrue(has(By.desc(tileP), 30_000))
         shot("library")
-        for (s in listOf("전체", "형식", "폴더", "시리즈", "최근")) {
-            clickText(s)
+        for (p in listOf("전체, \\d+권", "형식, \\d+가지", "폴더, \\d+개", "시리즈, \\d+개")) {
+            obj(By.desc(Pattern.compile(p))).click()
+            SystemClock.sleep(900)
+            assertTrue("카드를 눌렀는데 들어간 화면이 아님($p)", has(By.desc("뒤로"), 8_000))
             assertAlive()
-            shot("shelf-$s")
+            shot("home-card-${p.substringBefore(',')}")
+            if (p.startsWith("전체")) {
+                // 상태 칸(F-71)
+                for (c in listOf("읽는 중", "읽을 책", "다 읽음", "★ 즐겨찾기")) {
+                    device.findObject(By.textStartsWith(c))?.let { it.click(); SystemClock.sleep(400); shot("chip-$c"); it.click() }
+                }
+            }
+            obj(By.desc("뒤로")).click(); SystemClock.sleep(900)
+            assertTrue("뒤로 해도 첫 화면이 아님", has(By.desc(Pattern.compile("전체, \\d+권")), 8_000))
         }
-        obj(By.desc("보기 전환")).click(); SystemClock.sleep(600); shot("list-mode")
-        obj(By.desc("보기 전환")).click(); SystemClock.sleep(600)
-        // 정렬
-        clickText("전체")
-        obj(By.desc("더 보기")).click()
-        obj(By.textStartsWith("정렬:")).click()
-        SystemClock.sleep(700)
-        shot("sort-dialog")
-        device.pressBack()
-        // 상태 칩
-        for (c in listOf("읽는 중", "읽을 책", "다 읽음", "★ 즐겨찾기")) {
-            device.findObject(By.textStartsWith(c))?.let { it.click(); SystemClock.sleep(400); shot("chip-$c"); it.click() }
-        }
+        // '최근 ›' → 최근 격자
+        obj(By.desc("최근 읽은 책 모두 보기")).click()
+        assertTrue(has(By.text("모든 책"), 8_000))
+        shot("recent-all")
+        device.pressBack(); SystemClock.sleep(900)
         // 문서 메뉴(길게 누르기) → 즐겨찾기 → 문서 정보
-        clickText("최근")
         val tile = obj(By.desc(tileP))
         tile.longClick()
         obj(By.text("열기"), 8_000)
@@ -60,24 +62,24 @@ class B02LibraryTest : E2eTest() {
         assertAlive()
     }
 
-    /** 작업 05: 형식·폴더 탭 = 묶음 카드 → 눌러 들어가기 → (하위 폴더) → 뒤로. 카드 이름은 TalkBack "이름, n권". */
+    /** 작업 05: 형식·폴더 = 묶음 카드 → 눌러 들어가기 → (하위 폴더) → 뒤로. 카드 이름은 TalkBack "이름, n권". */
     @Test
     fun groupCards_enter_subfolder_back() {
         launchApp()
         assertTrue(has(By.desc(tileP), 30_000))
-        for (tab in listOf("형식", "폴더")) {
-            clickText(tab)
+        for (home in listOf("형식, \\d+가지", "폴더, \\d+개")) {
+            obj(By.desc(Pattern.compile(home))).click()
             val card = obj(By.desc(Pattern.compile(".+, \\d+권")), 10_000)
-            shot("cards-$tab")
+            shot("cards-${home.substringBefore(',')}")
             card.click()
-            assertTrue("$tab 카드를 눌렀는데 묶음 화면이 아님", has(By.text("모든 책"), 8_000))
+            assertTrue("카드를 눌렀는데 묶음 화면이 아님", has(By.text("모든 책"), 8_000))
             assertTrue(has(By.desc("뒤로")))
-            shot("group-$tab")
+            shot("group-${home.substringBefore(',')}")
             // 하위 폴더 줄이 있으면 그 안으로 한 단계 더
             device.findObject(By.desc(Pattern.compile(".+, 폴더 열기")))?.let { sub ->
                 sub.click()
                 assertTrue("하위 폴더 안으로 들어가지 않음", has(By.text("모든 책"), 8_000))
-                shot("subgroup-$tab")
+                shot("subgroup-${home.substringBefore(',')}")
                 device.pressBack(); SystemClock.sleep(900)
                 assertTrue(has(By.text("모든 책")))
             }
@@ -85,21 +87,21 @@ class B02LibraryTest : E2eTest() {
             obj(By.desc(Pattern.compile("정렬: .*"))).click(); SystemClock.sleep(500)
             clickText("이름")
             obj(By.desc("검색")).click(); SystemClock.sleep(500)
-            shot("group-sort-search-$tab")
+            shot("group-sort-search-${home.substringBefore(',')}")
             obj(By.desc("뒤로")).click(); SystemClock.sleep(900)
             assertTrue("뒤로 해도 카드 목록이 아님", has(By.desc(Pattern.compile(".+, \\d+권")), 8_000))
+            device.pressBack(); SystemClock.sleep(900)
+            assertTrue("두 번 뒤로 해도 첫 화면이 아님", has(By.desc(Pattern.compile("전체, \\d+권")), 8_000))
             assertAlive()
         }
-        clickText("최근")
-        assertAlive()
     }
 
     @Test
     fun libraryFolders_pickerOpens_removeAndUndo() {
         launchApp()
-        obj(By.desc("더 보기")).click()
-        // 7F: '서재 폴더'(S-17). 옛 판 이름 '모으는 폴더 관리'도 받는다
-        obj(By.text(Pattern.compile("서재 폴더|모으는 폴더 관리"))).click()
+        // 작업 06: 서재 첫 화면에서 '더 보기'가 빠짐 → 설정 › 서재 폴더(S-17)
+        goTab("설정")
+        (scrollFind(By.text("서재 폴더")) ?: obj(By.text("서재 폴더"))).click()
         SystemClock.sleep(1_000)
         shot("folders")
         // 폴더 추가 → 시스템 폴더 고르기(SAF)가 열리는지만 보고 닫는다

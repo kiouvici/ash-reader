@@ -70,6 +70,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -83,6 +84,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -95,6 +97,7 @@ import androidx.compose.ui.unit.sp
 import kr.vici.ashreader.data.Book
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.FormatGroup
+import kr.vici.ashreader.data.progress
 import kr.vici.ashreader.doc.Covers
 
 // 작업 05: 서재 '형식·폴더·시리즈' — 애플 북스 방식 묶음 카드 → 눌러 들어가기(대표님 목업 통과 2026-10-24 17:08).
@@ -127,29 +130,6 @@ internal fun rememberReduceMotion(): Boolean {
     return remember {
         runCatching { android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }
             .getOrDefault(false)
-    }
-}
-
-/** 떠 있는 반투명 탭 막대(서재 위 탭: 모서리 11/8dp, 아래 내비게이션: 13/10dp). 고른 칸 = 옅은 회색 + 굵게. */
-@Composable
-fun FloatingTabs(labels: List<String>, selected: Int, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
-    val c = shelfColors()
-    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Row(
-            Modifier.shadow(14.dp, RoundedCornerShape(11.dp), ambientColor = Color.Black.copy(alpha = 0.08f), spotColor = Color.Black.copy(alpha = 0.16f))
-                .clip(RoundedCornerShape(11.dp)).background(c.bar).border(1.dp, c.barLine, RoundedCornerShape(11.dp))
-                .horizontalScroll(rememberScrollState()).padding(3.dp).selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            labels.forEachIndexed { i, l ->
-                val on = i == selected
-                Box(
-                    Modifier.heightIn(min = 42.dp).clip(RoundedCornerShape(8.dp)).background(if (on) c.sel else Color.Transparent)
-                        .selectable(on, role = Role.Tab) { onPick(i) }.padding(horizontal = 13.dp),
-                    contentAlignment = Alignment.Center,
-                ) { Text(l, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, color = c.ink, maxLines = 1) }
-            }
-        }
     }
 }
 
@@ -283,28 +263,46 @@ private fun DocFace(b: Book, f: DocFormat, w: Dp) {
 private const val PATH_SEP = "\u001E"
 private val EASE = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
 
+/** 서재 갈래(작업 06): 첫 화면 카드·'최근 ›'·검색에서 들어가는 화면. [key] 는 들어간 길의 첫 칸. */
+private enum class LibSection(val key: String, val title: String) {
+    ALL("all", "전체"), FORMAT("format", "형식"), FOLDER("folder", "폴더"), SERIES("series", "시리즈"), RECENT("recent", "최근"), SEARCH("search", "전체");
+
+    companion object { fun of(k: String) = entries.firstOrNull { it.key == k } }
+}
+
 /**
- * 형식·폴더·시리즈 탭(작업 05): 묶음 카드 목록 → 카드를 누르면 그 자리에서 커지며 묶음 화면으로 들어간다(0.45초, 뒤 목록 0.94배·흐려짐).
- * 하위 폴더도 같은 방식. 뒤로 = 거꾸로 줄어듦. '동작 줄이기'면 바로 바뀐다. 들어간 길은 회전해도 남는다.
- * [tabs] = 맨 위 떠 있는 탭 막대(목록과 함께 움직인다).
+ * 서재(작업 05·06): 첫 화면 = 큰 제목 '서재' + 검색 + 전체·형식·폴더·시리즈 카드(세로 2×2, 가로 한 줄) + '최근 ›' 책장.
+ * 카드를 누르면 그 자리에서 커지며 들어간다(0.45초, 뒤 목록 0.94배·흐려짐). 형식·폴더·시리즈 = 묶음 카드 목록 → 묶음 화면 → 하위 폴더.
+ * 뒤로 = 거꾸로 줄어듦. '동작 줄이기'면 바로 바뀐다. 들어간 길은 회전해도 남는다. [homeKey] 가 바뀌면 첫 화면으로(아래 '서재' 다시 누름).
+ * [navBar] = 가로 화면에서 제목 줄 오른쪽에 둘 내비게이션(세로 공간 확보). [extras] = 첫 화면 맨 아래(서점 바로가기 줄 등).
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun GroupsPane(
-    heading: String,
-    groups: List<LibGroup>,
-    tabs: @Composable () -> Unit,
+fun LibraryPane(
+    books: List<Book>,
+    folderRoots: List<String>,
     unavailable: Set<String>,
     onOpen: (Book) -> Unit,
     onLongBook: (Book) -> Unit,
-    onGroupLong: ((LibGroup) -> Unit)?,
+    onSeriesManage: (String) -> Unit,
     modifier: Modifier = Modifier,
-    emptyText: String = "",
+    scanning: Boolean = false,
+    homeKey: Int = 0,
+    navBar: (@Composable () -> Unit)? = null,
+    extras: @Composable () -> Unit = {},
 ) {
-    var pathStr by rememberSaveable(heading) { mutableStateOf("") }
+    var pathStr by rememberSaveable { mutableStateOf("") }
+    var seenHome by rememberSaveable { mutableStateOf(homeKey) }
+    if (homeKey != seenHome) { seenHome = homeKey; pathStr = "" }
+    val formats = remember(books) { LibGroups.formats(books) }
+    val folders = remember(books, folderRoots) { LibGroups.folders(books, folderRoots) }
+    val series = remember(books) { LibGroups.series(books) }
+    val recent = remember(books) { books.sortedByDescending { if (it.lastOpenedAt > 0) it.lastOpenedAt else it.addedAt } }
+    fun groupsOf(s: LibSection) = when (s) { LibSection.FORMAT -> formats; LibSection.FOLDER -> folders; LibSection.SERIES -> series; else -> emptyList() }
     val path = if (pathStr.isEmpty()) emptyList() else pathStr.split(PATH_SEP)
-    // 묶음이 없어졌으면(책을 지움·폴더를 뺌) 있는 데까지만
-    val live = path.takeWhile { LibGroups.find(groups, it) != null }
+    // 갈래·묶음이 없어졌으면(책을 지움·폴더를 뺌) 있는 데까지만
+    val section = path.firstOrNull()?.let { LibSection.of(it) }
+    val live = if (section == null) emptyList() else listOf(section.key) + path.drop(1).takeWhile { LibGroups.find(groupsOf(section), it) != null }
     fun go(p: List<String>) { pathStr = p.joinToString(PATH_SEP) }
     BackHandler(enabled = live.isNotEmpty()) { go(live.dropLast(1)) }
     val reduce = rememberReduceMotion()
@@ -320,20 +318,36 @@ fun GroupsPane(
                     (scaleIn(tween(450, easing = EASE), initialScale = 0.94f) + fadeIn(tween(450), initialAlpha = 0.4f)) togetherWith fadeOut(tween(250))
                 }.apply { targetContentZIndex = targetState.size.toFloat() }
             },
-            label = "서재 묶음",
+            label = "서재",
         ) { p ->
-            val cur = p.lastOrNull()?.let { LibGroups.find(groups, it) }
             val shared = SharedBounds(this@SharedTransitionLayout, this, reduce)
-            if (cur == null) {
-                GroupList(heading, groups, c, tabs, shared, emptyText, onEnter = { go(listOf(it.id)) }, onLong = onGroupLong)
-            } else {
-                GroupDetail(cur, c, shared, unavailable, onOpen, onLongBook, onBack = { go(p.dropLast(1)) }, onEnter = { k -> go(p + k.id) })
+            val sec = p.firstOrNull()?.let { LibSection.of(it) }
+            val back = { go(p.dropLast(1)) }
+            val detail: @Composable (LibGroup, Boolean, Boolean) -> Unit = { g, filters, search ->
+                GroupDetail(g, c, shared, unavailable, onOpen, onLongBook, onBack = back, onEnter = { k -> go(p + k.id) }, filters = filters, startSearch = search)
+            }
+            when (sec) {
+                null -> LibraryHome(
+                    books, formats, folders, series, recent, c, shared, scanning, navBar, extras,
+                    onSection = { go(listOf(it.key)) }, onOpen = onOpen, onLong = onLongBook,
+                )
+                LibSection.ALL -> detail(LibGroup("sec-all", "전체", books), true, false)
+                LibSection.SEARCH -> detail(LibGroup("sec-search", "전체", books), true, true)
+                LibSection.RECENT -> detail(LibGroup("sec-recent", "최근", recent), false, false)
+                else -> {
+                    val cur = p.drop(1).lastOrNull()?.let { LibGroups.find(groupsOf(sec), it) }
+                    if (cur != null) detail(cur, false, false)
+                    else GroupList(
+                        sec, groupsOf(sec), c, shared, onBack = back, onEnter = { go(p + it.id) },
+                        onLong = if (sec == LibSection.SERIES) { g -> g.seriesKey?.let(onSeriesManage) } else null,
+                    )
+                }
             }
         }
     }
 }
 
-/** 카드 ↔ 묶음 화면 확대 전환(같은 열쇠의 경계를 이어 줌). '동작 줄이기'면 아무것도 하지 않는다. */
+/** 카드 ↔ 들어간 화면 확대 전환(같은 열쇠의 경계를 이어 줌). '동작 줄이기'면 아무것도 하지 않는다. */
 @OptIn(ExperimentalSharedTransitionApi::class)
 private class SharedBounds(val scope: SharedTransitionScope, val av: AnimatedVisibilityScope, val off: Boolean) {
     @Composable
@@ -350,35 +364,185 @@ private class SharedBounds(val scope: SharedTransitionScope, val av: AnimatedVis
     }
 }
 
+/** 첫 화면 크기: 세로(휴대폰 기준 390dp, 태블릿은 비례해 크게) / 가로 휴대폰 / 가로 태블릿(목업 LibraryHome·LibraryHomeLand). */
+private class HomeSpec(
+    val cols: Int, val cardH: Dp, val coverW: Dp, val heights: List<Dp>, val step: Dp, val name: Float, val title: Float,
+    val bookW: Dp, val pad: Dp, val gap: Dp,
+)
+
+private fun homeSpec(w: Dp, h: Dp): HomeSpec {
+    val land = w > h
+    val tablet = minOf(w, h) >= 600.dp
+    return when {
+        land && tablet -> HomeSpec(4, 210.dp, 96.dp, listOf(128.dp, 146.dp, 136.dp), 52.dp, 22f, 34f, 152.dp, 40.dp, 20.dp)
+        land -> HomeSpec(4, 96.dp, 52.dp, listOf(64.dp, 74.dp, 68.dp), 28.dp, 16f, 24f, 80.dp, 24.dp, 12.dp)
+        else -> {
+            val s = (w / 390.dp).coerceIn(1f, 1.6f)
+            HomeSpec(2, 150.dp * s, 58.dp * s, listOf(76.dp * s, 86.dp * s), 44.dp * s, 18f, 32f, 100.dp * s, 16.dp, 12.dp)
+        }
+    }
+}
+
+@Composable
+private fun LibraryHome(
+    books: List<Book>, formats: List<LibGroup>, folders: List<LibGroup>, series: List<LibGroup>, recent: List<Book>,
+    c: ShelfColors, shared: SharedBounds, scanning: Boolean, navBar: (@Composable () -> Unit)?, extras: @Composable () -> Unit,
+    onSection: (LibSection) -> Unit, onOpen: (Book) -> Unit, onLong: (Book) -> Unit,
+) {
+    // 카드 표지: 묶음마다 앞의 책(형식·폴더·시리즈는 서로 다른 묶음에서 하나씩 — 무엇이 들었는지 보이게)
+    fun spread(gs: List<LibGroup>) = gs.mapNotNull { it.books.firstOrNull() }.ifEmpty { gs.flatMap { it.books } }
+    BoxWithConstraints(Modifier.fillMaxSize().background(c.detail)) {
+        val sp = homeSpec(maxWidth, maxHeight)
+        val cards = listOf(
+            Triple(LibSection.ALL, "${books.size}권", recent),
+            Triple(LibSection.FORMAT, "${formats.size}가지", spread(formats)),
+            Triple(LibSection.FOLDER, "${folders.size}개", spread(folders)),
+            Triple(LibSection.SERIES, "${series.size}개", spread(series)),
+        )
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            item(key = "head") {
+                Row(Modifier.padding(start = sp.pad + 4.dp, end = 12.dp, top = 16.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("서재", fontSize = sp.title.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink, modifier = Modifier.weight(1f).semantics { heading() })
+                    navBar?.invoke()
+                    FloatingButton(c, "검색", Modifier.padding(start = 8.dp)) { onSection(LibSection.SEARCH) }
+                }
+                if (scanning) androidx.compose.material3.LinearProgressIndicator(
+                    Modifier.fillMaxWidth().padding(horizontal = sp.pad).semantics { contentDescription = "폴더에서 책을 모으는 중" },
+                )
+            }
+            item(key = "cards") {
+                Column(Modifier.padding(horizontal = sp.pad).padding(top = 12.dp, bottom = 26.dp), verticalArrangement = Arrangement.spacedBy(sp.gap)) {
+                    cards.chunked(sp.cols).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(sp.gap)) {
+                            row.forEach { (sec, sub, fan) ->
+                                HomeCard(sec.title, sub, fan, sp, c, Modifier.weight(1f).then(shared.of("sec-${sec.key}"))) { onSection(sec) }
+                            }
+                        }
+                    }
+                }
+            }
+            if (books.isEmpty()) item(key = "empty") {
+                Text(
+                    "아직 책이 없어요. 설정 › 서재 폴더에서 책이 있는 폴더를 고르거나, 다른 앱에서 파일을 'ASH Reader로 열기' 해 보세요.",
+                    color = c.sub, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(horizontal = sp.pad + 4.dp),
+                )
+            } else item(key = "recent") {
+                ShelfRow(
+                    "최근", null, recent.take(30), c, shared.of("sec-recent"), { onSection(LibSection.RECENT) }, onOpen, onLong,
+                    coverW = sp.bookW, sidePad = sp.pad + 4.dp, bleedPad = 0.dp, titleLabel = "최근 읽은 책 모두 보기",
+                )
+            }
+            item(key = "extras") { extras() }
+        }
+    }
+}
+
+/** 첫 화면 카드: 이름(굵게) + 개수, 오른쪽 아래 표지가 바닥에 붙어 겹침. TalkBack "전체, 312권". */
+@Composable
+private fun HomeCard(name: String, sub: String, books: List<Book>, sp: HomeSpec, c: ShelfColors, modifier: Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Box(
+        modifier.height(sp.cardH)
+            .shadow(12.dp, shape, ambientColor = Color.Black.copy(alpha = 0.06f), spotColor = Color.Black.copy(alpha = 0.22f))
+            .clip(shape).background(c.card)
+            .clickable(onClick = onClick)
+            .clearAndSetSemantics { contentDescription = "$name, $sub"; role = Role.Button },
+    ) {
+        CoverFan(books, sp.heights, sp.coverW, sp.step, Modifier.align(Alignment.BottomEnd).offset(x = 10.dp))
+        Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 8.dp)) {
+            Text(name, fontSize = sp.name.sp, fontWeight = FontWeight.Black, color = c.ink, maxLines = 1)
+            Text(sub, fontSize = 12.5.sp, color = c.sub, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
+        }
+    }
+}
+
+/** 표지 [heights].size 장이 바닥에 붙어 서서 겹친다(왼쪽 그림자). 권 수가 모자라면 오른쪽에 붙인다. */
+@Composable
+private fun CoverFan(books: List<Book>, heights: List<Dp>, coverW: Dp, step: Dp, modifier: Modifier) {
+    val n = heights.size
+    Box(modifier.size(width = step * (n - 1) + coverW, height = heights.max())) {
+        val fan = books.take(n)
+        fan.forEachIndexed { i, b ->
+            val k = i + n - fan.size
+            ShelfCover(
+                b,
+                Modifier.align(Alignment.BottomStart).offset(x = step * k).size(coverW, heights[k]).drawBehind {
+                    val sw = 12.dp.toPx()
+                    drawRect(
+                        Brush.horizontalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.22f)), startX = -sw, endX = 0f),
+                        topLeft = Offset(-sw, 8.dp.toPx()), size = Size(sw, size.height - 8.dp.toPx()),
+                    )
+                },
+                fan = true,
+            )
+        }
+    }
+}
+
+/** 떠 있는 둥근 단추(뒤로·검색): 44dp 모서리 12dp 반투명, 누름 48dp. */
+@Composable
+private fun FloatingButton(c: ShelfColors, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.size(48.dp).padding(2.dp)
+            .shadow(10.dp, RoundedCornerShape(12.dp), ambientColor = Color.Black.copy(alpha = 0.06f), spotColor = Color.Black.copy(alpha = 0.16f))
+            .clip(RoundedCornerShape(12.dp)).background(c.bar).border(1.dp, c.barLine, RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { Icon(if (label == "뒤로") Icons.Back else Icons.Search, contentDescription = null, tint = c.ink, modifier = Modifier.size(if (label == "뒤로") 20.dp else 18.dp)) }
+}
+
+/** 가로 화면 제목 줄의 내비게이션 막대(서재·독서 기록·설정 글자만, 위 탭 모양). */
+@Composable
+fun HeaderNav(labels: List<String>, selected: Int, onPick: (Int) -> Unit) {
+    val c = shelfColors()
+    Row(
+        Modifier.shadow(10.dp, RoundedCornerShape(11.dp), ambientColor = Color.Black.copy(alpha = 0.06f), spotColor = Color.Black.copy(alpha = 0.16f))
+            .clip(RoundedCornerShape(11.dp)).background(c.bar).border(1.dp, c.barLine, RoundedCornerShape(11.dp)).padding(3.dp).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        labels.forEachIndexed { i, l ->
+            val on = i == selected
+            Box(
+                Modifier.heightIn(min = 42.dp).clip(RoundedCornerShape(8.dp)).background(if (on) c.sel else Color.Transparent)
+                    .selectable(on, role = Role.Tab) { onPick(i) }.padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text(l, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, color = if (on) c.ink else c.sub, maxLines = 1) }
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GroupList(
-    heading: String, groups: List<LibGroup>, c: ShelfColors, tabs: @Composable () -> Unit, shared: SharedBounds, emptyText: String,
-    onEnter: (LibGroup) -> Unit, onLong: ((LibGroup) -> Unit)?,
+    sec: LibSection, groups: List<LibGroup>, c: ShelfColors, shared: SharedBounds,
+    onBack: () -> Unit, onEnter: (LibGroup) -> Unit, onLong: ((LibGroup) -> Unit)?,
 ) {
     // 넓은 화면(태블릿)은 카드를 여러 열로(한 장 최소 340dp) — 화면 폭 가득 늘어나지 않게
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-    val cols = ((maxWidth - 32.dp) / 340.dp).toInt().coerceIn(1, 3)
-    LazyColumn(
-        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(c.pageTop, c.pageBottom))),
-        contentPadding = PaddingValues(bottom = 28.dp),
-    ) {
-        stickyHeader(key = "tabs") { Box(Modifier.padding(top = 10.dp, bottom = 6.dp)) { tabs() } }
-        item(key = "heading") {
-            Text(heading, fontSize = 30.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 14.dp))
-        }
-        if (groups.isEmpty() && emptyText.isNotEmpty()) item(key = "empty") {
-            Text(emptyText, color = c.sub, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(horizontal = 20.dp))
-        }
-        items(groups.chunked(cols), key = { it.first().id }) { row ->
-            Row(Modifier.padding(horizontal = 16.dp).padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                row.forEach { g ->
-                    GroupCard(g, c, Modifier.weight(1f).then(shared.of(g.id)), onClick = { onEnter(g) }, onLong = onLong?.let { l -> { l(g) } })
+    BoxWithConstraints(shared.of("sec-${sec.key}").fillMaxSize().background(Brush.verticalGradient(listOf(c.pageTop, c.pageBottom)))) {
+        val cols = ((maxWidth - 32.dp) / 340.dp).toInt().coerceIn(1, 3)
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
+            item(key = "heading") {
+                Text(
+                    sec.title, fontSize = 30.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 66.dp, bottom = 14.dp).semantics { heading() },
+                )
+            }
+            if (groups.isEmpty()) item(key = "empty") {
+                Text(
+                    if (sec == LibSection.SERIES) "같은 폴더에서 제목 끝 권·화 번호만 다른 책을 시리즈로 묶어 보여 줘요. 책을 길게 눌러 직접 묶을 수도 있어요." else "아직 책이 없어요.",
+                    color = c.sub, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(horizontal = 20.dp),
+                )
+            }
+            items(groups.chunked(cols), key = { it.first().id }) { row ->
+                Row(Modifier.padding(horizontal = 16.dp).padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    row.forEach { g ->
+                        GroupCard(g, c, Modifier.weight(1f).then(shared.of(g.id)), onClick = { onEnter(g) }, onLong = onLong?.let { l -> { l(g) } })
+                    }
+                    repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
                 }
-                repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
-    }
+        FloatingButton(c, "뒤로", Modifier.padding(start = 10.dp, top = 8.dp), onBack)
     }
 }
 
@@ -394,25 +558,7 @@ private fun GroupCard(g: LibGroup, c: ShelfColors, modifier: Modifier, onClick: 
             .clearAndSetSemantics { contentDescription = "${g.name}, ${g.books.size}권"; role = Role.Button },
     ) {
         // 오른쪽: 이 묶음 책 표지 3장이 카드 바닥에 붙어 서서 겹친다(높이 조금씩 다르게, 오른쪽 끝은 카드 밖으로 잘림)
-        Box(Modifier.align(Alignment.BottomEnd).offset(x = 14.dp).size(width = 186.dp, height = 100.dp)) {
-            val heights = listOf(86, 96, 90)
-            // 3권보다 적으면 오른쪽에 붙인다(빈자리가 오른쪽에 남지 않게)
-            val fan = g.books.take(3)
-            fan.forEachIndexed { i, b ->
-                val k = i + 3 - fan.size
-                ShelfCover(
-                    b,
-                    Modifier.align(Alignment.BottomStart).offset(x = (k * 54).dp).size(70.dp, heights[k].dp).drawBehind {
-                        val sw = 12.dp.toPx()
-                        drawRect(
-                            Brush.horizontalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.22f)), startX = -sw, endX = 0f),
-                            topLeft = Offset(-sw, 8.dp.toPx()), size = Size(sw, size.height - 8.dp.toPx()),
-                        )
-                    },
-                    fan = true,
-                )
-            }
-        }
+        CoverFan(g.books, listOf(86.dp, 96.dp, 90.dp), 70.dp, 54.dp, Modifier.align(Alignment.BottomEnd).offset(x = 6.dp))
         Column(Modifier.align(Alignment.CenterStart).fillMaxWidth(0.46f).padding(start = 20.dp, top = 12.dp, bottom = 12.dp)) {
             Text(g.name, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(LibGroups.cardSub(g), fontSize = 13.sp, color = c.sub, modifier = Modifier.padding(top = 3.dp))
@@ -426,13 +572,18 @@ private fun GroupCard(g: LibGroup, c: ShelfColors, modifier: Modifier, onClick: 
 private fun GroupDetail(
     g: LibGroup, c: ShelfColors, shared: SharedBounds, unavailable: Set<String>,
     onOpen: (Book) -> Unit, onLong: (Book) -> Unit, onBack: () -> Unit, onEnter: (LibGroup) -> Unit,
+    filters: Boolean = false, startSearch: Boolean = false,
 ) {
     var sort by rememberSaveable(g.id) { mutableStateOf(GroupSort.RECENT) }
-    var query by rememberSaveable(g.id) { mutableStateOf<String?>(null) }
+    var query by rememberSaveable(g.id) { mutableStateOf(if (startSearch) "" else null) }
     var sortOpen by remember { mutableStateOf(false) }
+    // '전체'의 상태 칸(F-71): -1 = 모두, 0~2 = 상태, FAVORITES = 즐겨찾기
+    var status by rememberSaveable(g.id) { mutableStateOf(-1) }
     val all = remember(g, sort) { sort.apply(g.books) }
     val q = query?.trim().orEmpty()
-    val shown = if (q.isEmpty()) all else all.filter { it.title.contains(q, ignoreCase = true) }
+    val shown = all.filter { b -> (status < 0 || (status == FAVORITES && b.favorite) || b.status == status) && (q.isEmpty() || b.title.contains(q, ignoreCase = true)) }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    if (startSearch) androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     val reading = remember(g) { g.books.filter { it.status == Book.READING && it.lastOpenedAt > 0 }.sortedByDescending { it.lastOpenedAt } }
     val now = remember { System.currentTimeMillis() }
     BoxWithConstraints(shared.of(g.id).fillMaxSize().background(c.detail)) {
@@ -453,12 +604,24 @@ private fun GroupDetail(
                     Text(g.name, fontSize = 30.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(LibGroups.detailSub(g), fontSize = 14.sp, color = c.sub, modifier = Modifier.padding(top = 2.dp))
                     if (query != null) OutlinedTextField(
-                        value = query!!, onValueChange = { query = it }, singleLine = true, placeholder = { Text("이 묶음에서 제목으로 찾기") },
-                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        value = query!!, onValueChange = { query = it }, singleLine = true,
+                        placeholder = { Text(if (startSearch) "제목으로 찾기" else "이 묶음에서 제목으로 찾기") },
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp).focusRequester(focus),
                     )
+                    if (filters) Row(Modifier.padding(top = 12.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(Book.READING to "읽는 중", Book.TO_READ to "읽을 책", Book.DONE to "다 읽음", FAVORITES to "★ 즐겨찾기").forEach { (st, label) ->
+                            val n = g.books.count { if (st == FAVORITES) it.favorite else it.status == st }
+                            val on = status == st
+                            Box(
+                                Modifier.clip(RoundedCornerShape(8.dp)).background(if (on) c.sel else Color.Transparent).border(1.dp, c.barLine, RoundedCornerShape(8.dp))
+                                    .selectable(on, role = Role.Checkbox) { status = if (on) -1 else st }.heightIn(min = 44.dp).padding(horizontal = 12.dp),
+                                contentAlignment = Alignment.Center,
+                            ) { Text("$label $n", fontSize = 13.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, color = c.ink) }
+                        }
+                    }
                 }
             }
-            if (q.isEmpty()) {
+            if (q.isEmpty() && status < 0) {
                 if (reading.isNotEmpty()) item(key = "reading", span = { GridItemSpan(maxLineSpan) }) {
                     ShelfRow("이어 읽기", null, reading, c, Modifier, null, onOpen, onLong)
                 }
@@ -484,13 +647,7 @@ private fun GroupDetail(
             Modifier.fillMaxWidth().padding(start = 10.dp, end = 12.dp, top = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                Modifier.size(48.dp).padding(2.dp)
-                    .shadow(10.dp, RoundedCornerShape(12.dp), ambientColor = Color.Black.copy(alpha = 0.06f), spotColor = Color.Black.copy(alpha = 0.16f))
-                    .clip(RoundedCornerShape(12.dp)).background(c.bar).border(1.dp, c.barLine, RoundedCornerShape(12.dp))
-                    .clickable(role = Role.Button, onClickLabel = "뒤로", onClick = onBack).semantics { contentDescription = "뒤로" },
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Back, contentDescription = null, tint = c.ink, modifier = Modifier.size(20.dp)) }
+            FloatingButton(c, "뒤로", onClick = onBack)
             Row(
                 Modifier.shadow(10.dp, RoundedCornerShape(11.dp), ambientColor = Color.Black.copy(alpha = 0.06f), spotColor = Color.Black.copy(alpha = 0.16f))
                     .clip(RoundedCornerShape(11.dp)).background(c.bar).border(1.dp, c.barLine, RoundedCornerShape(11.dp)).padding(2.dp),
@@ -534,12 +691,13 @@ private fun Modifier.bleed(d: Dp) = layout { m, cons ->
 private fun ShelfRow(
     title: String, count: String?, books: List<Book>, c: ShelfColors, modifier: Modifier, onTitle: (() -> Unit)?,
     onOpen: (Book) -> Unit, onLong: (Book) -> Unit,
+    coverW: Dp = 98.dp, sidePad: Dp = 20.dp, bleedPad: Dp = 20.dp, titleLabel: String? = null,
 ) {
-    Column(modifier.bleed(20.dp).background(Brush.verticalGradient(listOf(c.detail, c.shelfBottom))).padding(top = 14.dp, bottom = 22.dp)) {
+    Column(modifier.bleed(bleedPad).background(Brush.verticalGradient(listOf(c.detail, c.shelfBottom))).padding(top = 14.dp, bottom = 22.dp)) {
         Row(
-            Modifier.padding(start = 20.dp).heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp))
+            Modifier.padding(start = sidePad).heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp))
                 .then(if (onTitle != null) Modifier.clickable(role = Role.Button, onClick = onTitle).clearAndSetSemantics {
-                    contentDescription = "$title, $count, 폴더 열기"; role = Role.Button
+                    contentDescription = titleLabel ?: "$title, $count, 폴더 열기"; role = Role.Button
                 } else Modifier.semantics { contentDescription = title })
                 .padding(end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -549,17 +707,17 @@ private fun ShelfRow(
             if (onTitle != null) Icon(Icons.Chevron, contentDescription = null, tint = c.sub2, modifier = Modifier.padding(start = 2.dp).size(16.dp))
         }
         LazyRow(
-            Modifier.padding(top = 8.dp).height(156.dp),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+            Modifier.padding(top = 8.dp).height(coverW * 1.48f + 10.dp),
+            contentPadding = PaddingValues(horizontal = sidePad, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             items(books.take(60), key = { it.id }) { b ->
                 ShelfCover(
                     b,
-                    Modifier.width(98.dp).aspectRatio(coverRatio(b))
+                    Modifier.width(coverW).aspectRatio(coverRatio(b))
                         .combinedClickable(onClick = { onOpen(b) }, onLongClick = { onLong(b) })
-                        .semantics { contentDescription = "${b.title}, ${DocFormat.of(b.format).badge}" },
+                        .semantics { contentDescription = bookLabel(b, false) },
                     bar = true,
                 )
             }
@@ -572,7 +730,8 @@ private fun ShelfRow(
 @Composable
 private fun GridBook(b: Book, c: ShelfColors, unavailable: Boolean, now: Long, onOpen: (Book) -> Unit, onLong: (Book) -> Unit) {
     val st = bookState(b, unavailable, now)
-    Column(Modifier.combinedClickable(onClick = { onOpen(b) }, onLongClick = { onLong(b) }).semantics(mergeDescendants = true) {}) {
+    // TalkBack·시험: "제목, 형식, 42% 읽음"(옛 서재 칸과 같은 모양)
+    Column(Modifier.combinedClickable(onClick = { onOpen(b) }, onLongClick = { onLong(b) }).clearAndSetSemantics { contentDescription = bookLabel(b, unavailable) }) {
         Box(Modifier.fillMaxWidth().aspectRatio(1f / 1.48f), contentAlignment = Alignment.BottomCenter) {
             ShelfCover(b, Modifier.fillMaxWidth().aspectRatio(coverRatio(b)), dim = unavailable)
         }
@@ -588,3 +747,10 @@ private fun GridBook(b: Book, c: ShelfColors, unavailable: Boolean, now: Long, o
         Spacer(Modifier.height(2.dp))
     }
 }
+
+/** 책 한 권의 TalkBack·시험 이름: "제목, 형식, 42% 읽음" / "…, 열 수 없음". */
+private fun bookLabel(b: Book, unavailable: Boolean) =
+    "${b.title}, ${DocFormat.of(b.format).badge}, " + if (unavailable) "열 수 없음" else "${(b.progress() * 100).toInt()}% 읽음"
+
+/** 상태 칸 '즐겨찾기' 값(F-71). */
+private const val FAVORITES = 3

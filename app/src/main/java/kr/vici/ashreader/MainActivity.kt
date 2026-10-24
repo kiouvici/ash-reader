@@ -3,6 +3,7 @@ package kr.vici.ashreader
 
 import android.app.Activity
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -31,9 +32,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.SavedStateHandle
@@ -77,6 +80,7 @@ import kr.vici.ashreader.ui.NextVolumeSheet
 import kr.vici.ashreader.ui.ReaderScreen
 import kr.vici.ashreader.ui.ReaderTarget
 import kr.vici.ashreader.ui.FloatingNavBar
+import kr.vici.ashreader.ui.HeaderNav
 import kr.vici.ashreader.ui.SeriesScreen
 import kr.vici.ashreader.ui.StatsScreen
 import kr.vici.ashreader.ui.VolumeKeys
@@ -356,6 +360,8 @@ private fun AshRoot(nav: NavModel) {
     }
 
     var exportFor by remember { mutableStateOf<String?>(null) }
+    /** 서재에서 아래 '서재'를 다시 누른 횟수(첫 화면으로 돌아가기, 작업 06). */
+    var libHome by rememberSaveable { mutableStateOf(0) }
     var exportAll by remember { mutableStateOf(false) }
     /** S-46 압축 파일 안 고르기: 압축 파일·식별값·한 번만 보기 여부·안의 문서들. */
     var zipPick by remember { mutableStateOf<ZipPick?>(null) }
@@ -552,13 +558,19 @@ private fun AshRoot(nav: NavModel) {
                 },
             )
         }
-        else -> Scaffold(
+        else -> {
+        // 작업 05·06: 위 탭과 같은 모양의 떠 있는 막대. 서재 가로 화면은 제목 줄 오른쪽으로 옮긴다(세로 공간 확보)
+        val tabs = listOf(Screen.Library, Screen.Stats, Screen.Settings)
+        fun pickTab(i: Int) {
+            if (tabs[i] == Screen.Library && nav.screen == Screen.Library) libHome++ // 서재에서 다시 누르면 첫 화면으로
+            nav.tab = tabs[i]; nav.screen = tabs[i]
+        }
+        val land = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+        Scaffold(
             snackbarHost = { SnackbarHost(snack) },
             bottomBar = {
-                // 작업 05: 위 탭과 같은 모양의 떠 있는 막대
-                val tabs = listOf(Screen.Library, Screen.Stats, Screen.Settings)
-                FloatingNavBar(listOf("서재" to Icons.Library, "독서 기록" to Icons.Chart, "설정" to Icons.Gear), tabs.indexOf(nav.tab)) { i ->
-                    nav.tab = tabs[i]; nav.screen = tabs[i]
+                if (!(land && sc == Screen.Library)) {
+                    FloatingNavBar(listOf("서재" to Icons.Library, "독서 기록" to Icons.Chart, "설정" to Icons.Gear), tabs.indexOf(nav.tab), ::pickTab)
                 }
             },
         ) { pad ->
@@ -569,14 +581,12 @@ private fun AshRoot(nav: NavModel) {
                         onSeries = { nav.screen = Screen.Series(it) },
                         onRemove = { b -> scope.launch { app.library.remove(b) } },
                         stores = stores, scanning = scanning,
-                        onRefresh = { scan(force = true) },
-                        onFolders = { nav.screen = Screen.Folders(intro = false) },
                         onStoreEdit = { nav.screen = Screen.StoreEdit },
                         onExport = { b -> exportFor = b.id },
                         showStores = settings.showStores,
-                        sort = settings.libSort, sortDesc = settings.libSortDesc,
-                        onSort = { o, d -> change { it.copy(libSort = o, libSortDesc = d) } },
                         folderRoots = allFolders.filter { it.include }.map { it.label },
+                        homeKey = libHome,
+                        navBar = if (land) { { HeaderNav(listOf("서재", "독서 기록", "설정"), 0, ::pickTab) } } else null,
                     )
                     Screen.Stats -> {
                         val since = remember { statsSince() }
@@ -651,6 +661,7 @@ private fun AshRoot(nav: NavModel) {
             }
             exportFor?.let { id -> ExportSheet(bookId = id) { exportFor = null } }
             if (exportAll) ExportSheet(bookId = null) { exportAll = false }
+        }
         }
     }
     zipPick?.let { z -> ZipPickSheet(z.title, z.items, onPick = { openInner(z, it) }, onDismiss = { zipPick = null }) }
