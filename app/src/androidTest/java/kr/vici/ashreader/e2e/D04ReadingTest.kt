@@ -22,6 +22,21 @@ import org.junit.runner.RunWith
 class D04ReadingTest : E2eTest() {
     private val book = "e2e-epub 소설"
 
+    /** 글자판(IME) 창이 떠 있나. */
+    private fun imeShown(): Boolean = runCatching {
+        inst.uiAutomation.windows.any { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+    }.getOrDefault(false)
+
+    /** 실패 원인을 보려고 지금 화면 구조를 기록에 남긴다. */
+    private fun dumpTree(name: String) {
+        runCatching {
+            val out = java.io.ByteArrayOutputStream()
+            device.dumpWindowHierarchy(out)
+            out.toString("UTF-8").lines().filter { "text=\"\"" !in it || "content-desc=\"\"" !in it }.take(80)
+                .forEach { android.util.Log.i("AshE2E", "[$name] $it") }
+        }
+    }
+
     private fun openBook() {
         launchApp()
         openFromLibrary(book, "EPUB")
@@ -205,8 +220,18 @@ class D04ReadingTest : E2eTest() {
             SystemClock.sleep(400)
             if (runCatching { field.text }.getOrNull() != "반딧불이") continue
             device.pressEnter()
-            if (has(By.textEndsWith("곳을 찾았어요."), 30_000)) { found = true; break }
+            // 결과가 화면에 떠도 글자판이 열린 동안 시험이 글자를 읽지 못한 적이 있다(PR #49 CI: '1곳을 찾았어요.'·'13쪽'이 보이는데 못 찾음).
+            // 글자판을 닫고(검색 화면은 남음), 진행 글자나 결과 줄('N쪽') 중 하나만 보여도 찾은 것으로 본다
+            SystemClock.sleep(1_500)
+            if (imeShown()) { device.pressBack(); SystemClock.sleep(600) }
+            val end = SystemClock.uptimeMillis() + 30_000
+            while (SystemClock.uptimeMillis() < end) {
+                if (device.hasObject(By.textEndsWith("곳을 찾았어요.")) || device.hasObject(By.text(Pattern.compile("\\d+쪽")))) { found = true; break }
+                SystemClock.sleep(300)
+            }
+            if (found) break
             shot("search-retry-$k")
+            dumpTree("search-retry-$k")
         }
         assertTrue("검색 결과가 나오지 않음", found)
         shot("search-results")
