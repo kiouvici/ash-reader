@@ -268,7 +268,9 @@ abstract class E2eTest {
             stackItem("테마 및 설정")
             val c = find(By.textStartsWith("사용자화"), 5_000) ?: scrollFind(By.textStartsWith("사용자화"))
             if (c != null && runCatching { c.click(); true }.getOrDefault(false)) {
-                val ok = runCatching { find(By.text(item), 4_000)?.click() != null }.getOrDefault(false)
+                // 만화는 '글꼴·줄 간격·여백' 자리에 '만화 보기'(작업 07 사용자화)
+                val sel = if (item == "글꼴·줄 간격·여백") By.text(Pattern.compile("글꼴·줄 간격·여백|만화 보기")) else By.text(item)
+                val ok = runCatching { find(sel, 4_000)?.click() != null }.getOrDefault(false)
                 if (ok) { SystemClock.sleep(600); return }
             }
             backToPage()
@@ -311,7 +313,8 @@ abstract class E2eTest {
 
     /** 읽기 메뉴를 닫는다(떠 있는 메뉴 → 바깥 틀 순으로 '뒤로'). */
     protected fun closeMenu() {
-        repeat(3) { if (menuShown()) { device.pressBack(); SystemClock.sleep(500) } }
+        // 메뉴가 사라지는 동안 또 '뒤로'를 누르면 책을 나가 버린다 — 실제로 사라질 때까지 기다린 뒤 다시 본다
+        repeat(3) { if (menuShown()) { device.pressBack(); device.wait(Until.gone(By.desc("책 닫기")), 2_000); SystemClock.sleep(300) } }
     }
 
     /** 시트·창을 닫아 쪽 화면이 다시 보일 때까지 '뒤로'(최대 3번). 쪽이 이미 보이면 아무것도 안 한다. */
