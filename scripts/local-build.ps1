@@ -59,6 +59,16 @@ try {
     $env:ASH_KEYSTORE_PASSWORD = Read-Secret '키 저장소 비밀번호'
     $env:ASH_KEY_PASSWORD = Read-Secret '키 비밀번호 (같으면 같은 것을 입력)'
 
+    # 빌드 전에 비밀번호·별칭을 keytool 로 먼저 확인한다 (비밀번호는 환경변수로만 넘긴다)
+    $keytool = Join-Path $env:JAVA_HOME 'bin\keytool.exe'
+    if (Test-Path $keytool) {
+        & $keytool -list -keystore $KeystoreFile -storepass:env ASH_KEYSTORE_PASSWORD *> $null
+        if ($LASTEXITCODE -ne 0) { throw '키 저장소 비밀번호가 맞지 않습니다. 다시 실행해 주세요.' }
+        & $keytool -list -keystore $KeystoreFile -storepass:env ASH_KEYSTORE_PASSWORD -alias $KeyAlias *> $null
+        if ($LASTEXITCODE -ne 0) { throw "별칭 '$KeyAlias' 이 키 저장소에 없습니다." }
+        Write-Host '키 저장소 비밀번호·별칭 확인됨'
+    }
+
     # 저장소 경로(C:\Users\Ahn SH\…)의 공백을 피하려고 부모 폴더를 Z: 에 잠깐 연결해 빌드한다.
     # 글자를 늘 Z: 로 고정한다 — 경로가 바뀌면 Gradle·Rust 캐시를 다시 쓰지 못해 처음부터 빌드한다.
     $drive = $null; $buildDir = $repo
