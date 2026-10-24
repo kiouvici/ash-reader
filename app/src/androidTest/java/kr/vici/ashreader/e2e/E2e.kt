@@ -333,7 +333,28 @@ abstract class E2eTest {
 
     protected fun has(sel: BySelector, timeoutMs: Long = 5_000): Boolean = find(sel, timeoutMs) != null
 
-    protected fun clickText(t: String, timeoutMs: Long = 10_000) = obj(By.text(t), timeoutMs).click().also { SystemClock.sleep(500) }
+    /**
+     * 글자로 찾아 누른다. 화면이 다시 그려져(시트 테마가 바뀌는 등) 요소가 낡거나 사라지면 다시 찾아(필요하면 스크롤해) 누른다
+     * — D04 viewSettingsSheet_allTabs 의 StaleObjectException 흔들림(PR #50·#49 CI).
+     */
+    protected fun clickText(t: String, timeoutMs: Long = 10_000) {
+        val sel = By.text(t)
+        repeat(3) {
+            val o = find(sel, timeoutMs) ?: scrollFind(sel)
+            if (o != null) {
+                val ok = try { o.click(); true } catch (_: StaleObjectException) { false }
+                if (ok) { SystemClock.sleep(500); return }
+            }
+            SystemClock.sleep(400)
+        }
+        shot("missing"); fail("화면에서 찾지 못함: $sel")
+    }
+
+    /** 있으면 누르고 없거나 낡으면 넘어간다(있어도 그만인 선택지용). */
+    protected fun tryClick(sel: BySelector) {
+        runCatching { scrollFind(sel)?.click() }
+        SystemClock.sleep(300)
+    }
 
     /** 스크롤해 가며 찾는다(Compose 스크롤 목록도 접근성 스크롤로 움직인다). */
     protected fun scrollFind(sel: BySelector, maxSwipes: Int = 12): UiRef? {

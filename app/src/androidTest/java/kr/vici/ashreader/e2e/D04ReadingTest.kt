@@ -130,14 +130,15 @@ class D04ReadingTest : E2eTest() {
         clickText("문단")
         for (step in listOf("줄 간격", "문단 간격", "좌우 여백", "위아래 여백")) {
             val label = scrollFind(By.text(step)) ?: continue
-            val y = label.visibleBounds.centerY()
+            // 시트가 다시 그려지면 낡을 수 있다 → 위치를 못 읽으면 그 줄은 건너뜀
+            val y = runCatching { label.visibleBounds.centerY() }.getOrNull() ?: continue
             stale { device.findObjects(By.text("+")).minByOrNull { kotlin.math.abs(it.visibleBounds.centerY() - y) }?.click() }
             SystemClock.sleep(300)
         }
-        scrollFind(By.text("왼쪽 맞춤"))?.click()
-        scrollFind(By.text("2글자"))?.click()
-        scrollFind(By.text("글자 단위"))?.click()
-        scrollFind(By.text("영문 하이픈 넣기"))?.click()
+        tryClick(By.text("왼쪽 맞춤"))
+        tryClick(By.text("2글자"))
+        tryClick(By.text("글자 단위"))
+        tryClick(By.text("영문 하이픈 넣기"))
         shot("aa-para")
         // 시트 닫기: 쪽이 다시 보일 때까지 '뒤로'(시트가 다 펼쳐지면 탭 이름이 화면 밖이라 글자로는 못 본다)
         backToPage()
@@ -196,9 +197,18 @@ class D04ReadingTest : E2eTest() {
         openBook()
         openMenu()
         obj(By.desc("검색")).click()
-        val field = obj(By.clazz("android.widget.EditText"))
-        field.text = "반딧불이"
-        assertTrue("검색 결과가 나오지 않음", has(By.textEndsWith("곳을 찾았어요."), 60_000))
+        // 검색어가 실제로 들어갔는지 보고 검색 키(Enter)도 누른다. 결과가 안 나오면 다시 넣는다(흔들림 — PR #50·#49 CI)
+        var found = false
+        for (k in 0 until 3) {
+            val field = obj(By.clazz("android.widget.EditText"))
+            field.text = "반딧불이"
+            SystemClock.sleep(400)
+            if (runCatching { field.text }.getOrNull() != "반딧불이") continue
+            device.pressEnter()
+            if (has(By.textEndsWith("곳을 찾았어요."), 30_000)) { found = true; break }
+            shot("search-retry-$k")
+        }
+        assertTrue("검색 결과가 나오지 않음", found)
         shot("search-results")
         // 결과 줄("N쪽" + 글 조각)을 누르면 그 쪽으로
         val hit = device.findObjects(By.text(Pattern.compile("\\d+쪽"))).firstOrNull()

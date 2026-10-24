@@ -98,9 +98,13 @@ class F06SettingsTest : E2eTest() {
     }
     private val missing = ArrayList<String>()
 
-    private fun backToSettings() {
-        repeat(4) {
-            if (device.currentPackageName == PKG && onTabs() && (onSettings() || backCount() > 0)) return
+    /**
+     * 설정으로 돌아오기. 예전에는 '뒤로' 단추만 보이면 설정 하위 화면으로 봤는데, 서점 바로가기 편집·폴더 화면에도 '뒤로'와 아래 탭이 있어
+     * 그 화면에 멈춘 채 다음 줄을 찾다 실패했다(PR #49 CI). → 설정 첫 화면이거나 [page] 하위 화면 제목이 보일 때까지 뒤로.
+     */
+    private fun backToSettings(page: String) {
+        repeat(5) {
+            if (device.currentPackageName == PKG && onTabs() && (onSettings() || (backCount() > 0 && count(page) > 0))) return
             device.pressBack()
             SystemClock.sleep(700)
         }
@@ -146,7 +150,7 @@ class F06SettingsTest : E2eTest() {
                 if (sc == "서점 바로가기 편집") {
                     device.findObject(By.text("+ 앱 추가"))?.let { it.click(); SystemClock.sleep(1_500); shot("store-picker"); device.findObject(By.text("닫기"))?.click() }
                 }
-                backToSettings()
+                backToSettings(name)
                 assertTrue("'$sc' 에서 설정으로 돌아오지 못함", onSettings() || backCount() > 0)
                 openPage(name) // 다른 화면에 다녀오면 설정 첫 화면부터 다시 보인다
             }
