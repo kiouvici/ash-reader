@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.ui
 
+import androidx.compose.animation.animateContentSize
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibilityScope
@@ -159,7 +160,9 @@ fun FloatingNavBar(
     val c = shelfColors()
     Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 6.dp, bottom = 8.dp), contentAlignment = Alignment.Center) {
         Row(
-            Modifier.shadow(18.dp, RoundedCornerShape(13.dp), ambientColor = Color.Black.copy(alpha = if (c.dark) 0.5f else 0.08f), spotColor = Color.Black.copy(alpha = if (c.dark) 0.6f else 0.2f))
+            // 서재 밖 탭에서는 모음·검색이 빠져 막대가 줄어든다 — 부드럽게(대표님 2026-10-25)
+            Modifier.animateContentSize()
+                .shadow(18.dp, RoundedCornerShape(13.dp), ambientColor = Color.Black.copy(alpha = if (c.dark) 0.5f else 0.08f), spotColor = Color.Black.copy(alpha = if (c.dark) 0.6f else 0.2f))
                 .clip(RoundedCornerShape(13.dp)).background(c.bar).border(1.dp, c.barLine, RoundedCornerShape(13.dp))
                 .padding(3.dp).selectableGroup(),
             horizontalArrangement = Arrangement.spacedBy(2.dp),

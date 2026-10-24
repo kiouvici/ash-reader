@@ -620,7 +620,8 @@ private fun AshRoot(nav: NavModel) {
             snackbarHost = { SnackbarHost(snack) },
             bottomBar = {
                 if (!(land && sc == Screen.Library)) {
-                    FloatingNavBar(listOf("서재" to Icons.Library, "독서 기록" to Icons.Chart, "설정" to Icons.Gear), tabs.indexOf(nav.tab), ::pickTab, navActions, ::navAction)
+                    // 모음·검색은 서재에서 쓰는 기능 — 서재 화면에서만 보인다(대표님 2026-10-25 결정)
+                    FloatingNavBar(listOf("서재" to Icons.Library, "독서 기록" to Icons.Chart, "설정" to Icons.Gear), tabs.indexOf(nav.tab), ::pickTab, if (sc == Screen.Library) navActions else emptyList(), ::navAction)
                 }
             },
         ) { pad ->

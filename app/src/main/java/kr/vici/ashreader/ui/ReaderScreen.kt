@@ -1414,8 +1414,6 @@ fun ReaderScreen(
     }
     if (showAa && openDoc !is ComicReaderDoc) ViewSettingsSheet(
         s, reflow, onSettings, onDismiss = { showAa = false }, txt = txtUi, fixed = fixedUi,
-        aiKind = (openDoc as? MupdfReaderDoc)?.takeIf { it.aiImages }?.let { if (reflow) AiKind.EBOOK else AiKind.PDF },
-        onAiCompare = { showAa = false; menu = false; docCompareOpen = true },
     )
     (openDoc as? MupdfReaderDoc)?.takeIf { docCompareOpen }?.let { md ->
         DocAiCompareScreen(

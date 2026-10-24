@@ -75,10 +75,6 @@ class FixedViewUi(val fit: Int, val crop: Boolean, val cropAvailable: Boolean, v
 fun ViewSettingsSheet(
     s: Settings, reflowable: Boolean, onChange: ((Settings) -> Settings) -> Unit, onDismiss: () -> Unit,
     txt: TxtEncodingUi? = null, fixed: FixedViewUi? = null,
-    /** 작업 04: 이북·PDF 면 맨 위 AI 화질 향상 칸의 종류(값은 앱 설정 '문서 그림 AI 화질 향상'과 같다). null 이면 칸 없음. */
-    aiKind: AiKind? = null,
-    /** AI 칸의 [전후 비교]: 시트를 닫고 비교 화면을 연다. */
-    onAiCompare: (() -> Unit)? = null,
 ) {
     var tab by remember { mutableStateOf(AaTab.TEXT) }
     val cs = MaterialTheme.colorScheme
@@ -87,8 +83,7 @@ fun ViewSettingsSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         BlurBehind(dim = 0f)
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
-            // 작업 04: 맨 위 AI 화질 향상 칸(만화 설정과 같은 모양). 이북·PDF 는 앱 전체 한 값
-            if (aiKind != null) AiQualityCard(aiKind, s.epubAiUpscale, onToggle = { v -> onChange { it.copy(epubAiUpscale = v) } }, onCompare = onAiCompare, modifier = Modifier.padding(bottom = 12.dp), limitMb = s.upscaleCacheMb)
+            // AI 화질 향상은 '테마 및 설정' 한 자리에만(작업 04 '한 자리로 통일', 대표님 2026-10-25 결정 — 여기 칸은 뺌)
             // 미리보기
             val c = s.readingColors()
             val userFile = if (s.userFont.isNotEmpty()) UserFonts.file(context, s.userFont) else null

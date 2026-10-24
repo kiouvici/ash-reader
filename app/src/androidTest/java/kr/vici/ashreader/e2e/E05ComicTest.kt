@@ -148,14 +148,14 @@ class E05ComicTest : E2eTest() {
         assertAlive()
     }
 
-    /** 작업 04: PDF 보기 시트 맨 위 AI 칸 → [전후 비교] 화면이 열린다(이 기기에서 AI 를 쓸 수 있을 때). */
+    /** PDF: 테마 및 설정의 AI 줄 → [전후 비교] 화면이 열린다(이 기기에서 AI 를 쓸 수 있을 때). AI 칸은 이 한 자리뿐(대표님 2026-10-25). */
     @Test
     fun pdfAiCard_opensCompare() {
         launchApp()
         openFromLibrary("e2e-pdf 그림", "PDF")
         waitPage()
         dismissTapGuide()
-        menuItem("보기")
+        menuItem("테마")
         val end = SystemClock.uptimeMillis() + 60_000
         var state = ""
         while (SystemClock.uptimeMillis() < end && state.isEmpty()) {
@@ -177,7 +177,7 @@ class E05ComicTest : E2eTest() {
             device.findObject(By.desc("비교 끝내기"))?.click()
             SystemClock.sleep(800)
             if (!wasOn) {
-                menuItem("보기")
+                menuItem("테마")
                 switchNear("AI 화질 향상")?.let { if (it.isChecked) it.click() }
                 SystemClock.sleep(400)
             }
