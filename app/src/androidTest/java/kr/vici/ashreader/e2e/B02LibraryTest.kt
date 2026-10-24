@@ -69,8 +69,9 @@ class B02LibraryTest : E2eTest() {
             obj(By.desc(Pattern.compile(home))).click()
             obj(By.desc(Pattern.compile(".+, \\d+권")), 10_000)
             shot("cards-${home.substringBefore(',')}")
-            // 찍는 사이 다시 그려질 수 있어 누르기 직전에 새로 찾는다(StaleObjectException)
-            obj(By.desc(Pattern.compile(".+, \\d+권"))).click()
+            // 누르는 순간 화면이 바뀌며 요소가 사라져 StaleObjectException 이 날 수 있어, 자리를 읽어 좌표로 누른다
+            val cb = obj(By.desc(Pattern.compile(".+, \\d+권"))).visibleBounds
+            device.click(cb.centerX(), cb.centerY())
             assertTrue("카드를 눌렀는데 묶음 화면이 아님", has(By.text("모든 책"), 8_000))
             assertTrue(has(By.desc("뒤로")))
             shot("group-${home.substringBefore(',')}")
