@@ -3,6 +3,7 @@ package kr.vici.ashreader.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -79,16 +80,32 @@ internal fun LibrarySearch(
         }
     }
     Box(h.shared.of("sec-search").fillMaxSize().background(c.detail)) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 36.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = barTop(), bottom = 36.dp + barBottom())) {
             item(key = "field") {
                 Row(Modifier.padding(start = 6.dp, end = 16.dp, top = 8.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     FloatingButton(c, "뒤로", Icons.Back, onClick = onBack)
-                    OutlinedTextField(
-                        value = query, onValueChange = { query = it }, singleLine = true,
-                        placeholder = { Text("제목·지은이·폴더 이름으로 찾기") },
-                        leadingIcon = { Icon(Icons.Search, null, modifier = Modifier.size(18.dp)) },
-                        modifier = Modifier.weight(1f).padding(start = 6.dp).focusRequester(focus),
-                    )
+                    // 대표님 2026-10-25 00:12: 뒤로 단추와 같은 둥근 모서리(12)·높이(44), 글씨는 작고 안내는 흐리게
+                    val shape = RoundedCornerShape(12.dp)
+                    Row(
+                        Modifier.weight(1f).padding(start = 6.dp).height(44.dp).clip(shape).background(c.btn).border(1.dp, c.barLine, shape)
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Search, null, tint = smallSub, modifier = Modifier.size(16.dp))
+                        Box(Modifier.weight(1f).padding(start = 8.dp), contentAlignment = Alignment.CenterStart) {
+                            if (query.isEmpty()) Text("제목·지은이·폴더 이름으로 찾기", fontSize = 13.sp, color = smallSub.copy(alpha = 0.7f), maxLines = 1)
+                            androidx.compose.foundation.text.BasicTextField(
+                                value = query, onValueChange = { query = it }, singleLine = true,
+                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, color = c.ink),
+                                cursorBrush = androidx.compose.ui.graphics.SolidColor(c.blue),
+                                modifier = Modifier.fillMaxWidth().focusRequester(focus).semantics { contentDescription = "서재 검색" },
+                            )
+                        }
+                        if (query.isNotEmpty()) Box(
+                            Modifier.size(32.dp).clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button) { query = "" }.semantics { contentDescription = "지우기" },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Close, null, tint = smallSub, modifier = Modifier.size(14.dp)) }
+                    }
                 }
             }
             if (q.isNotEmpty()) {

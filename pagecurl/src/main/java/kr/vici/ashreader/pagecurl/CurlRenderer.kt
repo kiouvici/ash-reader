@@ -85,7 +85,24 @@ internal class CurlRenderer {
         if (id != 0) GLES20.glDeleteTextures(1, intArrayOf(id), 0)
     }
 
+    private var curViewW = 0
+    private var curViewH = 0
+
+    /**
+     * 위아래 [y0]..[y1](논리 좌표, y 아래) 띠 밖에는 그리지 않는다 — 종이만 넘길 때 위아래 여백에 말림·그림자가 넘치지 않게
+     * (대표님 2026-10-25 00:16). 가로는 화면 전체.
+     */
+    fun clipY(y0: Float, y1: Float) {
+        val top = y0.toInt().coerceIn(0, curViewH); val bottom = kotlin.math.ceil(y1).toInt().coerceIn(top, curViewH)
+        GLES20.glEnable(GLES20.GL_SCISSOR_TEST)
+        GLES20.glScissor(0, curViewH - bottom, curViewW, bottom - top)
+    }
+
+    fun noClip() = GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
+
     fun begin(viewW: Float, viewH: Float, mirror: Boolean, backColor: Int, backMix: Float, shadow: Float) {
+        curViewW = viewW.toInt(); curViewH = viewH.toInt()
+        GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
         val r = Color.red(backColor) / 255f
         val g = Color.green(backColor) / 255f
         val b = Color.blue(backColor) / 255f

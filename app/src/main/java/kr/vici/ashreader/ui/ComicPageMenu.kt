@@ -124,6 +124,7 @@ fun ComicPageMenu(
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        BlurBehind(dim = 0f)
         Column(Modifier.padding(horizontal = 12.dp).padding(bottom = 24.dp)) {
             Text("${page + 1}쪽", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
             val ready = img != null

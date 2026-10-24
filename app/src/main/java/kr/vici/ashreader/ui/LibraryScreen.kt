@@ -73,6 +73,10 @@ fun LibraryScreen(
     onPrefs: (LibPrefs) -> Unit = {},
     /** 시리즈 자동으로 묶기(작업 06) — 바뀌면 묶음을 다시 만든다. */
     seriesAuto: Boolean = true,
+    /** 아래 내비게이션 '모음'·'검색'(작업 07, 대표님 2026-10-25 00:27). */
+    collAt: androidx.compose.ui.geometry.Rect? = null,
+    onCollShown: () -> Unit = {},
+    searchKey: Int = 0,
 ) {
     // 책 ⋯ 메뉴(작업 07 MoreMenu): ⋯ 누름 또는 표지 길게 누름 → 유리 메뉴(LibraryPane 안)
     LibraryPane(
@@ -83,6 +87,7 @@ fun LibraryScreen(
         actions = BookActions(onInfo = { b -> onBookInfo?.invoke(b) }, onRemove = onRemove, onExport = onExport),
         prefs = prefs, onPrefs = onPrefs,
         modifier = modifier, scanning = scanning, homeKey = homeKey, navBar = navBar, seriesAuto = seriesAuto,
+        collAt = collAt, onCollShown = onCollShown, searchKey = searchKey,
         extras = { if (showStores) Box(Modifier.padding(horizontal = 20.dp).padding(top = 20.dp)) { StoreRow(stores, onEdit = onStoreEdit, onAddBook = onAdd) } },
     )
 }
@@ -90,13 +95,14 @@ fun LibraryScreen(
 @Composable
 fun Pill(label: String, selected: Boolean, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
+    // 애플식(대표님 01:10): 고른 것 = iOS 파랑 바탕 흰 글자, 아닌 것 = 옅은 회색 바탕(테두리 없음)
     Box(
-        Modifier.clip(RoundedCornerShape(20.dp))
-            .then(if (selected) Modifier.background(cs.primary) else Modifier.border(BorderStroke(1.dp, cs.outline), RoundedCornerShape(20.dp)))
+        Modifier.heightIn(min = 48.dp).padding(vertical = 6.dp).clip(RoundedCornerShape(18.dp))
+            .background(if (selected) AppleBlue else Color(0x1F767680))
             .clickable(onClick = onClick)
-            .heightIn(min = 48.dp).padding(horizontal = 14.dp),
+            .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(label, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal, color = if (selected) cs.onPrimary else cs.onSurface) }
+    ) { Text(label, fontSize = 14.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = if (selected) Color.White else cs.onSurface, modifier = Modifier.padding(vertical = 8.dp)) }
 }
 
 /** 책 표지 썸네일(백그라운드에서 뽑아 캐시). 없거나 아직이면 null. */

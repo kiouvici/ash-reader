@@ -63,6 +63,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.shadow.Shadow
@@ -122,12 +124,14 @@ internal fun shelfColors(): ShelfColors {
     return if (dark) ShelfColors(
         pageTop = Color.Black, pageBottom = Color(0xFF121214), card = Color(0xFF2C2C2E), detail = Color.Black,
         ink = Color.White, sub = Color(0xFF98989F), sub2 = Color(0xFF98989F), shelfBottom = Color(0xFF161618),
-        bar = Color(0xEB1C1C1E), barLine = Color(0x14FFFFFF), sel = Color(0xFF3A3A3C), blue = Color(0xFF409CFF),
+        // bar: 아래 내비게이션 막대 바탕 — 메뉴와 같은 투명도(GLASS_ALPHA 83%, 대표님 00:24·00:25), 지나가는 책이 비쳐 보이게
+        bar = Color(0xFF1C1C1E).copy(alpha = GLASS_ALPHA), barLine = Color(0x14FFFFFF), sel = Color(0xFF3A3A3C), blue = Color(0xFF409CFF),
         pillBg = Color(0xFF0A3D7A), pillFg = Color(0xFF9FD0FF), btn = Color(0xFF1C1C1E), dark = true,
     ) else ShelfColors(
         pageTop = Color.White, pageBottom = Color(0xFFF1F1F3), card = Color.White, detail = Color.White,
         ink = Color(0xFF111316), sub = Color(0xFF6C6C70), sub2 = Color(0xFF6C6C70), shelfBottom = Color(0xFFF0F0F2),
-        bar = Color(0xF2FFFFFF), barLine = Color(0x0F000000), sel = Color(0x14000000), blue = Color(0xFF0A84FF),
+        // sel: 고른 단추 바탕 — 대표님 2026-10-25 00:21 '조금 더 옅은 회색'(8% → 5%)
+        bar = Color.White.copy(alpha = GLASS_ALPHA), barLine = Color(0x0F000000), sel = Color(0x0D000000), blue = Color(0xFF0A84FF),
         pillBg = Color(0xFF1E5FB4), pillFg = Color.White, btn = Color(0xF2FFFFFF), dark = false,
     )
 }
@@ -143,9 +147,15 @@ internal fun rememberReduceMotion(): Boolean {
     }
 }
 
-/** 아래 내비게이션(서재·독서 기록·설정): 위 탭과 같은 모양, 아이콘 + 이름. */
+/**
+ * 아래 내비게이션(서재·독서 기록·설정 | 모음·검색): 위 탭과 같은 모양, 아이콘 + 이름.
+ * [actions] = 탭 오른쪽에 붙는 단추(모음·검색, 대표님 2026-10-25 00:27) — 누르면 [onAction](번호, 단추 자리).
+ */
 @Composable
-fun FloatingNavBar(items: List<Pair<String, ImageVector>>, selected: Int, onPick: (Int) -> Unit) {
+fun FloatingNavBar(
+    items: List<Pair<String, ImageVector>>, selected: Int, onPick: (Int) -> Unit,
+    actions: List<Pair<String, ImageVector>> = emptyList(), onAction: (Int, Rect) -> Unit = { _, _ -> },
+) {
     val c = shelfColors()
     Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 6.dp, bottom = 8.dp), contentAlignment = Alignment.Center) {
         Row(
@@ -163,6 +173,19 @@ fun FloatingNavBar(items: List<Pair<String, ImageVector>>, selected: Int, onPick
                 ) {
                     Icon(icon, contentDescription = null, tint = if (on) c.ink else c.sub, modifier = Modifier.size(20.dp))
                     Text(label, fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, color = if (on) c.ink else c.sub, maxLines = 1)
+                }
+            }
+            if (actions.isNotEmpty()) Box(Modifier.padding(vertical = 10.dp).width(1.dp).height(28.dp).background(c.barLine).align(Alignment.CenterVertically))
+            actions.forEachIndexed { i, (label, icon) ->
+                val r = remember { RectHolder() }
+                Column(
+                    Modifier.heightIn(min = 48.dp).trackRect(r).clip(RoundedCornerShape(10.dp))
+                        .clickable(role = Role.Button) { onAction(i, r.rect) }.padding(horizontal = 14.dp, vertical = 6.dp)
+                        .clearAndSetSemantics { contentDescription = label; role = Role.Button },
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+                ) {
+                    Icon(icon, contentDescription = null, tint = c.sub, modifier = Modifier.size(20.dp))
+                    Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = c.sub, maxLines = 1)
                 }
             }
         }
@@ -267,9 +290,12 @@ internal fun Modifier.bookShadow(shape: androidx.compose.ui.graphics.Shape, dark
 internal fun Modifier.cardShadow(shape: androidx.compose.ui.graphics.Shape, dark: Boolean): Modifier =
     if (dark) this
     else this
-        .dropShadow(shape, Shadow(radius = 24.dp, color = Color.Black, spread = (-1).dp, offset = DpOffset((-5).dp, 10.dp), alpha = 0.18f))
-        .dropShadow(shape, Shadow(radius = 6.dp, color = Color.Black, offset = DpOffset(1.dp, (-1).dp), alpha = 0.025f))
-        .dropShadow(shape, Shadow(radius = 1.dp, color = Color.Black, offset = DpOffset((-1).dp, 1.dp), alpha = 0.22f))
+        // 대표님 2026-10-25 00:08 '회색이 퍼진 느낌, 떠 있지 않다' → 애플식 여러 겹: 멀리 아주 옅게 + 가까이 옅게 + 닿은 곳만 또렷하게
+        .dropShadow(shape, Shadow(radius = 32.dp, color = Color.Black, spread = (-6).dp, offset = DpOffset((-6).dp, 16.dp), alpha = 0.10f))
+        .dropShadow(shape, Shadow(radius = 10.dp, color = Color.Black, spread = (-2).dp, offset = DpOffset((-2).dp, 5.dp), alpha = 0.10f))
+        .dropShadow(shape, Shadow(radius = 1.5.dp, color = Color.Black, offset = DpOffset((-0.5).dp, 1.dp), alpha = 0.16f))
+        // 흰 바탕 위에서도 카드 가장자리가 또렷하게 — 아주 가는 테두리
+        .border(0.5.dp, Color.Black.copy(alpha = 0.06f), shape)
 
 /** 묶음 카드 모서리(대표님 23:46: 더 각지게). */
 internal val CARD_SHAPE = RoundedCornerShape(5.dp)
@@ -383,6 +409,11 @@ fun LibraryPane(
     navBar: (@Composable () -> Unit)? = null,
     extras: @Composable () -> Unit = {},
     seriesAuto: Boolean = true,
+    /** 아래 내비게이션 '모음'을 누른 자리(열 때 한 번) — 열고 나면 [onCollShown]. */
+    collAt: Rect? = null,
+    onCollShown: () -> Unit = {},
+    /** 아래 내비게이션 '검색'을 누를 때마다 1씩 오른다. */
+    searchKey: Int = 0,
 ) {
     val context = LocalContext.current
     val app = context.ash
@@ -426,6 +457,10 @@ fun LibraryPane(
     var collMenu by remember { mutableStateOf<Rect?>(null) }
     var pickFor by remember { mutableStateOf<List<String>?>(null) }
     var nameFor by remember { mutableStateOf<List<String>?>(null) }
+    // 아래 내비게이션의 모음·검색(대표님 2026-10-25 00:27)
+    androidx.compose.runtime.LaunchedEffect(collAt) { collAt?.let { collMenu = it; onCollShown() } }
+    var seenSearch by rememberSaveable { mutableStateOf(searchKey) }
+    androidx.compose.runtime.LaunchedEffect(searchKey) { if (searchKey != seenSearch) { seenSearch = searchKey; go(listOf(LibSection.SEARCH.key)) } }
 
     // ≡ 모음 목록(기본 8개 + 사용자 모음) — 순서·숨김은 설정
     val arrangement = ShelfColls.arrange(prefs.colls, colls.map { ShelfColls.userKey(it.id) })
@@ -453,7 +488,8 @@ fun LibraryPane(
     )
 
     androidx.compose.runtime.CompositionLocalProvider(LocalShelfUi provides ui) {
-        SharedTransitionLayout(modifier.fillMaxSize().then(if (ui.menus > 0 && canBlur) Modifier.blur(3.dp) else Modifier)) {
+        // 뒤 흐림은 메뉴 창이 맡는다(BlurBehind — 위아래 막대까지 함께 흐림, 대표님 01:00)
+        SharedTransitionLayout(modifier.fillMaxSize()) {
             AnimatedContent(
                 targetState = live,
                 transitionSpec = {
@@ -572,12 +608,12 @@ private fun homeSpec(w: Dp, h: Dp): HomeSpec {
     // 카드 줄 사이 간격은 옆 간격보다 조금 좁게. 카드 높이 = 가장 높은 표지 + 위 여유.
     return when {
         // 대표님 23:33: 카드 제목 글씨가 카드에 비해 크다 → 줄임, 카드 속 표지도 약 10% 작게(카드 높이도 따라 낮아짐)
-        land && tablet -> HomeSpec(4, 130.dp + 28.dp, 86.dp, listOf(115.dp, 130.dp, 122.dp), 47.dp, 14f, 34f, 152.dp, 40.dp, 32.dp, 24.dp)
+        land && tablet -> HomeSpec(4, 130.dp + 28.dp, 86.dp, listOf(115.dp, 130.dp, 122.dp), 47.dp, 14f, LARGE_TITLE, 152.dp, 40.dp, 32.dp, 24.dp)
         land -> HomeSpec(4, 66.dp + 18.dp, 47.dp, listOf(58.dp, 66.dp, 61.dp), 25.dp, 12f, 24f, 80.dp, 24.dp, 20.dp, 14.dp)
         else -> {
             val s = (w / 390.dp).coerceIn(1f, 1.6f)
             // 대표님 23:26 '세로 줄을 조금씩 다 줄여': 카드 높이·책장 표지·줄 사이를 조금씩 줄여 첫 화면에 줄이 더 들어오게
-            HomeSpec(2, (78.dp + 18.dp) * s, 52.dp * s, listOf(68.dp * s, 78.dp * s), 40.dp * s, 12f * s, 32f, shelfCoverW(w), 20.dp * s, 20.dp * s, 12.dp * s)
+            HomeSpec(2, (78.dp + 18.dp) * s, 52.dp * s, listOf(68.dp * s, 78.dp * s), 40.dp * s, 12f * s, LARGE_TITLE, shelfCoverW(w), 20.dp * s, 20.dp * s, 12.dp * s)
         }
     }
 }
@@ -588,6 +624,18 @@ private fun homeSpec(w: Dp, h: Dp): HomeSpec {
  * '전체' 등 모음 격자도 이 크기에 맞춰 열 수를 정한다(모든 책 크기를 같게).
  */
 internal fun shelfCoverW(w: Dp): Dp = 78.dp * (w / 390.dp).coerceIn(1f, 1.6f)
+
+/**
+ * 서재가 위·아래 막대 밑까지 그릴 때 화면마다 둘 여백(상태 표시줄 높이·아래 내비게이션 높이). 다른 곳에서는 0.
+ * (대표님 2026-10-25 00:24: 막대를 75% 투명하게 해서 지나가는 책이 보이게)
+ */
+val LocalBarInsets = androidx.compose.runtime.staticCompositionLocalOf { PaddingValues(0.dp) }
+
+@Composable
+internal fun barTop(): Dp = LocalBarInsets.current.calculateTopPadding()
+
+@Composable
+internal fun barBottom(): Dp = LocalBarInsets.current.calculateBottomPadding()
 
 /** 창 좌표 저장(⋯·길게 누름 메뉴 자리). 다시 그리지 않도록 상태가 아닌 칸에 둔다. */
 internal class RectHolder { var rect: Rect = Rect.Zero }
@@ -615,20 +663,19 @@ private fun LibraryHome(
             Triple(LibSection.FOLDER, "${folders.size}개", spread(folders)),
             Triple(LibSection.SERIES, "${series.size}개", spread(series)),
         )
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = barTop(), bottom = 24.dp + barBottom())) {
             item(key = "head") {
                 Row(Modifier.padding(start = sp.pad + 4.dp, end = 12.dp, top = 16.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("서재", fontSize = sp.title.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink, modifier = Modifier.weight(1f).semantics { heading() })
+                    // 모음(≡)·검색은 아래 내비게이션으로 옮김(대표님 2026-10-25 00:27). 가로 화면은 제목 줄 오른쪽 내비게이션에 함께
                     navBar?.invoke()
-                    FloatingButton(c, "모음", Icons.Menu, Modifier.padding(start = 8.dp).trackRect(collBtn)) { h.collMenu(collBtn.rect) }
-                    FloatingButton(c, "검색", Icons.Search, Modifier.padding(start = 6.dp)) { onSection(LibSection.SEARCH) }
                 }
                 if (scanning) androidx.compose.material3.LinearProgressIndicator(
                     Modifier.fillMaxWidth().padding(horizontal = sp.pad).semantics { contentDescription = "폴더에서 책을 모으는 중" },
                 )
             }
             item(key = "cards") {
-                // 어둡게: 카드 묶음 뒤 띠 #161618(DarkMode 목업)
+                // 카드 2×2(가로 화면은 한 줄). 옆으로 넘기는 한 줄은 대표님이 보시고 되돌림(2026-10-25 00:40). 어둡게: 카드 묶음 뒤 띠 #161618
                 Column(
                     Modifier.background(if (c.dark) c.shelfBottom else Color.Transparent).padding(horizontal = sp.pad).padding(top = 8.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(sp.rowGap),
@@ -714,6 +761,26 @@ internal fun CoverFan(books: List<Book>, heights: List<Dp>, coverW: Dp, step: Dp
     }
 }
 
+/**
+ * 스크롤하면 위에 나타나는 유리 막대 + 가운데 작은 제목(애플식, 대표님 01:10). 큰 제목이 위 단추 밑으로 지나가며 겹치지 않게 한다.
+ * 위 단추 줄(8dp + 48dp)과 같은 높이에 제목을 둔다.
+ */
+@Composable
+internal fun ScrollTopBar(c: ShelfColors, title: String, shown: Boolean) {
+    val a by androidx.compose.animation.core.animateFloatAsState(if (shown) 1f else 0f, androidx.compose.animation.core.tween(180), label = "topbar")
+    if (a <= 0f) return
+    val top = barTop()
+    Box(
+        Modifier.fillMaxWidth().height(top + 64.dp).graphicsLayer { alpha = a }.background(c.bar)
+            .drawBehind { drawRect(c.barLine, topLeft = Offset(0f, size.height - 1f), size = Size(size.width, 1f)) },
+    ) {
+        Text(
+            title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = top + 20.dp, start = 120.dp, end = 120.dp),
+        )
+    }
+}
+
 /** 떠 있는 둥근 단추(뒤로·모음·검색·⋯): 44dp 모서리 12dp, 누름 48dp. [onHero] = 색 머리 위(흰 18%). */
 @Composable
 internal fun FloatingButton(c: ShelfColors, label: String, icon: ImageVector, modifier: Modifier = Modifier, onHero: Boolean = false, onClick: () -> Unit) {
@@ -731,7 +798,10 @@ internal fun FloatingButton(c: ShelfColors, label: String, icon: ImageVector, mo
 
 /** 가로 화면 제목 줄의 내비게이션 막대(서재·독서 기록·설정 글자만, 위 탭 모양). */
 @Composable
-fun HeaderNav(labels: List<String>, selected: Int, onPick: (Int) -> Unit) {
+fun HeaderNav(
+    labels: List<String>, selected: Int, onPick: (Int) -> Unit,
+    actions: List<Pair<String, ImageVector>> = emptyList(), onAction: (Int, Rect) -> Unit = { _, _ -> },
+) {
     val c = shelfColors()
     Row(
         Modifier.shadow(if (c.dark) 0.dp else 10.dp, RoundedCornerShape(11.dp), ambientColor = Color.Black.copy(alpha = 0.06f), spotColor = Color.Black.copy(alpha = 0.16f))
@@ -745,6 +815,15 @@ fun HeaderNav(labels: List<String>, selected: Int, onPick: (Int) -> Unit) {
                     .selectable(on, role = Role.Tab) { onPick(i) }.padding(horizontal = 16.dp),
                 contentAlignment = Alignment.Center,
             ) { Text(l, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, color = if (on) c.ink else c.sub, maxLines = 1) }
+        }
+        // 모음·검색(아래 내비게이션과 같은 단추)
+        actions.forEachIndexed { i, (label, icon) ->
+            val r = remember { RectHolder() }
+            Box(
+                Modifier.size(width = 48.dp, height = 42.dp).trackRect(r).clip(RoundedCornerShape(8.dp))
+                    .clickable(role = Role.Button) { onAction(i, r.rect) }.semantics { contentDescription = label },
+                contentAlignment = Alignment.Center,
+            ) { Icon(icon, null, tint = c.ink, modifier = Modifier.size(19.dp)) }
         }
     }
 }
@@ -760,11 +839,13 @@ private fun GroupList(
     // 넓은 화면(태블릿)은 카드를 여러 열로(한 장 최소 340dp) — 화면 폭 가득 늘어나지 않게
     BoxWithConstraints(h.shared.of("sec-${sec.key}").fillMaxSize().background(Brush.verticalGradient(listOf(c.pageTop, c.pageBottom)))) {
         val cols = ((maxWidth - 32.dp) / 340.dp).toInt().coerceIn(1, 3)
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
+        val list = androidx.compose.foundation.lazy.rememberLazyListState()
+        val scrolled by remember { derivedStateOf { list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > 90 } }
+        LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 28.dp + barBottom())) {
             item(key = "heading") {
                 Text(
-                    sec.title, fontSize = 30.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 66.dp, bottom = 14.dp).semantics { heading() },
+                    sec.title, fontSize = LARGE_TITLE.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 66.dp + barTop(), bottom = 14.dp).semantics { heading() },
                 )
             }
             if (groups.isEmpty()) item(key = "empty") {
@@ -782,7 +863,8 @@ private fun GroupList(
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 12.dp, top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        ScrollTopBar(c, sec.title, scrolled)
+        Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 12.dp, top = 8.dp + barTop()), horizontalArrangement = Arrangement.SpaceBetween) {
             FloatingButton(c, "뒤로", Icons.Back, onClick = onBack)
             FloatingButton(c, "모음", Icons.Menu, Modifier.trackRect(collBtn)) { h.collMenu(collBtn.rect) }
         }

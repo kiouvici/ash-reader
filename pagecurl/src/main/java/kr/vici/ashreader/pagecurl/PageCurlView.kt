@@ -76,6 +76,10 @@ class PageCurlView @JvmOverloads constructor(
     private val loading = HashSet<Int>()
     /** 쪽 칸 안 종이 자리(u0, v0, u1, v1 — 0..1). 없으면 칸 전체(이북류). 대표님 23:05: 넘길 때 종이만 움직이고 여백은 가만히. */
     private val papers = HashMap<Int, FloatArray>()
+    /** 새 문서가 온 뒤 직전 화면을 붙들어 둘 마감 시각(0 = 붙들지 않음). */
+    private var holdUntilNs = 0L
+    /** 아직 작은 미리보기 그림만 올라간 쪽(붙들어 두는 동안에는 선명한 그림을 기다린다). */
+    private val previewOnly = HashSet<Int>()
 
     private enum class Phase { IDLE, DRAG, ANIM }
     private var phase = Phase.IDLE
@@ -121,6 +125,12 @@ class PageCurlView @JvmOverloads constructor(
 
     fun setPageSource(src: PageSource, startPage: Int = 0) {
         gl.post {
+            // 대표님 01:00: 글자 크기·테마를 바꿔 새 문서가 오면, 새 쪽 그림이 준비될 때까지 지금 화면을 그대로 둔다(빈 화면으로 번쩍이지 않게).
+            // 이미 무엇이 그려져 있었을 때만, 길어도 1.5초까지
+            if (textures.isNotEmpty() && phase == Phase.IDLE) {
+                holdUntilNs = System.nanoTime() + HOLD_MAX_NS
+                gl.postDelayed({ requestFrame() }, HOLD_MAX_NS / 1_000_000L + 16)
+            }
             sourceGen++
             source = src
             position = startPage.coerceIn(0, max(0, src.pageCount - 1))
@@ -477,7 +487,7 @@ class PageCurlView @JvmOverloads constructor(
         val src = source ?: return
         if (viewW <= 0 || egl == null) return
         val range = wanted()
-        textures.keys.filter { it !in range }.forEach { renderer.deleteTexture(textures.remove(it)!!); papers.remove(it) }
+        textures.keys.filter { it !in range }.forEach { renderer.deleteTexture(textures.remove(it)!!); papers.remove(it); previewOnly.remove(it) }
         val maxTex = renderer.maxTextureSize
         val scale = min(1f, maxTex / max(pageW(), viewH))
         val pw = max(1, (pageW() * scale).toInt())
@@ -497,6 +507,7 @@ class PageCurlView @JvmOverloads constructor(
                     gl.post {
                         if (gen == sourceGen && egl != null && idx in wanted() && idx !in textures) {
                             textures[idx] = renderer.upload(small)
+                            previewOnly += idx
                             requestFrame()
                         }
                         small.recycle()
@@ -512,6 +523,7 @@ class PageCurlView @JvmOverloads constructor(
                         // 미리보기(작은 그림)가 있으면 선명한 그림으로 바꾼다
                         textures.remove(idx)?.let { renderer.deleteTexture(it) }
                         textures[idx] = renderer.upload(bmp)
+                        previewOnly -= idx
                         requestFrame()
                     }
                     bmp.recycle()
@@ -533,6 +545,7 @@ class PageCurlView @JvmOverloads constructor(
         textures.values.forEach { renderer.deleteTexture(it) }
         textures.clear()
         papers.clear()
+        previewOnly.clear()
         loading.clear()
     }
 
@@ -601,6 +614,13 @@ class PageCurlView @JvmOverloads constructor(
             if (k >= 1f) ended = true
         }
         val animating = phase != Phase.IDLE
+        // 새 문서로 바뀐 직후: 보이는 쪽 그림이 아직 없으면 그리지도 바꾸지도 않는다(화면에는 직전 그림이 남아 있음)
+        if (holdUntilNs != 0L) {
+            fun sharp(i: Int) = i in textures && i !in previewOnly
+            val ready = sharp(position) && (!isSpread() || position + 1 >= count() || sharp(position + 1))
+            if (!ready && phase == Phase.IDLE && System.nanoTime() < holdUntilNs) return
+            holdUntilNs = 0L
+        }
         draw()
         val ok = core.swap()
         val done = System.nanoTime()
@@ -699,23 +719,35 @@ class PageCurlView @JvmOverloads constructor(
             val fy = CurlMath.fingerY(gyL - ty, py - ty, lh, u) + ty
             val curl = CurlMath.curlFor(gxL, gyL, fx, fy, radius)
             val uv = if (spread) floatArrayOf(0f, pr[1], pr[2], pr[3]) else pr
+            // 아래 깔린 쪽은 먼저 그림자 없이 칸 전체(여백 = 바탕 그대로), 그다음 종이 위아래 띠 안에서만 그림자·말린 장을 그린다
+            // — 비스듬히 접힌 모서리·그림자가 위아래 여백으로 넘치지 않게(대표님 2026-10-25 00:16 '여백까지 효과가 들어간다')
+            fun under(x: Float, i: Int) { if (i in 0 until count()) renderer.drawFlat(x, 0f, pw, h, tex(i)) }
             if (rewind) {
                 if (spread) {
                     if (p + 3 < count()) renderer.drawFlat(0f, 0f, pw, h, tex(p + 3))
+                    under(pw, p)
+                    renderer.clipY(ty, ty + lh)
                     if (p >= 0) renderer.drawFlat(pw, 0f, pw, h, tex(p), shadowFrom = curl)
                     renderer.drawCurl(lx, ty, lw, lh, tex(p + 2), tex(p + 1), backIsTex = true, curl = curl, uv = uv)
                 } else {
+                    under(0f, p)
+                    renderer.clipY(ty, ty + lh)
                     renderer.drawFlat(0f, 0f, pw, h, tex(p), shadowFrom = curl)
                     renderer.drawCurl(lx, ty, lw, lh, tex(p + 1), 0, backIsTex = false, curl = curl, uv = uv)
                 }
             } else if (spread) {
                 if (p >= 0) renderer.drawFlat(0f, 0f, pw, h, tex(p))
+                under(pw, p + 3)
+                renderer.clipY(ty, ty + lh)
                 if (p + 3 < count()) renderer.drawFlat(pw, 0f, pw, h, tex(p + 3), shadowFrom = curl)
                 renderer.drawCurl(lx, ty, lw, lh, tex(p + 1), tex(p + 2), backIsTex = true, curl = curl, uv = uv)
             } else {
+                under(0f, p + 1)
+                renderer.clipY(ty, ty + lh)
                 renderer.drawFlat(0f, 0f, pw, h, tex(p + 1), shadowFrom = curl)
                 renderer.drawCurl(lx, ty, lw, lh, tex(p), 0, backIsTex = false, curl = curl, uv = uv)
             }
+            renderer.noClip()
             return
         }
         val gx = viewW
@@ -749,5 +781,7 @@ class PageCurlView @JvmOverloads constructor(
     private companion object {
         /** 보이는 쪽 미리보기 크기 = 쪽 크기 / 이 값(화소 수 1/9 — 무거운 쪽도 금방 그린다). */
         const val PREVIEW_DIV = 3
+        /** 새 문서가 온 뒤 직전 화면을 붙들어 두는 가장 긴 시간. */
+        const val HOLD_MAX_NS = 1_500_000_000L
     }
 }

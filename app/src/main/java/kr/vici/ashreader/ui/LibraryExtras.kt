@@ -305,6 +305,7 @@ fun BookMenuSheet(b: Book, onDismiss: () -> Unit, onOpen: () -> Unit, onRemove: 
     var status by remember(b.id) { mutableStateOf(b.status) }
     var fav by remember(b.id) { mutableStateOf(b.favorite) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        BlurBehind(dim = 0f)
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Cover(b, Modifier.width(48.dp))
@@ -449,6 +450,7 @@ fun ExportSheet(bookId: String?, onDismiss: () -> Unit) {
     val saveMd = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(NotesExport.Fmt.MD.mime)) { u -> u?.let { save(context, it, text()) { m -> msg = m } } }
     val cs = MaterialTheme.colorScheme
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        BlurBehind(dim = 0f)
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Text("형광펜·메모 내보내기", fontFamily = Myeongjo, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = cs.primary)
             Text("형식", fontSize = 13.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 16.dp))
@@ -507,6 +509,7 @@ private fun save(context: android.content.Context, uri: Uri, text: String?, done
 fun ZipPickSheet(title: String, entries: List<kr.vici.ashreader.data.LibraryRepo.ZipItem>, onPick: (kr.vici.ashreader.data.LibraryRepo.ZipItem) -> Unit, onDismiss: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        BlurBehind(dim = 0f)
         Column(Modifier.padding(bottom = 24.dp)) {
             Text(title, fontSize = 13.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 20.dp))
             Text("압축 파일 안에 읽을 수 있는 파일이 ${entries.size}개 있어요", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))

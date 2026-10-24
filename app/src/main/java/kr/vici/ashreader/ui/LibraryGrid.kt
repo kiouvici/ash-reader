@@ -116,18 +116,20 @@ internal fun FlatShelf(
         val wide = maxWidth >= 600.dp
         val pad = if (wide) 40.dp else 20.dp
         val cols = gridCols(maxWidth, pad, if (wide) 36.dp else 16.dp)
+        val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+        val scrolled by remember { androidx.compose.runtime.derivedStateOf { grid.firstVisibleItemIndex > 0 || grid.firstVisibleItemScrollOffset > 90 } }
         LazyVerticalGrid(
             columns = GridCells.Fixed(if (view.list || modes.reordering) 1 else cols),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = pad, end = pad, bottom = if (modes.selecting) 120.dp else 36.dp),
+            modifier = Modifier.fillMaxSize(), state = grid,
+            contentPadding = PaddingValues(start = pad, end = pad, bottom = (if (modes.selecting) 120.dp else 36.dp) + barBottom()),
             horizontalArrangement = Arrangement.spacedBy(if (wide) 36.dp else 16.dp),
             verticalArrangement = Arrangement.spacedBy(if (view.list) 0.dp else 14.dp),
         ) {
             item(key = "top", span = { GridItemSpan(maxLineSpan) }) {
-                Column(Modifier.padding(top = 62.dp, bottom = 10.dp)) {
+                Column(Modifier.padding(top = 62.dp + barTop(), bottom = 10.dp)) {
                     Text(
                         if (modes.selecting) "${modes.selected.size}권 선택" else title,
-                        fontSize = if (wide) 36.sp else 32.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink,
+                        fontSize = LARGE_TITLE.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.02).em, color = c.ink,
                         maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() },
                     )
                     if (modes.reordering) Text("▲▼ 단추로 순서를 바꿔요. 끝나면 [완료].", fontSize = 13.sp, color = c.sub, modifier = Modifier.padding(top = 4.dp))
@@ -173,15 +175,16 @@ internal fun FlatShelf(
                 )
             }
         }
+        ScrollTopBar(c, if (modes.selecting) "${modes.selected.size}권 선택" else title, scrolled)
         // 위 단추: 왼쪽 뒤로(선택·정렬 중이면 완료), 오른쪽 ≡ 모음 · ⋯ 보기·정렬
-        Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 12.dp, top = 8.dp + barTop()), verticalAlignment = Alignment.CenterVertically) {
             if (modes.selecting || modes.reordering) DoneButton(c) { modes.selecting = false; modes.selected = emptySet(); modes.reordering = false }
             else FloatingButton(c, "뒤로", Icons.Back, onClick = onBack)
             Spacer(Modifier.weight(1f))
             FloatingButton(c, "모음", Icons.Menu, Modifier.trackRect(collBtn)) { h.collMenu(collBtn.rect) }
             FloatingButton(c, "보기·정렬", Icons.Dots, Modifier.padding(start = 6.dp).trackRect(moreBtn)) { moreOpen = true }
         }
-        if (modes.selecting) SelectBar(h, books.filter { it.id in modes.selected }, hiddenShelf, collection, Modifier.align(Alignment.BottomCenter)) {
+        if (modes.selecting) SelectBar(h, books.filter { it.id in modes.selected }, hiddenShelf, collection, Modifier.align(Alignment.BottomCenter).padding(bottom = barBottom())) {
             modes.selecting = false; modes.selected = emptySet()
         }
     }
@@ -231,7 +234,7 @@ private fun SelectBar(h: ShelfHost, picked: List<Book>, hiddenShelf: Boolean, co
     var confirm by remember { mutableStateOf(false) }
     val on = picked.isNotEmpty()
     Row(
-        modifier.navigationBarsPadding().padding(12.dp).clip(RoundedCornerShape(16.dp)).background(glassBg())
+        modifier.padding(12.dp).clip(RoundedCornerShape(16.dp)).background(glassBg())
             .border(1.dp, c.barLine, RoundedCornerShape(16.dp)).padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -504,13 +507,16 @@ internal fun HeroDetail(h: ShelfHost, g: LibGroup, sec: LibSection, folderPath: 
         val coverW = shelfCoverW(maxWidth)
         val gap = 16.dp
         val cols = ((maxWidth - pad * 2 + gap) / (coverW + gap)).toInt().coerceAtLeast(2)
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (modes.selecting) 120.dp else 36.dp)) {
+        val list = androidx.compose.foundation.lazy.rememberLazyListState()
+        // 색 머리를 지나 스크롤하면 위 유리 막대 + 작은 제목, 단추도 흰 글자 → 보통 단추로(흰 바탕 위에서 안 보이지 않게)
+        val pastHero by remember { androidx.compose.runtime.derivedStateOf { list.firstVisibleItemIndex > 0 } }
+        LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = (if (modes.selecting) 120.dp else 36.dp) + barBottom())) {
             item(key = "hero") {
                 Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(heroTop, heroBottom)))) {
                     Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.25f))))
                     // 대표님 23:37: 색 머리 높이를 지금의 약 2/3로, 펼친 책도 더 작게
                     // 대표님 23:46: 책 크기는 그대로, 위·아래 여백만 더 줄여 제목·이어 읽기가 위로
-                    Column(Modifier.padding(top = 40.dp)) {
+                    Column(Modifier.padding(top = 40.dp + barTop())) {
                         HeroFan(g.books, s, Modifier.fillMaxWidth().height(100.dp * s))
                         Column(Modifier.padding(start = pad, end = pad, top = 2.dp, bottom = 10.dp)) {
                             Text(
@@ -574,13 +580,14 @@ internal fun HeroDetail(h: ShelfHost, g: LibGroup, sec: LibSection, folderPath: 
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        ScrollTopBar(c, if (modes.selecting) "${modes.selected.size}권 선택" else g.name, pastHero)
+        Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 12.dp, top = 8.dp + barTop()), verticalAlignment = Alignment.CenterVertically) {
             if (modes.selecting || modes.reordering) DoneButton(c) { modes.selecting = false; modes.selected = emptySet(); modes.reordering = false }
-            else FloatingButton(c, "뒤로", Icons.Back, onHero = true, onClick = onBack)
+            else FloatingButton(c, "뒤로", Icons.Back, onHero = !pastHero, onClick = onBack)
             Spacer(Modifier.weight(1f))
-            FloatingButton(c, "보기·정렬", Icons.Dots, Modifier.trackRect(moreBtn), onHero = true) { moreOpen = true }
+            FloatingButton(c, "보기·정렬", Icons.Dots, Modifier.trackRect(moreBtn), onHero = !pastHero) { moreOpen = true }
         }
-        if (modes.selecting) SelectBar(h, g.books.filter { it.id in modes.selected }, false, null, Modifier.align(Alignment.BottomCenter)) {
+        if (modes.selecting) SelectBar(h, g.books.filter { it.id in modes.selected }, false, null, Modifier.align(Alignment.BottomCenter).padding(bottom = barBottom())) {
             modes.selecting = false; modes.selected = emptySet()
         }
     }

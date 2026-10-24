@@ -86,11 +86,67 @@ val canBlur: Boolean get() = Build.VERSION.SDK_INT >= 31
  * 모든 떠 있는 메뉴·시트·단추의 바탕 불투명도(대표님 2026-10-25 00:02: 모두 같게, 지금보다 조금 더 투명하게).
  * 서재 ⋯·≡ 메뉴, 선택 막대, 읽기 화면 바깥 틀 단추·떠 있는 메뉴·테마 및 설정·사용자화가 함께 쓴다.
  */
-const val GLASS_ALPHA = 0.78f
+const val GLASS_ALPHA = 0.83f // 대표님 2026-10-25 00:19: 83%
 
 /** 유리 메뉴 바탕: 밝게 흰, 어둡게 #2C2C2E — 불투명도 [GLASS_ALPHA]. */
 @Composable
 fun glassBg(): Color = if (LocalAshDark.current) Color(0xFF2C2C2E).copy(alpha = GLASS_ALPHA) else Color.White.copy(alpha = GLASS_ALPHA)
+
+/**
+ * 투명 메뉴가 뜨면 뒤 화면을 살짝 흐리고 아주 옅게 어둡게(대표님 2026-10-25 01:00: 투명 메뉴 모두).
+ * 메뉴가 떠 있는 창(Popup·바텀시트) 안에서 부른다 — 시스템 창 흐림이라 쪽 넘김(SurfaceView)·위아래 막대까지 함께 흐려진다.
+ * 흐림은 API 31 이상(기기에서 창 흐림을 꺼 두면 어둡게만), 그 아래는 어둡게만. [dim] 0 = 어둡게 하지 않음(바텀시트는 자체 가림막이 있음).
+ */
+@Composable
+fun BlurBehind(radius: Dp = 24.dp, dim: Float = 0.10f) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    val px = with(LocalDensity.current) { radius.roundToPx() }
+    // 시스템은 어둡게 깃발이 켜진 창 아래에만 흐림을 그린다 — 흐림 세기도 그 진하기를 따르므로 흐릴 때는 모든 메뉴·시트를 같은 10%로(대표님 01:35 확인: 블러 통일)
+    val dimNow = if (canBlur) maxOf(dim, 0.10f) else dim
+    DisposableEffect(view) {
+        val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+        if (window != null) {
+            // 바텀시트 창 아래 내비게이션 줄이 흰 띠로 남지 않게(가림막·흐림이 화면 끝까지)
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            if (Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
+            // 바텀시트(대화 창)는 흐림 깃발을 붙여도 이 기기들에서 흐림이 그려지지 않는다(01:40 태블릿 확인).
+            // 메뉴와 똑같이 보이도록, 앱 화면에 딸린 투명 창(누름은 받지 않음)을 깔아 그 창이 흐림·어둡게를 맡고 시트를 닫으면 걷는다
+            val act = generateSequence(view.context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<android.app.Activity>().firstOrNull()
+            val token = act?.window?.decorView?.windowToken
+            if (act != null && token != null && dimNow > 0f) {
+                val veil = android.view.View(act).apply { setBackgroundColor(android.graphics.Color.argb(1, 0, 0, 0)) } // 아무것도 안 그리면 창이 보이지 않은 것으로 쳐져 흐림이 안 걸린다
+                val lp = android.view.WindowManager.LayoutParams(
+                    1, 1, // 흐림·어둡게는 창 크기와 상관없이 화면 전체에 걸린다 — 화면 전체 크기의 투명 창은 흐림이 그려지지 않아(01:50 확인) 1점짜리로
+                    android.view.WindowManager.LayoutParams.TYPE_APPLICATION_PANEL,
+                    android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                        android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND or (if (canBlur) android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND else 0),
+                    android.graphics.PixelFormat.TRANSLUCENT,
+                ).apply {
+                    this.token = token
+                    dimAmount = dimNow
+                    if (canBlur) blurBehindRadius = px
+                    if (Build.VERSION.SDK_INT >= 30) fitInsetsTypes = 0
+                    layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                }
+                val ok = runCatching { act.windowManager.addView(veil, lp) }.isSuccess
+                return@DisposableEffect onDispose { if (ok) runCatching { act.windowManager.removeViewImmediate(veil) } }
+            }
+        } else {
+            // Popup: 창에 붙은 맨 위 뷰의 창 속성을 바꾼다(Popup 이 다시 맞출 때도 같은 객체라 유지됨)
+            val root = view.rootView
+            val lp = root.layoutParams as? android.view.WindowManager.LayoutParams
+            val wm = view.context.getSystemService(android.content.Context.WINDOW_SERVICE) as? android.view.WindowManager
+            if (lp != null && wm != null) {
+                if (dimNow > 0f) { lp.flags = lp.flags or android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND; lp.dimAmount = dimNow }
+                if (canBlur) { lp.flags = lp.flags or android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND; lp.blurBehindRadius = px }
+                runCatching { wm.updateViewLayout(root, lp) }
+            }
+        }
+        onDispose {}
+    }
+}
 
 /** 메뉴 칸 구분선 색. */
 @Composable
@@ -121,6 +177,7 @@ fun GlassPopup(anchor: Rect, onDismiss: () -> Unit, width: Dp = 250.dp, below: B
     val dark = LocalAshDark.current
     val shape = RoundedCornerShape(14.dp)
     Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
+        BlurBehind()
         Column(
             Modifier.width(width)
                 .shadow(24.dp, shape, ambientColor = Color.Black.copy(alpha = if (dark) 0.6f else 0.1f), spotColor = Color.Black.copy(alpha = if (dark) 0.8f else 0.25f))

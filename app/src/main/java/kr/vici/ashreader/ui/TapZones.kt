@@ -18,22 +18,25 @@ enum class TapAction(val label: String, val code: Char) {
  * 둘 다 켜지면 두 번 뒤집혀 원래대로가 된다.
  */
 object TapZones {
+    /** 좌우 넘김 칸의 폭(화면 비율). 대표님 2026-10-25 00:27: 좌우는 좁게, 가운데(메뉴)는 넓게 — 30% → 20%. */
+    const val EDGE = 0.2f
+
     fun action(x: Float, y: Float, layout: TapLayout, custom: String, leftHanded: Boolean, rtl: Boolean): TapAction {
         val flip = leftHanded != rtl
         // 내 방식은 사용자가 그린 그대로 쓴다(뒤집지 않음)
         val xx = if (flip && layout != TapLayout.CUSTOM) 1f - x else x
         val a = when (layout) {
             TapLayout.SIDES -> when {
-                xx < 0.3f -> TapAction.PREV
-                xx > 0.7f -> TapAction.NEXT
+                xx < EDGE -> TapAction.PREV
+                xx > 1f - EDGE -> TapAction.NEXT
                 else -> TapAction.MENU
             }
             TapLayout.L_SHAPE -> when {
-                xx in 0.3f..0.7f && y in 0.3f..0.7f -> TapAction.MENU
-                y < 0.25f || xx < 0.3f -> TapAction.PREV
+                xx in EDGE..(1f - EDGE) && y in 0.3f..0.7f -> TapAction.MENU
+                y < 0.25f || xx < EDGE -> TapAction.PREV
                 else -> TapAction.NEXT
             }
-            TapLayout.ANYWHERE -> if (xx in 0.3f..0.7f && y in 0.3f..0.7f) TapAction.MENU else TapAction.NEXT
+            TapLayout.ANYWHERE -> if (xx in EDGE..(1f - EDGE) && y in 0.3f..0.7f) TapAction.MENU else TapAction.NEXT
             TapLayout.CUSTOM -> {
                 val col = (xx * 3).toInt().coerceIn(0, 2)
                 val row = (y * 3).toInt().coerceIn(0, 2)

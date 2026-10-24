@@ -79,6 +79,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -87,6 +88,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -236,6 +240,9 @@ private class DocListenSource(private val doc: ReaderDoc, override val bookId: S
 }
 
 /** 듣기를 쓸 수 없는 문서면 그 까닭(S-27). null = 들을 수 있음. */
+/** 다 쓴 문서를 화면 스레드 밖에서 닫는다(엔진 닫기가 느릴 수 있음). */
+private fun closeDoc(d: ReaderDoc) { Thread { GuardedSource.close(d) }.start() }
+
 private fun cannotListen(doc: ReaderDoc, fmt: DocFormat): String? = when {
     doc is MupdfReaderDoc || doc is DjvuReaderDoc -> null
     fmt.group == FormatGroup.HWP -> "원본 보기에서는 들을 수 없어요. ‘eBook 보기’로 바꾸면 들을 수 있어요."
@@ -317,9 +324,31 @@ fun ReaderScreen(
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
     val colors = s.readingColors()
+    // 대표님 01:10 전수 검사: 어두운 종이(집중·내 테마)에서 아래 내비게이션 줄이 밝은 띠로 남고 위 상태 표시줄 글자가 묻혔다.
+    // 읽는 동안에는 위아래 줄을 종이 색에 맞춘다(투명 + 밝은/어두운 아이콘), 나가면 앱 테마로 되돌린다
+    run {
+        val paperDark = colors.bgC.luminance() < 0.4f
+        val appDark = LocalAshDark.current
+        val act = LocalContext.current as? Activity
+        DisposableEffect(act, paperDark) {
+            val w = act?.window
+            if (w != null) {
+                @Suppress("DEPRECATION")
+                w.navigationBarColor = android.graphics.Color.TRANSPARENT
+                if (android.os.Build.VERSION.SDK_INT >= 29) w.isNavigationBarContrastEnforced = false
+                androidx.core.view.WindowCompat.getInsetsController(w, w.decorView).run {
+                    isAppearanceLightStatusBars = !paperDark; isAppearanceLightNavigationBars = !paperDark
+                }
+            }
+            onDispose {
+                w?.let { androidx.core.view.WindowCompat.getInsetsController(it, it.decorView).run { isAppearanceLightStatusBars = !appDark; isAppearanceLightNavigationBars = !appDark } }
+            }
+        }
+    }
     var menu by remember { mutableStateOf(false) }
     // 작업 07 E: 떠 있는 메뉴 쌓기 · 테마 및 설정 · 사용자화 · 안내선(켜짐, 띠 자리 = 화면 높이 비율)
     var stackOpen by remember { mutableStateOf(false) }
+    var stackClosedAt by remember { mutableStateOf(0L) }
     var themeOpen by remember { mutableStateOf(false) }
     var customOpen by remember { mutableStateOf(false) }
     var guideOn by rememberSaveable(target.id) { mutableStateOf(false) }
@@ -524,6 +553,8 @@ fun ReaderScreen(
     }
 
     val curLevel by rememberUpdatedState(effLevel ?: activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.5f)
+    // 지금 보이는 문서의 책 경로(같은 책을 다시 나누는지 알기)
+    var loadedPath by remember { mutableStateOf<String?>(null) }
     BoxWithConstraints(
         Modifier.fillMaxSize().background(colors.bgC).edgeBrightness(
             enabled = s.edgeBrightness, edge = 32.dp, band = 200.dp, current = { curLevel },
@@ -545,7 +576,12 @@ fun ReaderScreen(
             else listOf(spread, hwpEbook, pdfComic, fixedView.crop)
 
         val load by produceState<Load>(Load.Loading, target.path, layoutKey, pwTry) {
-            value = Load.Loading
+            // 대표님 01:00: 글자 크기·줄 간격 등을 바꿔 다시 나눌 때 '여는 중…'으로 번쩍이지 않게(그리고 열린 시트가 닫히지 않게),
+            // 같은 책이면 새 배치가 다 될 때까지 지금 문서를 그대로 보여 주고, 새 문서로 바꾼 뒤에 옛 문서를 닫는다
+            val prev = (value as? Load.Ok)?.doc
+            val relayout = prev != null && loadedPath == target.path
+            loadedPath = target.path
+            if (!relayout) { value = Load.Loading; prev?.let { closeDoc(it) } }
             val pw = password
             val crop = fixedView.crop && !reflow && !pdfComic
             fun openNow(): ReaderDoc = DocOpener.open(
@@ -573,7 +609,9 @@ fun ReaderScreen(
                     )
                     return@produceState
                 }
-            } else withContext(Dispatchers.IO) { runCatching { openNow() } }
+            } else withContext(Dispatchers.IO + kotlinx.coroutines.NonCancellable) { runCatching { openNow() } }
+            // 여는 사이에 또 바뀌었으면(막대를 연달아 움직임) 이 문서는 버린다 — 다음 차례가 지금 보이는 문서를 이어 보여 준다
+            if (!coroutineContext[kotlinx.coroutines.Job]!!.isActive) { r.getOrNull()?.let { closeDoc(it) }; return@produceState }
             value = r.fold({ Load.Ok(it) }, { e ->
                 when (e) {
                     is PasswordNeeded -> Load.Locked(e.wrong)
@@ -582,8 +620,11 @@ fun ReaderScreen(
                     else -> Load.Err(e.message ?: "문서를 열 수 없어요.")
                 }
             })
-            awaitDispose { r.getOrNull()?.let { d -> Thread { GuardedSource.close(d) }.start() } }
+            if (relayout) prev?.let { closeDoc(it) }
+            // 보이는 문서는 다음 차례(다시 나누기·다른 책) 또는 화면을 떠날 때 닫는다(아래 DisposableEffect)
         }
+        val shownLoad by rememberUpdatedState(load)
+        DisposableEffect(Unit) { onDispose { (shownLoad as? Load.Ok)?.doc?.let { closeDoc(it) } } }
 
         when (val l = load) {
             Load.Loading -> Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1139,11 +1180,12 @@ fun ReaderScreen(
                 if (menu) {
                     val portraitNow = LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
                     val canSearch = doc is MupdfReaderDoc || doc is DjvuReaderDoc || doc is HwpReaderDoc
-                    // 작업 07 E: 예전 위·아래 막대 → 바깥 틀(챕터 남은 쪽·✕ / 쪽수·안내선·메뉴) + 떠 있는 메뉴 쌓기
+                    // 작업 07 E: 예전 위·아래 막대 → 바깥 틀(챕터 남은 쪽·✕ / 쪽수·메뉴) + 떠 있는 메뉴 쌓기
                     ReaderChrome(
                         colors, page, count, chapterLeft, stackOpen,
-                        onClose = onBack, guideOn = guideOn, onGuide = { guideOn = !guideOn; menu = false },
-                        onMenu = { stackOpen = !stackOpen },
+                        onClose = onBack,
+                        // 메뉴 밖을 눌러 닫힌 바로 그 누름이 ⋯ 이면 다시 열지 않는다(떠 있는 메뉴가 따로 창이라 누름이 둘 다에 간다)
+                        onMenu = { if (System.currentTimeMillis() - stackClosedAt > 400) stackOpen = !stackOpen },
                         onSeek = { p -> jumpReq = p },
                         preview = { i, f ->
                             SliderPreview(
@@ -1160,9 +1202,19 @@ fun ReaderScreen(
                             )
                         },
                     )
-                    if (stackOpen) ReaderMenuStack(
+                    // 대표님 01:00: 투명 메뉴가 뜨면 뒤를 흐리게 — 쪽 넘김 화면(SurfaceView)까지 흐리려고 따로 창(Popup)에 띄우고 창 흐림(BlurBehind)
+                    val density = LocalDensity.current
+                    val navB = WindowInsets.navigationBars.getBottom(density)
+                    if (stackOpen) androidx.compose.ui.window.Popup(
+                        alignment = Alignment.BottomEnd,
+                        offset = with(density) { IntOffset(-14.dp.roundToPx(), -(76.dp.roundToPx() + navB)) },
+                        onDismissRequest = { stackOpen = false; stackClosedAt = System.currentTimeMillis() },
+                        properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+                    ) {
+                    BlurBehind()
+                    ReaderMenuStack(
                         colors, percent = if (count > 0) (page + 1) * 100 / count else 0, bookmarked = curBookmark != null, guideOn = guideOn,
-                        modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 14.dp, bottom = 76.dp),
+                        modifier = Modifier,
                         onToc = { stackOpen = false; showToc = true },
                         onSearch = { stackOpen = false; if (canSearch) { menu = false; searchOpen = true } else stub(noTextMsg(fmt)) },
                         onTheme = { stackOpen = false; themeOpen = true },
@@ -1177,6 +1229,7 @@ fun ReaderScreen(
                         onGuide = { stackOpen = false; guideOn = !guideOn; menu = false },
                         onBookmark = { onToggleBookmark(page, locatorFrac(page, count), curBookmark?.id) },
                     )
+                    }
                     // 사용자화: 떠 있는 메뉴에 없는 예전 기능을 빠짐없이
                     if (customOpen) CustomizeSheet(colors, buildList {
                         if (comic == null) add(CustomItem(Icons.Toc, "글꼴·줄 간격·여백", if (reflow) "글꼴·크기·문단·내 글꼴" else "쪽 맞춤·여백 자르기·테마") { customOpen = false; showAa = true })
@@ -1281,8 +1334,9 @@ fun ReaderScreen(
                         level = liveLight ?: LightMath.level(s.brightness.takeIf { it >= 0f } ?: (activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.5f), s.dim),
                         onLive = { liveLight = it },
                         ai = when {
-                            comic != null -> ({ ComicAiCard(comic, s.aiUpscale, upscale, s.upscaleCacheMb, { themeOpen = false; menu = false; compareOpen = true }, Modifier.padding(bottom = 10.dp)) })
-                            aiKind != null -> ({ AiQualityCard(aiKind, s.epubAiUpscale, onToggle = { v -> onSettings { it.copy(epubAiUpscale = v) } }, onCompare = { themeOpen = false; menu = false; docCompareOpen = true }, modifier = Modifier.padding(bottom = 10.dp), limitMb = s.upscaleCacheMb) })
+                            // 대표님 00:40: 한 줄(켜기·끄기 옆에 [전후 비교]) — 시트 세로를 줄인다
+                            comic != null -> ({ bg, fg -> ComicAiCard(comic, s.aiUpscale, upscale, s.upscaleCacheMb, { themeOpen = false; menu = false; compareOpen = true }, Modifier.padding(top = 6.dp), compact = true, compactBg = bg, compactFg = fg) })
+                            aiKind != null -> ({ bg, fg -> AiQualityCard(aiKind, s.epubAiUpscale, onToggle = { v -> onSettings { it.copy(epubAiUpscale = v) } }, onCompare = { themeOpen = false; menu = false; docCompareOpen = true }, modifier = Modifier.padding(top = 6.dp), limitMb = s.upscaleCacheMb, compact = true, compactBg = bg, compactFg = fg) })
                             else -> null
                         },
                         onCustomize = { themeOpen = false; customOpen = true },
@@ -1301,6 +1355,7 @@ fun ReaderScreen(
                 if (!s.tapGuideShown && !target.once) TapGuide(
                     rtl = doc.rtl,
                     grid = TapZones.grid(s.tapLayout, s.tapCustom, s.leftHanded, doc.rtl),
+                    edge = if (s.tapLayout == kr.vici.ashreader.data.TapLayout.CUSTOM) 1f / 3f else TapZones.EDGE,
                     onChange = { onSettings { it.copy(tapGuideShown = true) }; showTurn = true },
                 ) { onSettings { it.copy(tapGuideShown = true) } }
             }
@@ -1391,6 +1446,7 @@ fun ReaderScreen(
     }
     val docCount = openDoc?.pageCount ?: 0
     if (showToc) ModalBottomSheet(onDismissRequest = { showToc = false }) {
+        BlurBehind(dim = 0f)
         LazyColumn(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
@@ -1529,10 +1585,9 @@ private fun BottomMenu(
         HorizontalDivider(color = c.lineC)
         Row(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("1", fontSize = 12.sp, color = c.subC)
-            Slider(
+            AppleSlider(
                 value = drag, onValueChange = { drag = it; dragging = true }, onValueChangeFinished = { dragging = false; onSeek(drag.toInt()) },
                 valueRange = 0f..(count - 1).coerceAtLeast(1).toFloat(),
-                colors = SliderDefaults.colors(thumbColor = c.accentC, activeTrackColor = c.accentC, inactiveTrackColor = c.lineC),
                 modifier = Modifier.weight(1f).semantics { contentDescription = "쪽 이동" },
             )
             Text("${drag.toInt() + 1} / ${count}쪽", fontSize = 12.sp, color = c.subC)

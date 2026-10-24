@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -73,7 +74,7 @@ import kr.vici.ashreader.data.ReadTheme
 import kr.vici.ashreader.data.Settings
 
 // 작업 07 E 읽기 화면 새 디자인(ReaderNew 목업): 평소엔 쪽수만. 한 번 누르면 위 "챕터 끝까지 N쪽 남음" + ✕ /
-// 아래 가운데 "4 / 67" / 왼쪽 아래 안내선 / 오른쪽 아래 메뉴. 메뉴 → 떠 있는 메뉴 쌓기. 예전 위·아래 막대를 이것으로 바꾼다.
+// 아래 가운데 "4 / 67" / 오른쪽 아래 메뉴. 메뉴 → 떠 있는 메뉴 쌓기. 예전 위·아래 막대를 이것으로 바꾼다.
 
 /** 읽기 테마 색에서 떠 있는 단추·메뉴 색(밝은 종이면 흰 유리, 어두운 종이면 #1C1C1E). */
 private class ChromeColors(val btn: Color, val line: Color, val fg: Color, val sub: Color, val sheet: Color, val chip: Color, val dark: Boolean)
@@ -87,13 +88,13 @@ private fun chromeOf(c: ReadingColors): ChromeColors {
 
 /**
  * 메뉴가 열린 동안의 바깥 틀: 위 왼쪽 "챕터 끝까지 N쪽 남음"(모르면 "N% 읽음") + 오른쪽 ✕(책 닫기),
- * 아래 가운데 "4 / 67"(누르면 쪽 옮기기 막대), 왼쪽 아래 안내선, 오른쪽 아래 메뉴(누르면 떠 있는 메뉴).
+ * 아래 가운데 "4 / 67"(누르면 쪽 옮기기 막대), 오른쪽 아래 메뉴(누르면 떠 있는 메뉴 — 안내선은 그 안에).
  * 만화·한글·Word 도 같은 틀을 쓴다.
  */
 @Composable
 fun ReaderChrome(
     c: ReadingColors, page: Int, count: Int, chapterLeft: Int?, stackOpen: Boolean,
-    onClose: () -> Unit, onGuide: () -> Unit, guideOn: Boolean, onMenu: () -> Unit,
+    onClose: () -> Unit, onMenu: () -> Unit,
     onSeek: (Int) -> Unit, preview: (@Composable (Int, Float) -> Unit)?, modifier: Modifier = Modifier,
 ) {
     val k = chromeOf(c)
@@ -110,7 +111,8 @@ fun ReaderChrome(
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding()) {
             if (seeking && count > 1) SeekBar(c, k, page, count, preview) { p -> onSeek(p); seeking = false }
             Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                ChromeButton(k, Icons.Guide, if (guideOn) "안내선 끄기" else "안내선", on = guideOn, onClick = onGuide)
+                // 왼쪽 아래 안내선 단추는 대표님 01:05 지시로 뺐다(떠 있는 메뉴에 같은 단추가 있음). 쪽수가 가운데 오게 같은 폭만 비운다
+                Spacer(Modifier.width(48.dp))
                 Box(
                     Modifier.weight(1f).heightIn(min = 48.dp).clickable(role = Role.Button) { seeking = !seeking }
                         .semantics { contentDescription = "${page + 1}쪽, 전체 ${count}쪽. 눌러서 쪽 옮기기" },
@@ -134,10 +136,9 @@ private fun SeekBar(c: ReadingColors, k: ChromeColors, page: Int, count: Int, pr
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text("1", fontSize = 12.sp, color = k.sub)
-            Slider(
+            AppleSlider(
                 value = drag, onValueChange = { drag = it; dragging = true }, onValueChangeFinished = { dragging = false; onSeek(drag.toInt()) },
                 valueRange = 0f..(count - 1).coerceAtLeast(1).toFloat(),
-                colors = SliderDefaults.colors(thumbColor = c.accentC, activeTrackColor = c.accentC, inactiveTrackColor = c.lineC),
                 modifier = Modifier.weight(1f).semantics { contentDescription = "쪽 이동" },
             )
             Text("${drag.toInt() + 1} / $count", fontSize = 12.sp, color = k.sub)
@@ -214,42 +215,31 @@ private fun TrioButton(k: ChromeColors, icon: ImageVector, label: String, on: Bo
 fun ThemeSheet(
     s: Settings, c: ReadingColors, onSettings: ((Settings) -> Settings) -> Unit, onDismiss: () -> Unit,
     reflow: Boolean, scrollAvailable: Boolean, level: Float, onLive: (Float?) -> Unit,
-    ai: (@Composable () -> Unit)?, onCustomize: () -> Unit,
+    /** AI 화질 향상 한 줄 — 받는 값 = 칸 바탕·글자색. */
+    ai: (@Composable (Color, Color) -> Unit)?, onCustomize: () -> Unit,
     /** 한글·Word '원본 | eBook', 그림 PDF 'PDF | 만화' 보기 전환(대표님 23:57: 맨 위에). null = 없음. */
     viewSwitch: ViewSwitch? = null,
 ) {
     val k = chromeOf(c)
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = k.sheet, contentColor = k.fg) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = k.sheet, contentColor = k.fg, scrimColor = Color.Black.copy(alpha = 0.22f)) {
+        BlurBehind(dim = 0f)
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 18.dp).verticalScroll(rememberScrollState())) {
-            Text("테마 및 설정", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = k.fg, modifier = Modifier.padding(bottom = 10.dp).semantics { heading() })
-            viewSwitch?.let { v ->
-                Row(Modifier.padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(k.chip).padding(3.dp)) {
-                    listOf(false to v.left, true to v.right).forEach { (second, label) ->
-                        val on = second == v.secondOn
-                        Box(
-                            Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).background(if (on) k.sheet else Color.Transparent)
-                                .selectable(on, role = Role.RadioButton) { if (!on) v.onPick(second) }.semantics { contentDescription = "$label 보기" },
-                            contentAlignment = Alignment.Center,
-                        ) { Text(label, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, color = k.fg) }
+            Text("테마 및 설정", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = k.fg, modifier = Modifier.padding(bottom = 8.dp).semantics { heading() })
+            // 대표님 00:40: 보기 전환도 넘김·어둡게와 같은 줄(한 칸, 누르면 다른 보기로) — 시트 세로를 줄인다
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                viewSwitch?.let { v ->
+                    val now = if (v.secondOn) v.right else v.left
+                    val other = if (v.secondOn) v.left else v.right
+                    Column(
+                        Modifier.weight(1.3f).heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).background(k.chip)
+                            .clickable(role = Role.Button) { v.onPick(!v.secondOn) }
+                            .semantics { contentDescription = "보기 전환, 지금 $now, 누르면 $other 보기" },
+                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text(now, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = k.fg, maxLines = 1)
+                        Text("⇄ $other", fontSize = 10.sp, color = k.sub, maxLines = 1)
                     }
-                }
-            }
-            ai?.invoke()
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // 가/가: 글자 크기 한 단계씩(이북류만)
-                Row(Modifier.weight(2f).heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).background(k.chip), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.weight(1f).heightIn(min = 48.dp).clickable(enabled = reflow, role = Role.Button) { onSettings { it.copy(fontSize = (it.fontSize - 1).coerceAtLeast(Prefs.MIN_SIZE)) } }
-                            .semantics { contentDescription = "글자 작게, 지금 ${s.fontSize}" },
-                        contentAlignment = Alignment.Center,
-                    ) { Text("가", fontSize = 14.sp, color = k.fg.copy(alpha = if (reflow) 1f else 0.35f)) }
-                    Box(Modifier.width(1.dp).height(22.dp).background(k.sub.copy(alpha = 0.35f)))
-                    Box(
-                        Modifier.weight(1f).heightIn(min = 48.dp).clickable(enabled = reflow, role = Role.Button) { onSettings { it.copy(fontSize = (it.fontSize + 1).coerceAtMost(Prefs.MAX_SIZE)) } }
-                            .semantics { contentDescription = "글자 크게, 지금 ${s.fontSize}" },
-                        contentAlignment = Alignment.Center,
-                    ) { Text("가", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = k.fg.copy(alpha = if (reflow) 1f else 0.35f)) }
                 }
                 ToggleTile(k, Icons.ArrowsLR, "쪽 넘김", !s.scrollView, enabled = scrollAvailable, Modifier.weight(1f)) { onSettings { it.copy(scrollView = false) } }
                 ToggleTile(k, Icons.ArrowsUD, "스크롤", s.scrollView, enabled = scrollAvailable, Modifier.weight(1f)) { onSettings { it.copy(scrollView = true) } }
@@ -259,44 +249,64 @@ fun ThemeSheet(
                     onSettings { it.copy(theme = if (it.theme == ReadTheme.NIGHT) ReadTheme.DAY else ReadTheme.NIGHT) }
                 }
             }
+            // 글자 크기 눈금 막대(대표님 01:05): 가 ━━●━━ 가 16 — 한 눈금 = 1, 미는 동안 숫자만 바뀌고 손을 떼면 한 번 적용(쪽 다시 나누기를 한 번만).
+            // 고정 쪽 문서(PDF·원본 보기)는 글자 크기가 바뀌지 않아 흐리게 둔다
+            var liveSize by remember { mutableStateOf<Float?>(null) }
+            val sizeNow = (liveSize ?: s.fontSize.toFloat()).roundToInt()
+            val fa = if (reflow) 1f else 0.35f
+            Row(
+                Modifier.padding(top = 6.dp).fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).background(k.chip).padding(start = 14.dp, end = 12.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text("가", fontSize = 13.sp, color = k.fg.copy(alpha = 0.6f * fa))
+                AppleSlider(
+                    value = liveSize ?: s.fontSize.toFloat(), onValueChange = { liveSize = it }, enabled = reflow,
+                    onValueChangeFinished = { val n = sizeNow; liveSize = null; if (n != s.fontSize) onSettings { it.copy(fontSize = n) } },
+                    valueRange = Prefs.MIN_SIZE.toFloat()..Prefs.MAX_SIZE.toFloat(), steps = Prefs.MAX_SIZE - Prefs.MIN_SIZE - 1,
+                    modifier = Modifier.weight(1f).semantics { contentDescription = "글자 크기" },
+                )
+                Text("가", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = k.fg.copy(alpha = fa))
+                Text("$sizeNow", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = k.fg.copy(alpha = fa), textAlign = TextAlign.End, modifier = Modifier.width(24.dp))
+            }
+            ai?.invoke(k.chip, k.fg)
             // 밝기 막대(창 밝기 + 0 아래는 추가 어둡게 — 예전 밝기 시트와 같은 눈금)
             var live by remember { mutableStateOf<Float?>(null) }
             Row(
-                Modifier.padding(top = 8.dp).fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).background(k.chip).padding(horizontal = 14.dp),
+                Modifier.padding(top = 6.dp).fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).background(k.chip).padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Icon(Icons.Sun, null, tint = k.fg.copy(alpha = 0.6f), modifier = Modifier.size(15.dp))
-                Slider(
+                AppleSlider(
                     value = live ?: level, onValueChange = { live = it; onLive(it) },
                     onValueChangeFinished = { val v = live ?: level; val (b, d) = LightMath.split(v); onSettings { it.copy(brightness = b, dim = d) }; live = null; onLive(null) },
                     valueRange = -0.6f..1f,
-                    colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = k.fg, inactiveTrackColor = k.sub.copy(alpha = 0.3f)),
                     modifier = Modifier.weight(1f).semantics { contentDescription = "밝기" },
                 )
                 Icon(Icons.Sun, null, tint = k.fg, modifier = Modifier.size(20.dp))
             }
             // 테마 타일 6개(원본·고요·종이 / 볼드·평온·집중) — 고른 것 파란 테두리, 선택 상태 읽어 주기(감수 4)
             ReadTheme.TILES.chunked(3).forEach { row ->
-                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // 대표님 00:40: 타일 세로를 줄임(84 → 52dp)
+                Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     row.forEach { t ->
                         val tc = t.colors(); val on = s.theme == t
                         Column(
-                            Modifier.weight(1f).heightIn(min = 84.dp).clip(RoundedCornerShape(14.dp)).background(tc.bgC)
-                                .border(if (on) 2.5.dp else 1.dp, if (on) Color(0xFF0A84FF) else Color(0x40808080), RoundedCornerShape(14.dp))
+                            Modifier.weight(1f).heightIn(min = 52.dp).clip(RoundedCornerShape(12.dp)).background(tc.bgC)
+                                .border(if (on) 2.5.dp else 1.dp, if (on) Color(0xFF0A84FF) else Color(0x40808080), RoundedCornerShape(12.dp))
                                 .selectable(on, role = Role.RadioButton) { onSettings { it.copy(theme = t) } }
                                 .semantics { contentDescription = "테마 ${t.label}" },
                             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
                         ) {
-                            Text("가가", fontSize = 24.sp, color = tc.fgC, fontFamily = if (t == ReadTheme.BOLD || t == ReadTheme.NIGHT) FontFamily.SansSerif else Myeongjo,
+                            Text("가가", fontSize = 17.sp, lineHeight = 20.sp, color = tc.fgC, fontFamily = if (t == ReadTheme.BOLD || t == ReadTheme.NIGHT) FontFamily.SansSerif else Myeongjo,
                                 fontWeight = if (t == ReadTheme.BOLD) FontWeight.Black else if (t == ReadTheme.NIGHT) FontWeight.Medium else FontWeight.Normal)
-                            Text(t.label, fontSize = 12.sp, color = tc.fgC)
+                            Text(t.label, fontSize = 11.sp, lineHeight = 13.sp, color = tc.fgC)
                         }
                     }
                 }
             }
             if (s.theme == ReadTheme.CUSTOM) Text("지금은 ‘내 테마’예요. 위 타일을 누르면 바뀌어요.", fontSize = 12.sp, color = k.sub, modifier = Modifier.padding(top = 6.dp))
             Row(
-                Modifier.padding(top = 10.dp).fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).background(k.chip)
+                Modifier.padding(top = 6.dp).fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).background(k.chip)
                     .clickable(role = Role.Button, onClick = onCustomize).padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
             ) {
@@ -356,7 +366,8 @@ class CustomItem(val icon: ImageVector, val label: String, val sub: String?, val
 @Composable
 fun CustomizeSheet(c: ReadingColors, items: List<CustomItem>, onDismiss: () -> Unit) {
     val k = chromeOf(c)
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = k.sheet, contentColor = k.fg) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = k.sheet, contentColor = k.fg, scrimColor = Color.Black.copy(alpha = 0.22f)) {
+        BlurBehind(dim = 0f)
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 18.dp).verticalScroll(rememberScrollState())) {
             Text("사용자화", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = k.fg, modifier = Modifier.padding(bottom = 8.dp).semantics { heading() })
             Column(Modifier.clip(RoundedCornerShape(12.dp)).background(k.chip)) {
