@@ -102,6 +102,8 @@ class B02LibraryTest : E2eTest() {
         // 작업 06: 서재 첫 화면에서 '더 보기'가 빠짐 → 설정 › 서재 폴더(S-17)
         goTab("설정")
         (scrollFind(By.text("서재 폴더")) ?: obj(By.text("서재 폴더"))).click()
+        SystemClock.sleep(600)
+        obj(By.text(Pattern.compile("폴더 추가·빼기|폴더 추가"))).click()
         SystemClock.sleep(1_000)
         shot("folders")
         // 폴더 추가 → 시스템 폴더 고르기(SAF)가 열리는지만 보고 닫는다
