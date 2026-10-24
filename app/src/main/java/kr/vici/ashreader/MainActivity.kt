@@ -626,7 +626,9 @@ private fun AshRoot(nav: NavModel) {
                         homeKey = libHome,
                         navBar = if (land) { { HeaderNav(listOf("서재", "독서 기록", "설정"), 0, ::pickTab) } } else null,
                         onBookInfo = { b -> nav.screen = Screen.BookInfo(b.id) },
-                        listMode = settings.libList, seriesAuto = settings.seriesAuto,
+                        prefs = kr.vici.ashreader.ui.LibPrefs(settings.libColls, settings.libViews, settings.libList),
+                        onPrefs = { p -> change { it.copy(libColls = p.colls, libViews = p.views) } },
+                        seriesAuto = settings.seriesAuto,
                     )
                     Screen.Stats -> {
                         val since = remember { statsSince() }

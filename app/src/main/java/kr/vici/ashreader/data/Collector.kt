@@ -239,7 +239,8 @@ class Collector(private val context: Context, private val db: AshDb) {
                 dao.upsert(
                     cur.copy(
                         path = if (x.saf) "" else x.key, sourceUri = if (x.saf) x.key else "", folder = x.folder,
-                        sizeBytes = x.size, fileMtime = x.mtime, origin = origin, hidden = 0, format = fmt.name,
+                        // 작업 07: 사용자가 '서재에서 숨기기'한 책은 다시 모아도 숨긴 채로
+                        sizeBytes = x.size, fileMtime = x.mtime, origin = origin, hidden = if (cur.hidden == Book.HIDDEN_USER) Book.HIDDEN_USER else 0, format = fmt.name,
                     ),
                 )
                 updated++

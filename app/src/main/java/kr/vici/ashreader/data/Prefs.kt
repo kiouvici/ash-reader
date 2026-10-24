@@ -158,6 +158,10 @@ data class Settings(
     val dictPkg: String = "",
     /** 세로로 긴 만화를 웹툰 보기로 제안. (작업 06) */
     val webtoonSuggest: Boolean = true,
+    /** ≡ 모음 순서·숨김(작업 07): 쉼표로 이은 열쇠, 숨긴 것은 앞에 '-'. "" = 기본 순서. */
+    val libColls: String = "",
+    /** 모음마다 보기·정렬(작업 07): "열쇠=정렬:목록" 을 ';' 로 이음. */
+    val libViews: String = "",
 )
 
 /** F-44 자동 스크롤 속도 눈금(1~10) → 초당 이동 dp. */
@@ -238,6 +242,8 @@ class Prefs(private val context: Context) {
         val doubleTapZoom = floatPreferencesKey("double_tap_zoom")
         val dictPkg = stringPreferencesKey("dict_pkg")
         val webtoonSuggest = booleanPreferencesKey("webtoon_suggest")
+        val libColls = stringPreferencesKey("lib_colls")
+        val libViews = stringPreferencesKey("lib_views")
     }
 
     val settings: Flow<Settings> = context.dataStore.data
@@ -315,6 +321,8 @@ class Prefs(private val context: Context) {
         doubleTapZoom = (p[K.doubleTapZoom] ?: 2f).coerceIn(1.5f, 3f),
         dictPkg = p[K.dictPkg] ?: "",
         webtoonSuggest = p[K.webtoonSuggest] ?: true,
+        libColls = p[K.libColls] ?: "",
+        libViews = p[K.libViews] ?: "",
     )
 
     /**
@@ -394,6 +402,8 @@ class Prefs(private val context: Context) {
             p[K.doubleTapZoom] = s.doubleTapZoom
             p[K.dictPkg] = s.dictPkg
             p[K.webtoonSuggest] = s.webtoonSuggest
+            p[K.libColls] = s.libColls
+            p[K.libViews] = s.libViews
         }
     }
 

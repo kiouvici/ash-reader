@@ -66,4 +66,24 @@ object Icons {
         "M18 15l.7 1.8 1.8.7-1.8.7L18 20l-.7-1.8-1.8-.7 1.8-.7z",
     )
     val Scroll = line("scroll", "M7 3h10v18H7z", "M10 8h4M10 12h4M10 16h4")
+
+    // ── 작업 07 서재 메뉴(LibraryMenus·MoreMenu 목업 아이콘) ──
+    val Menu = line("collections", "M4 6h16M4 10h16M4 14h16M4 18h11")
+    val Dots = line("more-h", "M5 12h.01M12 12h.01M19 12h.01")
+    val Info = line("info", "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", "M12 11v6M12 7.5v.01")
+    val FolderOpen = line("folder2", "M3 7.5A1.5 1.5 0 0 1 4.5 6h4.3l2 2.2h8.7A1.5 1.5 0 0 1 21 9.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z")
+    val Books = line("all", "M4 4.5h4v15H4z", "M10 4.5h4v15h-4z", "M15.6 5.6l3.8-1 3.6 13.9-3.8 1z")
+    val FileDoc = line("format", "M6.5 3h7.5l4 4v14H6V3.5z", "M14 3v4h4")
+    val Shelf = line("series", "M3.5 20h17", "M5 20V7.5h3.2V20", "M9.8 20V5h3.6v15", "M14.6 19.6l2.7-11.4 3.1.7-2.7 11.4")
+    val Done = line("done", "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", "M8 12.3l2.7 2.7L16.2 9.5")
+    val Hide = line("hide", "M3 3l18 18", "M10.6 10.6a2 2 0 0 0 2.8 2.8", "M9.9 5.1A9.8 9.8 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-2.2 3.1", "M6.6 6.6A17 17 0 0 0 2.5 12s3.5 7 9.5 7a9.7 9.7 0 0 0 5.4-1.6")
+    val Show = line("show", "M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z", "M15 12a3 3 0 1 1 -6 0a3 3 0 1 1 6 0z")
+    val Clock = line("recent-files", "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", "M12 7.5V12l3 2")
+    val Group = line("group", "M4 6h10M4 12h10M4 18h7", "M18 15v6M15 18h6")
+    val Picture = line("cover", "M4 5h16v14H4z", "M4 15l4-4 4 4 3-3 5 5")
+    val Restart = line("restart", "M4 12a8 8 0 1 0 2.3-5.7", "M4 4v4h4")
+    val Trash = line("remove", "M4 7h16", "M10 11v6M14 11v6", "M5 7l1 13h12l1-13", "M9 7V4h6v3")
+    val ListView = line("list", "M8 6h12M8 12h12M8 18h12", "M4 6v.01M4 12v.01M4 18v.01")
+    val Select = line("select", "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", "M8 12.3l2.7 2.7L16.2 9.5")
+    val Guide = line("guide", "M3 9h18M3 15h18")
 }

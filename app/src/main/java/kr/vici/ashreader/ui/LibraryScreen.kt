@@ -68,30 +68,23 @@ fun LibraryScreen(
     navBar: (@Composable () -> Unit)? = null,
     /** 책 정보(작업 06): 문서 메뉴 → '책 정보·표지 바꾸기'. */
     onBookInfo: ((Book) -> Unit)? = null,
-    /** 서재 기본 보기: false = 표지, true = 목록(작업 06). */
-    listMode: Boolean = false,
+    /** 서재 보기 설정(작업 07: ≡ 모음 순서·숨김, 모음마다 보기·정렬, 처음 보기 격자/목록). */
+    prefs: LibPrefs = LibPrefs(),
+    onPrefs: (LibPrefs) -> Unit = {},
     /** 시리즈 자동으로 묶기(작업 06) — 바뀌면 묶음을 다시 만든다. */
     seriesAuto: Boolean = true,
 ) {
-    var menuFor by remember { mutableStateOf<Book?>(null) }
+    // 책 ⋯ 메뉴(작업 07 MoreMenu): ⋯ 누름 또는 표지 길게 누름 → 유리 메뉴(LibraryPane 안)
     LibraryPane(
         books = books, folderRoots = folderRoots, unavailable = unavailable,
-        onOpen = onOpen, onLongBook = { menuFor = it },
+        onOpen = onOpen,
         // 시리즈 카드를 길게 누르면 묶음 관리(이름 바꾸기·묶기 풀기·권 더하기, F-62)
         onSeriesManage = onSeries,
-        modifier = modifier, scanning = scanning, homeKey = homeKey, navBar = navBar, listMode = listMode, seriesAuto = seriesAuto,
+        actions = BookActions(onInfo = { b -> onBookInfo?.invoke(b) }, onRemove = onRemove, onExport = onExport),
+        prefs = prefs, onPrefs = onPrefs,
+        modifier = modifier, scanning = scanning, homeKey = homeKey, navBar = navBar, seriesAuto = seriesAuto,
         extras = { if (showStores) Box(Modifier.padding(horizontal = 20.dp).padding(top = 20.dp)) { StoreRow(stores, onEdit = onStoreEdit, onAddBook = onAdd) } },
     )
-
-    menuFor?.let { b ->
-        BookMenuSheet(
-            b, onDismiss = { menuFor = null },
-            onOpen = { menuFor = null; onOpen(b) },
-            onRemove = { menuFor = null; onRemove(b) },
-            onExport = { menuFor = null; onExport(b) },
-            onInfo = onBookInfo?.let { f -> { menuFor = null; f(b) } },
-        )
-    }
 }
 
 @Composable

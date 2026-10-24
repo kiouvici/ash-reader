@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.ui
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -41,23 +47,44 @@ private val Light = lightColorScheme(
     error = Color(0xFFB3261E),
 )
 
+/**
+ * 어둡게(작업 07 DarkMode 목업 — 애플 북스 다크): 바탕 #000, 띠 #161618, 카드 #1C1C1E·#2C2C2E,
+ * 글자 흰색·보조 #98989F. surfaceContainerLow = 띠, surfaceContainer = 설정 카드·단추, surfaceContainerHigh = 서재 카드.
+ */
 private val Dark = darkColorScheme(
-    primary = Ash.InkDark, onPrimary = Color(0xFF0E2238), secondary = Ash.Gold, onSecondary = Color(0xFF2A1C00),
-    background = Color(0xFF121417), surface = Color(0xFF121417), onBackground = Color(0xFFE3E3E3), onSurface = Color(0xFFE3E3E3),
-    onSurfaceVariant = Color(0xFFA0A4A8), outline = Color(0xFF5A5F66), outlineVariant = Color(0xFF2E3034),
-    surfaceVariant = Color(0xFF22252A), secondaryContainer = Color(0xFF233448), onSecondaryContainer = Ash.InkDark,
-    surfaceContainer = Color(0xFF1C1D20), surfaceContainerHigh = Color(0xFF24262A), surfaceContainerLow = Color(0xFF16181B),
-    error = Color(0xFFF2B8B5),
+    primary = Color(0xFF409CFF), onPrimary = Color.Black, secondary = Ash.Gold, onSecondary = Color(0xFF2A1C00),
+    background = Color.Black, surface = Color.Black, onBackground = Color.White, onSurface = Color.White,
+    onSurfaceVariant = Color(0xFF98989F), outline = Color(0xFF5A5A5E), outlineVariant = Color(0xFF2C2C2E),
+    surfaceVariant = Color(0xFF2C2C2E), secondaryContainer = Color(0xFF3A3A3C), onSecondaryContainer = Color.White,
+    surfaceContainer = Color(0xFF1C1C1E), surfaceContainerHigh = Color(0xFF2C2C2E), surfaceContainerLow = Color(0xFF161618),
+    surfaceContainerHighest = Color(0xFF3A3A3C), surfaceContainerLowest = Color.Black,
+    error = Color(0xFFFF453A),
 )
 
+/** 지금 앱 화면이 어둡게인가(표지 은은한 빛·유리 메뉴 색 등에 씀). */
+val LocalAshDark = staticCompositionLocalOf { false }
+
+/** 감수 1: 12sp 이하 보조 글자 — 밝게 #6C6C70, 어둡게 #98989F. */
+val smallSub: Color @Composable get() = if (LocalAshDark.current) Color(0xFF98989F) else Color(0xFF6C6C70)
+
 /**
- * 앱 화면 테마(작업 06): [mode] 0 = 시스템, 1 = 밝게, 2 = 어둡게. 읽기 화면 종이 색(ReadTheme)과는 따로다.
- * ('배경화면 색 따르기'는 대표님 결정으로 뺌. 어둡게의 화면별 색은 다크 모드 목업을 받은 뒤 맞춘다.)
+ * 앱 화면 테마(작업 06·07): [mode] 0 = 시스템, 1 = 밝게, 2 = 어둡게. 읽기 화면 종이 색(ReadTheme)과는 따로다.
+ * 상태 표시줄 아이콘도 앱 테마를 따른다(어둡게 → 흰 아이콘).
  */
 @Composable
 fun AshTheme(mode: Int = 0, content: @Composable () -> Unit) {
     val dark = when (mode) { 1 -> false; 2 -> true; else -> isSystemInDarkTheme() }
-    MaterialTheme(colorScheme = if (dark) Dark else Light, content = content)
+    val view = LocalView.current
+    if (!view.isInEditMode) SideEffect {
+        val window = (view.context as? Activity)?.window ?: return@SideEffect
+        WindowCompat.getInsetsController(window, view).run {
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
+        }
+    }
+    CompositionLocalProvider(LocalAshDark provides dark) {
+        MaterialTheme(colorScheme = if (dark) Dark else Light, content = content)
+    }
 }
 
 /** 나눔명조(번들) — 서재 제목·Aa 미리보기에 쓴다. */
