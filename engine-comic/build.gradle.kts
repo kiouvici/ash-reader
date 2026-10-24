@@ -38,8 +38,9 @@ android {
             cmake {
                 arguments += listOf(
                     "-DANDROID_STL=c++_static",
-                    "-DASH_THIRD_PARTY=${thirdParty.absolutePath}",
-                    "-DASH_NCNN=${ncnnDir.absolutePath}",
+                    // CMake 문자열에서 '\' 는 이스케이프라 Windows 경로도 '/' 로 넘긴다
+                    "-DASH_THIRD_PARTY=${thirdParty.invariantSeparatorsPath}",
+                    "-DASH_NCNN=${ncnnDir.absoluteFile.invariantSeparatorsPath}",
                 )
             }
         }

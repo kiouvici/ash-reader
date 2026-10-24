@@ -119,18 +119,32 @@ object AshSigning {
     }
 }
 
-/** versionCode = 1000 + GITHUB_RUN_NUMBER (CI). 로컬 빌드는 1000. */
-fun Project.ashVersionCode(): Int =
-    1000 + (providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 0)
+private fun Project.ashCiRun(): Int? =
+    providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull()
+
+/** 노트북 빌드의 기준 CI 실행 번호 (-Pash.baseRun 또는 ASH_BASE_RUN, scripts/local-build.ps1 이 채운다). */
+private fun Project.ashBaseRun(): Int? =
+    (providers.gradleProperty("ash.baseRun").orNull ?: providers.environmentVariable("ASH_BASE_RUN").orNull)
+        ?.trim()?.toIntOrNull()
 
 /**
- * 사용자에게 보이는 판 이름. CI 는 1.0.0-rc.<실행 번호>, 로컬은 1.0.0-dev.
+ * versionCode = 1000 + GITHUB_RUN_NUMBER (CI).
+ * 로컬은 1000 + baseRun + 1 (같은 번호 CI 판 위에 덮어 설치), baseRun 이 없으면 1000.
+ */
+fun Project.ashVersionCode(): Int {
+    ashCiRun()?.let { return 1000 + it }
+    return 1000 + (ashBaseRun()?.let { it + 1 } ?: 0)
+}
+
+/**
+ * 사용자에게 보이는 판 이름. CI 는 1.0.0-rc.<실행 번호>,
+ * 로컬은 baseRun 이 있으면 1.0.0-rc.<baseRun>-local, 없으면 1.0.0-dev.
  * 정식 배포 때는 -Pash.versionName=1.0.0 으로 덮는다.
  */
 fun Project.ashVersionName(): String {
     providers.gradleProperty("ash.versionName").orNull?.takeIf { it.isNotBlank() }?.let { return it }
-    val run = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull()
-    return if (run != null) "$ASH_VERSION_BASE-rc.$run" else "$ASH_VERSION_BASE-dev"
+    ashCiRun()?.let { return "$ASH_VERSION_BASE-rc.$it" }
+    return ashBaseRun()?.let { "$ASH_VERSION_BASE-rc.$it-local" } ?: "$ASH_VERSION_BASE-dev"
 }
 
 const val ASH_VERSION_BASE = "1.0.0"

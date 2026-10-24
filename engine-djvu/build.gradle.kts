@@ -31,7 +31,7 @@ android {
         ndk { abiFilters += abis }
         externalNativeBuild {
             cmake {
-                arguments += listOf("-DANDROID_STL=c++_static", "-DASH_THIRD_PARTY=${thirdParty.absolutePath}")
+                arguments += listOf("-DANDROID_STL=c++_static", "-DASH_THIRD_PARTY=${thirdParty.invariantSeparatorsPath}") // Windows 경로도 '/'
                 cppFlags += listOf("-fexceptions", "-frtti")
             }
         }

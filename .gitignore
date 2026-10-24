@@ -19,3 +19,6 @@ captures/
 # 서명 키 (절대 커밋 금지)
 *.jks
 *.keystore
+
+# Claude Code 개인 설정
+.claude/settings.local.json
