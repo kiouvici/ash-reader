@@ -2,7 +2,8 @@
 // Real-CUGAN 2x(ncnn) 화질 향상 JNI. 타일 처리는 nihui/realcugan-ncnn-vulkan(MIT) realcugan.cpp 의 process_cpu
 // (TTA 끔) 흐름을 따른다: 타일 + prepadding 18, 0~1 정규화, in0 → out0.
 // 작업 03: SE 모델은 타일마다 전역 평균(gap0~3)을 따로 잡아 고른 망점에서 타일 경계가 네모로 보였다 →
-// realcugan 의 syncgap=2(빠른 동기화)처럼 쪽 전체를 타일 하나 크기로 줄여 gap 을 한 번 구하고 모든 타일에 넣는다.
+// 쪽 전체에 고르게 고른 원래 크기 타일 몇 개(최대 [kSampleTiles])의 gap 을 넓이로 평균해 모든 타일에 넣는다.
+// (realcugan syncgap=2 처럼 쪽을 줄여 구하면 망점 통계가 달라져 계단(깍두기)이 두드러졌다.)
 // Vulkan 장치가 있고 useGpu=true 이면 ncnn Vulkan 연산, 아니면 CPU(NEON).
 #include <jni.h>
 #include <android/bitmap.h>
@@ -10,6 +11,7 @@
 #include <android/log.h>
 #include <algorithm>
 #include <string>
+#include <vector>
 #include "net.h"
 #include "gpu.h"
 #include "cpu.h"
@@ -27,19 +29,44 @@ struct Upscaler {
 
 const char* const kGap[4] = {"gap0", "gap1", "gap2", "gap3"};
 
-// 쪽 전체를 타일 하나 크기로 줄여 SE 전역 평균 gap0~3 을 구한다(realcugan syncgap=2). 실패하면 false(동기화 없이 처리).
-bool roughGaps(Upscaler* u, const unsigned char* px, int w, int h, int stride, ncnn::Mat gaps[4]) {
-    const int T = u->tile, pre = u->prepadding;
-    const float s = std::min(1.f, (float)T / (float)std::max(w, h));
-    const int sw = std::max(2, (int)(w * s) / 2 * 2), sh = std::max(2, (int)(h * s) / 2 * 2);
-    ncnn::Mat in = ncnn::Mat::from_pixels_resize(px, ncnn::Mat::PIXEL_RGBA2RGB, w, h, stride, sw, sh);
+const int kSampleTiles = 6;
+
+// SE 전역 평균 gap0~3 을 쪽 전체에 고르게 고른 원래 크기 타일들에서 구해 넓이로 평균한다. 실패하면 false(동기화 없이 처리).
+bool sampledGaps(Upscaler* u, const unsigned char* px, int w, int h, int stride, ncnn::Mat gaps[4]) {
+    const int T = u->tile;
+    const int nx = (w + T - 1) / T, ny = (h + T - 1) / T, n = nx * ny;
+    const int step = std::max(1, (n + kSampleTiles - 1) / kSampleTiles);
+    std::vector<float> sum[4];
+    double area = 0;
     const float norm[3] = {1 / 255.f, 1 / 255.f, 1 / 255.f};
-    in.substract_mean_normalize(nullptr, norm);
-    ncnn::Mat padded;
-    ncnn::copy_make_border(in, padded, pre, pre, pre, pre, 2, 0.f, u->net.opt);
-    ncnn::Extractor ex = u->net.create_extractor();
-    ex.input("in0", padded);
-    for (int k = 0; k < 4; k++) if (ex.extract(kGap[k], gaps[k]) != 0) return false;
+    for (int i = step / 2; i < n; i += step) {
+        const int x0 = (i % nx) * T, y0 = (i / nx) * T;
+        const int tw = std::min(T, w - x0) / 2 * 2, th = std::min(T, h - y0) / 2 * 2;
+        if (tw < 2 || th < 2) continue;
+        ncnn::Mat in = ncnn::Mat::from_pixels_roi(px, ncnn::Mat::PIXEL_RGBA2RGB, w, h, stride, x0, y0, tw, th);
+        in.substract_mean_normalize(nullptr, norm);
+        ncnn::Extractor ex = u->net.create_extractor();
+        ex.input("in0", in);
+        const double a = (double)tw * th;
+        for (int k = 0; k < 4; k++) {
+            ncnn::Mat g;
+            if (ex.extract(kGap[k], g) != 0) return false;
+            const size_t cnt = g.total();
+            if (sum[k].empty()) sum[k].assign(cnt, 0.f);
+            if (sum[k].size() != cnt) return false;
+            const float* p = (const float*)g.data;
+            for (size_t j = 0; j < cnt; j++) sum[k][j] += (float)(p[j] * a);
+        }
+        area += a;
+    }
+    if (area <= 0) return false;
+    for (int k = 0; k < 4; k++) {
+        ncnn::Mat g;
+        g.create((int)sum[k].size());
+        float* p = (float*)g.data;
+        for (size_t j = 0; j < sum[k].size(); j++) p[j] = (float)(sum[k][j] / area);
+        gaps[k] = g;
+    }
     return true;
 }
 
@@ -116,7 +143,7 @@ Java_kr_vici_ashreader_engine_comic_NativeComic_upscalerRun(JNIEnv* env, jclass,
     bool ok = true;
     // 타일이 둘 이상일 때만 동기화(한 타일이면 원래 그대로 같은 값)
     ncnn::Mat gaps[4];
-    const bool sync = u->se && (w > T || hgt > T) && roughGaps(u, px, w, hgt, (int)si.stride, gaps);
+    const bool sync = u->se && (w > T || hgt > T) && sampledGaps(u, px, w, hgt, (int)si.stride, gaps);
     for (int yi = 0; ok && yi < (hgt + T - 1) / T; yi++) {
         const int th = std::min((yi + 1) * T, hgt) - yi * T;
         const int preB = pre + ((th + 1) / 2 * 2 - th);
