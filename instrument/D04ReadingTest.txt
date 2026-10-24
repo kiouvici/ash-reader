@@ -1,0 +1,173 @@
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+kr.vici.ashreader.e2e.D04ReadingTest:
+INSTRUMENTATION_STATUS: test=viewSettingsSheet_allTabs
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 사용자화에 '글꼴·줄 간격·여백' 이 없음
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.customItem(E2e.kt:272)
+	at kr.vici.ashreader.e2e.E2eTest.menuItem(E2e.kt:299)
+	at kr.vici.ashreader.e2e.D04ReadingTest.viewSettingsSheet_allTabs(D04ReadingTest.kt:118)
+
+INSTRUMENTATION_STATUS: stream=
+Error in viewSettingsSheet_allTabs(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 사용자화에 '글꼴·줄 간격·여백' 이 없음
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.customItem(E2e.kt:272)
+	at kr.vici.ashreader.e2e.E2eTest.menuItem(E2e.kt:299)
+	at kr.vici.ashreader.e2e.D04ReadingTest.viewSettingsSheet_allTabs(D04ReadingTest.kt:118)
+
+INSTRUMENTATION_STATUS: test=viewSettingsSheet_allTabs
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=tapGuide_tapZones_swipe_curl
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 사용자화에 '넘김 효과·자동 넘김' 이 없음
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.customItem(E2e.kt:272)
+	at kr.vici.ashreader.e2e.E2eTest.menuItem(E2e.kt:299)
+	at kr.vici.ashreader.e2e.D04ReadingTest.tapGuide_tapZones_swipe_curl(D04ReadingTest.kt:67)
+
+INSTRUMENTATION_STATUS: stream=
+Error in tapGuide_tapZones_swipe_curl(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 사용자화에 '넘김 효과·자동 넘김' 이 없음
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.customItem(E2e.kt:272)
+	at kr.vici.ashreader.e2e.E2eTest.menuItem(E2e.kt:299)
+	at kr.vici.ashreader.e2e.D04ReadingTest.tapGuide_tapZones_swipe_curl(D04ReadingTest.kt:67)
+
+INSTRUMENTATION_STATUS: test=tapGuide_tapZones_swipe_curl
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=search_toc_jump
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=search_toc_jump
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=rotation_keepsReaderAndPosition
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 문서가 60초 안에 열리지 않음
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.waitOpened(E2e.kt:187)
+	at kr.vici.ashreader.e2e.E2eTest.waitPage(E2e.kt:192)
+	at kr.vici.ashreader.e2e.E2eTest.waitPage$default(E2e.kt:191)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_keepsReaderAndPosition(D04ReadingTest.kt:110)
+
+INSTRUMENTATION_STATUS: stream=
+Error in rotation_keepsReaderAndPosition(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 문서가 60초 안에 열리지 않음
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.waitOpened(E2e.kt:187)
+	at kr.vici.ashreader.e2e.E2eTest.waitPage(E2e.kt:192)
+	at kr.vici.ashreader.e2e.E2eTest.waitPage$default(E2e.kt:191)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_keepsReaderAndPosition(D04ReadingTest.kt:110)
+
+INSTRUMENTATION_STATUS: test=rotation_keepsReaderAndPosition
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=listen_tts_opens
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 사용자화에 '듣기' 이 없음
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.customItem(E2e.kt:272)
+	at kr.vici.ashreader.e2e.E2eTest.menuItem(E2e.kt:299)
+	at kr.vici.ashreader.e2e.D04ReadingTest.listen_tts_opens(D04ReadingTest.kt:163)
+
+INSTRUMENTATION_STATUS: stream=
+Error in listen_tts_opens(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 사용자화에 '듣기' 이 없음
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.customItem(E2e.kt:272)
+	at kr.vici.ashreader.e2e.E2eTest.menuItem(E2e.kt:299)
+	at kr.vici.ashreader.e2e.D04ReadingTest.listen_tts_opens(D04ReadingTest.kt:163)
+
+INSTRUMENTATION_STATUS: test=listen_tts_opens
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=infoLine_clearOfText_firstSpread
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=infoLine_clearOfText_firstSpread
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=autoTurn_starts_and_stops
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 사용자화에 '넘김 효과·자동 넘김' 이 없음
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.customItem(E2e.kt:272)
+	at kr.vici.ashreader.e2e.E2eTest.menuItem(E2e.kt:299)
+	at kr.vici.ashreader.e2e.D04ReadingTest.autoTurn_starts_and_stops(D04ReadingTest.kt:304)
+
+INSTRUMENTATION_STATUS: stream=
+Error in autoTurn_starts_and_stops(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 사용자화에 '넘김 효과·자동 넘김' 이 없음
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.customItem(E2e.kt:272)
+	at kr.vici.ashreader.e2e.E2eTest.menuItem(E2e.kt:299)
+	at kr.vici.ashreader.e2e.D04ReadingTest.autoTurn_starts_and_stops(D04ReadingTest.kt:304)
+
+INSTRUMENTATION_STATUS: test=autoTurn_starts_and_stops
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=8
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=bookmark_memo_highlight
+INSTRUMENTATION_STATUS_CODE: 1
