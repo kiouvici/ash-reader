@@ -63,6 +63,8 @@ class EpubImageUpscale(context: Context, private val doc: MupdfReaderDoc) : Clos
     private val pages = ConcurrentHashMap<Int, List<Item>>()
     private val queued: MutableSet<Int> = ConcurrentHashMap.newKeySet()
     private val kinds by lazy { buildIndex(doc.sourceFile) }
+    /** 판정에 쓸 쪽 그림의 최소 폭: 화면 짧은 변의 35%(두 쪽 펼침 한 쪽은 넘고, 1/3 미리보기는 못 넘는다). */
+    private val minJudgeWidth = app.resources.displayMetrics.let { (minOf(it.widthPixels, it.heightPixels) * 0.35f).toInt() }
 
     private val versionState = MutableStateFlow(0)
     /** 처리된 그림이 늘 때마다 1씩 커진다(화면이 다시 그린다). */
@@ -75,7 +77,12 @@ class EpubImageUpscale(context: Context, private val doc: MupdfReaderDoc) : Clos
     fun decorate(index: Int, raw: Bitmap) {
         if (closed) return
         val items = pages[index]
-        if (items == null) { request(index, raw.width, raw.height); request(index + 1, raw.width, raw.height); return }
+        if (items == null) {
+            // 넘김 화면의 미리보기(쪽 1/3)·쪽 미리보기 그림 같은 작은 그림으로는 판정하지 않는다 — 화면에서 크게 보이는지를
+            // 작은 크기로 재면 작은 그림이 대상에서 빠진 채로 굳는다(작업 03)
+            if (raw.width >= minJudgeWidth) { request(index, raw.width, raw.height); request(index + 1, raw.width, raw.height) }
+            return
+        }
         if (items.isEmpty()) return
         val c = Canvas(raw)
         val p = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)

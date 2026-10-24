@@ -334,6 +334,8 @@ class MupdfReaderDoc(
             val dw = minOf(w.toFloat(), h / a)
             val rawW = (dw / (box.r - box.l)).toInt().coerceIn(1, 4096)
             val full = synchronized(lock) { doc.renderPage(index, rawW) }
+            // 문서 그림 AI(작업 03): 여백을 자르는 PDF 도 자르기 전 쪽 전체에 덧그린다(그림 위치가 쪽 전체 기준)
+            imageUpscale?.let { up -> runCatching { up.decorate(index, full) } }
             val keep = if (colors.keepImages && themeFilter(colors) != null) MarginCrop.mapRects(keepRects(index), box) else null
             return fitInto(MarginCrop.cut(full, box), w, h, colors, applyTheme = true, keep = keep)
         }
