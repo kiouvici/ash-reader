@@ -314,6 +314,15 @@ fun ReaderScreen(
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
     val colors = s.readingColors()
+    // 서재 검색에서 책을 열면 글자판이 읽기 화면에 남아 메뉴·누르는 자리를 가렸다(CI D04) — 책을 열 때 닫는다
+    run {
+        val act = LocalContext.current as? Activity
+        LaunchedEffect(target.id) {
+            val w = act?.window ?: return@LaunchedEffect
+            (act.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                ?.hideSoftInputFromWindow(w.decorView.windowToken, 0)
+        }
+    }
     var menu by remember { mutableStateOf(false) }
     // 필수 2: 회전·복원에도 읽던 쪽 유지
     var page by rememberSaveable(target.id) { mutableIntStateOf(target.startPage) }
