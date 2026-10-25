@@ -32,7 +32,15 @@ class H08RestoreTest : E2eTest() {
         waitPage()
         dismissTapGuide()
         repeat(3) { tap(0.9f, 0.5f) }
-        val before = page()
+        // 마지막 넘김(애니메이션)이 끝나 쪽 번호가 멈춘 뒤에 읽는다 — 두 쪽 펼침은 2쪽씩 넘어가 5 → 7 처럼 늦게 바뀐다(CI land-b)
+        var before = page()
+        val settle = SystemClock.uptimeMillis() + 5_000
+        while (SystemClock.uptimeMillis() < settle) {
+            SystemClock.sleep(700)
+            val p = page()
+            if (p == before) break
+            before = p
+        }
         shot("before-home")
         shell("settings put global always_finish_activities 1")
         device.pressHome()
