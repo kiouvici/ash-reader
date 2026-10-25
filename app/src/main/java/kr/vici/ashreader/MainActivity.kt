@@ -3,6 +3,7 @@ package kr.vici.ashreader
 
 import android.app.Activity
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -31,9 +32,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.SavedStateHandle
@@ -77,6 +80,11 @@ import kr.vici.ashreader.ui.NextVolumeSheet
 import kr.vici.ashreader.ui.ReaderScreen
 import kr.vici.ashreader.ui.ReaderTarget
 import kr.vici.ashreader.ui.FloatingNavBar
+import kr.vici.ashreader.ui.HeaderNav
+import kr.vici.ashreader.doc.BookMeta
+import kr.vici.ashreader.doc.Covers
+import kr.vici.ashreader.ui.BookInfoScreen
+import kr.vici.ashreader.ui.MetaAskDialog
 import kr.vici.ashreader.ui.SeriesScreen
 import kr.vici.ashreader.ui.StatsScreen
 import kr.vici.ashreader.ui.VolumeKeys
@@ -98,6 +106,8 @@ internal sealed interface Screen {
     data object BackupImport : Screen
     /** S-15 서점 바로가기 편집 */
     data object StoreEdit : Screen
+    /** 작업 06 책 정보(지은이·출판사·표지 찾기·고치기) */
+    data class BookInfo(val id: String) : Screen
 }
 
 /**
@@ -168,6 +178,7 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
                 Screen.BackupImport -> putString("k", "backupImport")
                 is Screen.Folders -> { putString("k", "folders"); putBoolean("intro", sc.intro) }
                 is Screen.Series -> { putString("k", "series"); putString("key", sc.key) }
+                is Screen.BookInfo -> { putString("k", "bookInfo"); putString("id", sc.id) }
                 is Screen.Reader -> {
                     putString("k", "reader")
                     val t = sc.target
@@ -191,6 +202,7 @@ internal class NavModel(private val h: SavedStateHandle) : ViewModel() {
             "backupImport" -> Screen.BackupImport
             "folders" -> Screen.Folders(b.getBoolean("intro"))
             "series" -> b.getString("key")?.let { Screen.Series(it) }
+            "bookInfo" -> b.getString("id")?.let { Screen.BookInfo(it) }
             "reader" -> {
                 val id = b.getString("id"); val path = b.getString("path")
                 if (id.isNullOrEmpty() || path.isNullOrEmpty()) null
@@ -227,7 +239,11 @@ class MainActivity : ComponentActivity() {
             val app = ash
             app.appScope.launch { runCatching { app.library.sweep(app.prefs.settings.first().clearOnceOnExit) } }
         }
-        setContent { AshTheme { AshRoot(nav) } }
+        setContent {
+            // 작업 06: 앱 테마(시스템/밝게/어둡게)
+            val st by (application as AshApp).prefs.settings.collectAsState(initial = null)
+            AshTheme(st?.appTheme ?: 0) { AshRoot(nav) }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -302,6 +318,10 @@ private fun AshRoot(nav: NavModel) {
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
     val settings by app.prefs.settings.collectAsState(initial = Settings())
+    // 작업 06: 앱 전체 설정 중 화면 여러 곳이 읽는 값(시리즈 자동 묶기·두 번 탭 확대 배율)
+    SeriesGroups.autoEnabled = settings.seriesAuto
+    kr.vici.ashreader.ui.ViewDefaults.doubleTap = settings.doubleTapZoom
+    kr.vici.ashreader.ui.ViewDefaults.suggestWebtoon = settings.webtoonSuggest
     val books by remember { dao.recent() }.collectAsState(initial = emptyList())
     // 필수 2: 화면 상태는 ViewModel(SavedStateHandle)에 — 회전해도 읽기 화면·한 번만 보기 문서가 유지된다
     var nextVol by remember { mutableStateOf<Pair<Book, Book>?>(null) }
@@ -344,6 +364,16 @@ private fun AshRoot(nav: NavModel) {
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (ready && nav.screen !is Screen.StorageIntro) scan() }
 
+    // 작업 06 책 정보: 아직 찾지 않은 책을 조금씩 채운다(1순위 파일 정보 → 설정·연결이 허락하면 2순위 인터넷 자동 매칭).
+    // 한 번에 40권씩 — 끝나면 DB 가 바뀌어 남은 책 수가 줄고 다시 돈다. 남은 책이 없으면 아무것도 안 한다.
+    val pendingMeta = books.count { it.metaCheckedAt == 0L }
+    LaunchedEffect(ready, pendingMeta, settings.metaNet, settings.metaAuto) {
+        if (!ready || pendingMeta == 0) return@LaunchedEffect
+        kotlinx.coroutines.delay(2_000)
+        val st = settings
+        app.appScope.launch { runCatching { BookMeta.autoFill(context.applicationContext, dao, st, dao.visibleBooks()) } }
+    }
+
     /**
      * 파일 접근 허용됨(S-02) → 서재 폴더 고르기(S-17). 예전처럼 Download 만 몰래 넣지 않고 사용자가 고른다
      * (Download 는 그 화면의 '바로 추가' 한 번으로).
@@ -356,10 +386,22 @@ private fun AshRoot(nav: NavModel) {
     }
 
     var exportFor by remember { mutableStateOf<String?>(null) }
+    /** 서재에서 아래 '서재'를 다시 누른 횟수(첫 화면으로 돌아가기, 작업 06). */
+    var libHome by rememberSaveable { mutableStateOf(0) }
     var exportAll by remember { mutableStateOf(false) }
     /** S-46 압축 파일 안 고르기: 압축 파일·식별값·한 번만 보기 여부·안의 문서들. */
     var zipPick by remember { mutableStateOf<ZipPick?>(null) }
     var zipEmpty by remember { mutableStateOf(false) }
+
+    /**
+     * 처음 보기 방식: 이미 열어 본 책은 그 책의 방식, 처음 여는 한글·Word 는 설정 '처음 열 때'(작업 06), 그 밖은 원본.
+     */
+    fun startView(b: Book?, f: DocFormat): Int = when {
+        b != null && b.lastOpenedAt > 0 -> b.viewMode
+        f.group == kr.vici.ashreader.data.FormatGroup.HWP || f.group == kr.vici.ashreader.data.FormatGroup.WORD ->
+            if (settings.docDefaultView == 1) Book.VIEW_EBOOK else Book.VIEW_ORIGINAL
+        else -> b?.viewMode ?: Book.VIEW_ORIGINAL
+    }
 
     /** 압축 안 문서를 연다(서재 기록이 있으면 그 기록으로 이어 읽기). */
     fun openInner(z: ZipPick, item: LibraryRepo.ZipItem) {
@@ -367,8 +409,8 @@ private fun AshRoot(nav: NavModel) {
         scope.launch {
             runCatching { app.library.openInner(z.file, z.zipId, item, z.once) }.onSuccess { (o, b) ->
                 nav.screen = if (b != null) Screen.Reader(
-                    ReaderTarget(b.id, b.title, o.file.absolutePath, DocFormat.of(b.format), b.lastPage, false, b.viewMode, b.pageCount, b.textEncoding), null,
-                ) else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true), o)
+                    ReaderTarget(b.id, b.title, o.file.absolutePath, DocFormat.of(b.format), b.lastPage, false, startView(b, DocFormat.of(b.format)), b.pageCount, b.textEncoding), null,
+                ) else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true, viewMode = startView(null, o.format)), o)
             }.onFailure { e -> snack.showSnackbar(e.message ?: "압축 안 문서를 열 수 없어요.") }
         }
     }
@@ -393,7 +435,7 @@ private fun AshRoot(nav: NavModel) {
                 val f = DocFormat.of(b.format)
                 if (f == DocFormat.ZIP) { dao.touch(b.id); openZip(File(p), b.id, b.title, once = false); return@onSuccess }
                 nav.screen = Screen.Reader(
-                    ReaderTarget(b.id, b.title, p, f, b.lastPage, once = false, viewMode = b.viewMode, startCount = b.pageCount, textEncoding = b.textEncoding), null,
+                    ReaderTarget(b.id, b.title, p, f, b.lastPage, once = false, viewMode = startView(b, f), startCount = b.pageCount, textEncoding = b.textEncoding), null,
                 )
             }.onFailure { e -> snack.showSnackbar(e.message ?: "파일을 열 수 없어요.") }
         }
@@ -428,10 +470,10 @@ private fun AshRoot(nav: NavModel) {
             val libPath = existing?.takeIf { it.origin != Book.ORIGIN_SAF }?.let { e -> runCatching { app.library.localPath(e) }.getOrNull() }
             if (existing != null && libPath != null) app.library.discardOnce(o)
             nav.screen = if (existing != null) Screen.Reader(
-                ReaderTarget(existing.id, existing.title, libPath ?: o.file.absolutePath, DocFormat.of(existing.format), existing.lastPage, false, existing.viewMode, existing.pageCount, existing.textEncoding),
+                ReaderTarget(existing.id, existing.title, libPath ?: o.file.absolutePath, DocFormat.of(existing.format), existing.lastPage, false, startView(existing, DocFormat.of(existing.format)), existing.pageCount, existing.textEncoding),
                 if (libPath == null) o else null,
             )
-            else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true), o)
+            else Screen.Reader(ReaderTarget(o.id, o.title, o.file.absolutePath, o.format, 0, once = true, viewMode = startView(null, o.format)), o)
         }.onFailure { e ->
             // 취소(새 문서를 받음·화면 재생성)는 실패가 아니다 — 받은편지함에 남겨 다시 처리한다
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -448,6 +490,8 @@ private fun AshRoot(nav: NavModel) {
     when (val sc = nav.screen) {
         is Screen.Reader -> {
             BackHandler { nav.screen = nav.tab }
+            // 읽는 동안 서재 표지 뽑기·책 정보 채우기는 쉰다(CPU 를 읽기 화면에)
+            DisposableEffect(Unit) { Covers.reading.value = true; onDispose { Covers.reading.value = false } }
             val bookId = sc.target.id
             // 필수 5: 한 번만 보기 문서를 닫으면(회전은 제외) 변환 캐시·사본 정리. 암호도 메모리에서 지운다.
             val activity = context as? Activity
@@ -552,13 +596,19 @@ private fun AshRoot(nav: NavModel) {
                 },
             )
         }
-        else -> Scaffold(
+        else -> {
+        // 작업 05·06: 위 탭과 같은 모양의 떠 있는 막대. 서재 가로 화면은 제목 줄 오른쪽으로 옮긴다(세로 공간 확보)
+        val tabs = listOf(Screen.Library, Screen.Stats, Screen.Settings)
+        fun pickTab(i: Int) {
+            if (tabs[i] == Screen.Library && nav.screen == Screen.Library) libHome++ // 서재에서 다시 누르면 첫 화면으로
+            nav.tab = tabs[i]; nav.screen = tabs[i]
+        }
+        val land = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+        Scaffold(
             snackbarHost = { SnackbarHost(snack) },
             bottomBar = {
-                // 작업 05: 위 탭과 같은 모양의 떠 있는 막대
-                val tabs = listOf(Screen.Library, Screen.Stats, Screen.Settings)
-                FloatingNavBar(listOf("서재" to Icons.Library, "독서 기록" to Icons.Chart, "설정" to Icons.Gear), tabs.indexOf(nav.tab)) { i ->
-                    nav.tab = tabs[i]; nav.screen = tabs[i]
+                if (!(land && sc == Screen.Library)) {
+                    FloatingNavBar(listOf("서재" to Icons.Library, "독서 기록" to Icons.Chart, "설정" to Icons.Gear), tabs.indexOf(nav.tab), ::pickTab)
                 }
             },
         ) { pad ->
@@ -569,14 +619,14 @@ private fun AshRoot(nav: NavModel) {
                         onSeries = { nav.screen = Screen.Series(it) },
                         onRemove = { b -> scope.launch { app.library.remove(b) } },
                         stores = stores, scanning = scanning,
-                        onRefresh = { scan(force = true) },
-                        onFolders = { nav.screen = Screen.Folders(intro = false) },
                         onStoreEdit = { nav.screen = Screen.StoreEdit },
                         onExport = { b -> exportFor = b.id },
                         showStores = settings.showStores,
-                        sort = settings.libSort, sortDesc = settings.libSortDesc,
-                        onSort = { o, d -> change { it.copy(libSort = o, libSortDesc = d) } },
                         folderRoots = allFolders.filter { it.include }.map { it.label },
+                        homeKey = libHome,
+                        navBar = if (land) { { HeaderNav(listOf("서재", "독서 기록", "설정"), 0, ::pickTab) } } else null,
+                        onBookInfo = { b -> nav.screen = Screen.BookInfo(b.id) },
+                        listMode = settings.libList, seriesAuto = settings.seriesAuto,
                     )
                     Screen.Stats -> {
                         val since = remember { statsSince() }
@@ -610,6 +660,11 @@ private fun AshRoot(nav: NavModel) {
                     Screen.Licenses -> {
                         BackHandler { nav.screen = Screen.Settings }
                         LicensesScreen(onBack = { nav.screen = Screen.Settings })
+                    }
+                    is Screen.BookInfo -> {
+                        val b = books.firstOrNull { it.id == sc.id }
+                        if (b == null) LaunchedEffect(Unit) { nav.screen = Screen.Library }
+                        else BookInfoScreen(b, books, settings, onSettings = ::change, onBack = { nav.screen = Screen.Library })
                     }
                     is Screen.Series -> {
                         BackHandler { nav.screen = Screen.Library }
@@ -652,7 +707,13 @@ private fun AshRoot(nav: NavModel) {
             exportFor?.let { id -> ExportSheet(bookId = id) { exportFor = null } }
             if (exportAll) ExportSheet(bookId = null) { exportAll = false }
         }
+        }
     }
+    // 작업 06 C: 처음 서재를 열 때 한 번 묻기(기본 꺼짐)
+    if (ready && !settings.metaAsked && books.isNotEmpty() && nav.screen == Screen.Library) MetaAskDialog(
+        onOn = { change { it.copy(metaNet = true, metaAsked = true) } },
+        onLater = { change { it.copy(metaAsked = true) } },
+    )
     zipPick?.let { z -> ZipPickSheet(z.title, z.items, onPick = { openInner(z, it) }, onDismiss = { zipPick = null }) }
     if (zipEmpty) androidx.compose.material3.AlertDialog(
         onDismissRequest = { zipEmpty = false },

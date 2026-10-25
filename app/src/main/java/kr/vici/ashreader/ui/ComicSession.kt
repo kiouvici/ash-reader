@@ -164,7 +164,7 @@ fun ComicSessionEffects(
     var judged by remember(cs) { mutableStateOf(false) }
     val doneKey = ext?.done?.coerceAtMost(10)
     LaunchedEffect(cs, doneKey, ext?.finished) {
-        if (judged || p.webtoonAsked || p.webtoon) return@LaunchedEffect
+        if (judged || p.webtoonAsked || p.webtoon || !ViewDefaults.suggestWebtoon) return@LaunchedEffect
         val sizes = withContext(Dispatchers.IO) { cs.doc.sizes(10) }
         if (sizes.any { it == null } && ext != null && !ext.finished) return@LaunchedEffect // 앞쪽이 풀리면 다시
         judged = true

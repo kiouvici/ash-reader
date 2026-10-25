@@ -20,9 +20,22 @@ import org.gradle.api.tasks.TaskAction
 import org.w3c.dom.Element
 
 // ---------------------------------------------------------------------------
-// N-05 ①: 병합된 매니페스트에 INTERNET 권한이 있으면 빌드 실패
+// N-05 ①(작업 06·D-024 로 바뀜): 병합된 매니페스트에 위험 권한이 있으면 빌드 실패.
+// 본 앱은 책 정보 찾기(인터넷, 기본 꺼짐)를 위해 INTERNET 만 허용하고, 측정 앱은 지금처럼 INTERNET 도 금지.
 // ---------------------------------------------------------------------------
-abstract class CheckNoInternetPermissionTask : DefaultTask() {
+
+/** 어느 앱에도 넣지 않는 권한(위치·카메라·마이크·연락처·전화·문자·달력·신체·주변 기기·미디어 위치). */
+val ASH_FORBIDDEN_PERMISSIONS = listOf(
+    "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "ACCESS_BACKGROUND_LOCATION", "ACCESS_MEDIA_LOCATION",
+    "CAMERA", "RECORD_AUDIO", "READ_CONTACTS", "WRITE_CONTACTS", "GET_ACCOUNTS",
+    "READ_PHONE_STATE", "READ_PHONE_NUMBERS", "CALL_PHONE", "READ_CALL_LOG", "WRITE_CALL_LOG", "PROCESS_OUTGOING_CALLS", "ANSWER_PHONE_CALLS",
+    "SEND_SMS", "RECEIVE_SMS", "READ_SMS", "RECEIVE_MMS", "RECEIVE_WAP_PUSH",
+    "READ_CALENDAR", "WRITE_CALENDAR", "BODY_SENSORS", "BODY_SENSORS_BACKGROUND", "ACTIVITY_RECOGNITION",
+    "NEARBY_WIFI_DEVICES", "BLUETOOTH_SCAN", "BLUETOOTH_CONNECT", "BLUETOOTH_ADVERTISE", "UWB_RANGING",
+    "READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO", "READ_MEDIA_AUDIO", "READ_MEDIA_VISUAL_USER_SELECTED",
+).map { "android.permission.$it" }
+
+abstract class CheckPermissionsTask : DefaultTask() {
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val mergedManifest: RegularFileProperty
@@ -30,12 +43,16 @@ abstract class CheckNoInternetPermissionTask : DefaultTask() {
     @get:Input
     abstract val variantName: Property<String>
 
+    /** true = INTERNET 허용(본 앱, 책 정보 찾기). */
+    @get:Input
+    abstract val allowInternet: Property<Boolean>
+
     @get:OutputFile
     abstract val report: RegularFileProperty
 
     @TaskAction
     fun check() {
-        val forbidden = setOf("android.permission.INTERNET")
+        val forbidden = ASH_FORBIDDEN_PERMISSIONS.toSet() + if (allowInternet.get()) emptySet() else setOf("android.permission.INTERNET")
         val manifestFile = mergedManifest.get().asFile
         val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
         val doc = factory.newDocumentBuilder().parse(manifestFile)
@@ -56,39 +73,100 @@ abstract class CheckNoInternetPermissionTask : DefaultTask() {
                 "N-05 위반 [${variantName.get()}]: 병합된 매니페스트에 금지 권한이 있습니다.\n" +
                     found.joinToString("\n") { "  - $it" } +
                     "\n매니페스트: ${manifestFile.absolutePath}\n" +
-                    "INTERNET 권한을 끌어온 라이브러리를 찾아 의존성에서 제거하세요. " +
+                    "그 권한을 끌어온 라이브러리를 찾아 의존성에서 제거하세요. " +
                     "tools:node=\"remove\" 로 숨기지 않습니다 (M-14).",
             )
         }
-        out.writeText("OK: ${forbidden.joinToString()} 없음\n")
-        logger.lifecycle("N-05 권한 검사 통과 [${path}]: INTERNET 권한 없음")
+        out.writeText("OK: 금지 권한 ${forbidden.size}개 없음" + (if (allowInternet.get()) " (INTERNET 허용)" else "") + "\n")
+        logger.lifecycle("N-05 권한 검사 통과 [${path}]: 금지 권한 없음" + if (allowInternet.get()) " · INTERNET 은 책 정보 찾기용 허용" else " · INTERNET 없음")
     }
 }
 
 /** 변형 하나에 대한 검사 태스크 등록. androidComponents.onVariants 안에서 부른다. */
-fun Project.registerNoInternetCheck(variantName: String, mergedManifest: Provider<RegularFile>) {
+fun Project.registerPermissionCheck(variantName: String, mergedManifest: Provider<RegularFile>, allowInternet: Boolean) {
     val cap = variantName.replaceFirstChar { it.uppercase() }
-    tasks.register("check${cap}NoInternetPermission", CheckNoInternetPermissionTask::class.java) {
+    tasks.register("check${cap}Permissions", CheckPermissionsTask::class.java) {
         group = "verification"
-        description = "$variantName 병합 매니페스트에 INTERNET 권한이 없는지 검사 (N-05 ①)"
+        description = "$variantName 병합 매니페스트에 금지 권한이 없는지 검사 (N-05 ①)"
         this.mergedManifest.set(mergedManifest)
         this.variantName.set(variantName)
+        this.allowInternet.set(allowInternet)
         report.set(layout.buildDirectory.file("reports/permission-check/$variantName.txt"))
     }
 }
 
 /** 모든 변형의 assemble<Variant> 와 check 에 검사 태스크를 연결 (태스크 이름으로 지연 연결). */
-fun Project.wireNoInternetChecks() {
+fun Project.wirePermissionChecks() {
     tasks.configureEach {
         val match = Regex("^assemble([A-Z][A-Za-z0-9]*)$").find(name)
         if (match != null) {
-            val checkName = "check${match.groupValues[1]}NoInternetPermission"
+            val checkName = "check${match.groupValues[1]}Permissions"
             dependsOn(tasks.matching { it.name == checkName })
         }
         if (name == "check") {
-            dependsOn(tasks.matching { it.name.endsWith("NoInternetPermission") })
+            dependsOn(tasks.matching { it.name.endsWith("Permissions") && it.name.startsWith("check") && it.name != "check" })
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// N-05 ⑤(작업 06): 네트워크 호출은 책 정보 모듈 한 곳(app/…/kr/vici/ashreader/net/)에서만.
+// 모든 모듈의 Kotlin·Java 소스에서 네트워크 API 를 쓰는 줄을 찾아 그 폴더 밖이면 빌드 실패.
+// ---------------------------------------------------------------------------
+abstract class CheckNetworkConfinedTask : DefaultTask() {
+    /** 검사할 소스 뿌리들(모듈마다 src/main/java). */
+    @get:Input
+    abstract val roots: org.gradle.api.provider.ListProperty<String>
+
+    /** 네트워크를 써도 되는 폴더(절대 경로). */
+    @get:Input
+    abstract val allowedDir: Property<String>
+
+    @get:OutputFile
+    abstract val report: RegularFileProperty
+
+    @TaskAction
+    fun check() {
+        val net = Regex(
+            "import\\s+java\\.net\\.(URL|HttpURLConnection|Socket|ServerSocket|DatagramSocket|InetAddress|InetSocketAddress)\\b|" +
+                "import\\s+javax\\.net\\b|java\\.net\\.(URL|HttpURLConnection|Socket)\\b|" +
+                "\\bHttpsURLConnection\\b|\\bopenConnection\\s*\\(|\\bokhttp3\\b|\\bio\\.ktor\\b|\\bretrofit2\\b|\\bandroid\\.webkit\\b|\\bWebView\\b",
+        )
+        val allowed = File(allowedDir.get()).canonicalFile
+        val bad = mutableListOf<String>()
+        for (r in roots.get()) {
+            val root = File(r)
+            if (!root.isDirectory) continue
+            root.walkTopDown().filter { it.isFile && (it.extension == "kt" || it.extension == "java") }.forEach { f ->
+                if (f.canonicalFile.startsWith(allowed)) return@forEach
+                f.readLines().forEachIndexed { i, line ->
+                    val code = line.substringBefore("//")
+                    if (net.containsMatchIn(code)) bad += "${f.path}:${i + 1}: ${line.trim()}"
+                }
+            }
+        }
+        val out = report.get().asFile
+        out.parentFile.mkdirs()
+        if (bad.isNotEmpty()) {
+            out.writeText("FAIL\n" + bad.joinToString("\n") + "\n")
+            throw GradleException("N-05 위반 [네트워크]: 책 정보 모듈(${allowed.path}) 밖에서 네트워크를 씁니다.\n" + bad.joinToString("\n") { "  - $it" })
+        }
+        out.writeText("OK\n")
+        logger.lifecycle("N-05 네트워크 검사 통과: 네트워크 호출은 ${allowed.name}/ 에만 있음")
+    }
+}
+
+/** 루트 아래 모든 모듈의 src/main/java 를 검사하는 :app:checkNetworkConfined 등록. */
+fun Project.registerNetworkConfinedCheck(allowedDir: File) {
+    val t = tasks.register("checkNetworkConfined", CheckNetworkConfinedTask::class.java) {
+        group = "verification"
+        description = "네트워크 호출이 책 정보 모듈에만 있는지 검사 (N-05 ⑤)"
+        roots.set(rootProject.rootDir.listFiles().orEmpty().filter { File(it, "src/main/java").isDirectory }.map { File(it, "src/main/java").path })
+        this.allowedDir.set(allowedDir.path)
+        report.set(layout.buildDirectory.file("reports/permission-check/network.txt"))
+        outputs.upToDateWhen { false }
+    }
+    tasks.configureEach { if (name == "check" || name.startsWith("assemble")) dependsOn(t) }
 }
 
 // ---------------------------------------------------------------------------
@@ -118,6 +196,11 @@ object AshSigning {
         File(path).takeIf { it.exists() }?.let { AshKey(it, storePw, alias, storePw) }
     }
 }
+
+/** 작업 06: 비밀 값(책 정보 Open API 키) — 환경변수 [env] → local.properties 의 [name] → 빈 값. 값은 로그에 쓰지 않는다. */
+fun Project.ashSecret(name: String, env: String): String =
+    providers.environmentVariable(env).orNull?.takeIf { it.isNotBlank() }
+        ?: rootProject.file("local.properties").takeIf { it.isFile }?.let { f -> java.util.Properties().apply { f.inputStream().use { load(it) } }.getProperty(name) }.orEmpty()
 
 private fun Project.ashCiRun(): Int? =
     providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull()

@@ -50,9 +50,14 @@ private val Dark = darkColorScheme(
     error = Color(0xFFF2B8B5),
 )
 
+/**
+ * 앱 화면 테마(작업 06): [mode] 0 = 시스템, 1 = 밝게, 2 = 어둡게. 읽기 화면 종이 색(ReadTheme)과는 따로다.
+ * ('배경화면 색 따르기'는 대표님 결정으로 뺌. 어둡게의 화면별 색은 다크 모드 목업을 받은 뒤 맞춘다.)
+ */
 @Composable
-fun AshTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) Dark else Light, content = content)
+fun AshTheme(mode: Int = 0, content: @Composable () -> Unit) {
+    val dark = when (mode) { 1 -> false; 2 -> true; else -> isSystemInDarkTheme() }
+    MaterialTheme(colorScheme = if (dark) Dark else Light, content = content)
 }
 
 /** 나눔명조(번들) — 서재 제목·Aa 미리보기에 쓴다. */

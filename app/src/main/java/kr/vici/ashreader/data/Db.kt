@@ -51,7 +51,26 @@ data class Book(
     @ColumnInfo(defaultValue = "0") val hidden: Int = 0,
     /** 시리즈 묶기(F-62): [SERIES_AUTO] 파일명으로 자동 / [SERIES_MANUAL] 직접 묶음([seriesKey] = 묶음 이름) / [SERIES_EXCLUDED] 묶기 풀기·시리즈에서 뺌. */
     @ColumnInfo(defaultValue = "0") val seriesManual: Int = SERIES_AUTO,
+    // ── 책 정보(작업 06, 판 7). 파일은 고치지 않고 서재 정보만 바꾼다. ──
+    /** 보일 제목(파일 정보·인터넷·직접). "" = 파일 이름 제목([title]). */
+    @ColumnInfo(defaultValue = "''") val infoTitle: String = "",
+    @ColumnInfo(defaultValue = "''") val author: String = "",
+    @ColumnInfo(defaultValue = "''") val publisher: String = "",
+    @ColumnInfo(defaultValue = "''") val isbn: String = "",
+    /** 표지 출처: [COVER_AUTO] 파일 속 표지·첫 쪽(지금처럼) / [COVER_FIRST_PAGE] / [COVER_INTERNET] / [COVER_FILE_IMAGE] / [COVER_PHOTO]. */
+    @ColumnInfo(defaultValue = "0") val coverSource: Int = COVER_AUTO,
+    /** 지은이·출판사 출처: [META_NONE] / [META_FILE] 파일 속 정보 / [META_NET_AUTO] 인터넷 자동 / [META_NET_PICKED] 인터넷 직접 고름 / [META_USER] 직접 입력. */
+    @ColumnInfo(defaultValue = "0") val metaSource: Int = META_NONE,
+    /** 인터넷 자동 매칭 일치도(0~100). */
+    @ColumnInfo(defaultValue = "0") val matchScore: Int = 0,
+    /** 자동으로 바꾸지 못해 '확인 필요' 작은 표시. */
+    @ColumnInfo(defaultValue = "0") val needsReview: Boolean = false,
+    /** 마지막으로 책 정보를 찾은 때(0 = 아직). 다시 찾지 않게. */
+    @ColumnInfo(defaultValue = "0") val metaCheckedAt: Long = 0,
 ) {
+    /** 화면에 보일 제목. */
+    val shownTitle: String get() = infoTitle.ifBlank { title }
+
     companion object {
         const val TO_READ = 0
         const val READING = 1
@@ -72,6 +91,16 @@ data class Book(
         const val SERIES_AUTO = 0
         const val SERIES_MANUAL = 1
         const val SERIES_EXCLUDED = 2
+        const val COVER_AUTO = 0
+        const val COVER_FIRST_PAGE = 1
+        const val COVER_INTERNET = 2
+        const val COVER_FILE_IMAGE = 3
+        const val COVER_PHOTO = 4
+        const val META_NONE = 0
+        const val META_FILE = 1
+        const val META_NET_AUTO = 2
+        const val META_NET_PICKED = 3
+        const val META_USER = 4
     }
 }
 
@@ -186,6 +215,31 @@ interface BookDao {
     /** 시리즈 직접 묶기·풀기(F-62). */
     @Query("UPDATE book SET seriesKey = :key, seriesManual = :mode WHERE id = :id")
     suspend fun setSeries(id: String, key: String, mode: Int)
+
+    /** 책 정보 바꾸기(작업 06). 파일은 그대로, 서재 정보만. */
+    @Query(
+        "UPDATE book SET infoTitle = :title, author = :author, publisher = :publisher, isbn = :isbn, metaSource = :source, " +
+            "matchScore = :score, needsReview = :review, metaCheckedAt = :at WHERE id = :id",
+    )
+    suspend fun setInfo(id: String, title: String, author: String, publisher: String, isbn: String, source: Int, score: Int, review: Boolean, at: Long)
+
+    @Query("UPDATE book SET coverSource = :source WHERE id = :id")
+    suspend fun setCoverSource(id: String, source: Int)
+
+    /** 찾아봤지만 바꾸지 않음(확인 필요 표시만). */
+    @Query("UPDATE book SET metaCheckedAt = :at, needsReview = :review, matchScore = :score WHERE id = :id")
+    suspend fun markChecked(id: String, at: Long, review: Boolean, score: Int)
+
+    /** '인터넷에서 받은 정보 모두 지우기': 인터넷 정보·표지를 지우고 다시 찾을 수 있게(파일 정보는 다음 찾기에서 다시 읽는다). */
+    @Query(
+        "UPDATE book SET infoTitle = '', author = '', publisher = '', isbn = '', metaSource = 0, matchScore = 0, needsReview = 0, metaCheckedAt = 0, " +
+            "coverSource = CASE WHEN coverSource = 2 THEN 0 ELSE coverSource END WHERE metaSource IN (2, 3) OR coverSource = 2",
+    )
+    suspend fun clearNetInfo(): Int
+
+    /** '지금 모든 책 정보 다시 찾기': 직접 고른·입력한 것은 빼고 다시 찾게. */
+    @Query("UPDATE book SET metaCheckedAt = 0 WHERE metaSource NOT IN (3, 4)")
+    suspend fun resetMetaChecked(): Int
 
     @Upsert
     suspend fun upsert(b: Book)
@@ -310,7 +364,7 @@ interface BookDao {
     suspend fun resetReading()
 }
 
-@Database(entities = [Book::class, Bookmark::class, Note::class, ReadingSession::class, Highlight::class, StoreApp::class, ScanFolder::class], version = 6, exportSchema = true)
+@Database(entities = [Book::class, Bookmark::class, Note::class, ReadingSession::class, Highlight::class, StoreApp::class, ScanFolder::class], version = 7, exportSchema = true)
 abstract class AshDb : RoomDatabase() {
     abstract fun books(): BookDao
 
@@ -369,8 +423,16 @@ abstract class AshDb : RoomDatabase() {
             }
         }
 
+        /** 6 → 7: 책 정보(작업 06) — 보일 제목·지은이·출판사·ISBN·표지 출처·정보 출처·일치도·확인 필요·찾은 때. 기존 책은 모두 빈 값. */
+        val M6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (c in listOf("infoTitle", "author", "publisher", "isbn")) db.execSQL("ALTER TABLE `book` ADD COLUMN `$c` TEXT NOT NULL DEFAULT ''")
+                for (c in listOf("coverSource", "metaSource", "matchScore", "needsReview", "metaCheckedAt")) db.execSQL("ALTER TABLE `book` ADD COLUMN `$c` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         /** 앱이 쓰는 모든 이전(이전 시험 AshDbMigrationTest 도 이 목록을 쓴다). */
-        val MIGRATIONS = arrayOf(M1_2, M2_3, M3_4, M4_5, M5_6)
+        val MIGRATIONS = arrayOf(M1_2, M2_3, M3_4, M4_5, M5_6, M6_7)
 
         @Volatile private var inst: AshDb? = null
         fun get(context: Context): AshDb = inst ?: synchronized(this) {
