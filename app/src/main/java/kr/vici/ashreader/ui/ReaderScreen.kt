@@ -326,7 +326,7 @@ fun ReaderScreen(
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
     val colors = s.readingColors()
-    // 서재 검색에서 책을 열면 글자판이 읽기 화면에 남아 아래 메뉴를 가렸다(CI D04) — 책을 열 때 닫는다
+    // 서재 검색에서 책을 열면 글자판이 읽기 화면에 남아 메뉴·누르는 자리를 가렸다(CI D04) — 책을 열 때 닫는다
     run {
         val act = LocalContext.current as? Activity
         LaunchedEffect(target.id) {

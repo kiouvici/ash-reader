@@ -22,6 +22,21 @@ import org.junit.runner.RunWith
 class D04ReadingTest : E2eTest() {
     private val book = "e2e-epub 소설"
 
+    /** 글자판(IME) 창이 떠 있나. */
+    private fun imeShown(): Boolean = runCatching {
+        inst.uiAutomation.windows.any { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+    }.getOrDefault(false)
+
+    /** 실패 원인을 보려고 지금 화면 구조를 기록에 남긴다. */
+    private fun dumpTree(name: String) {
+        runCatching {
+            val out = java.io.ByteArrayOutputStream()
+            device.dumpWindowHierarchy(out)
+            out.toString("UTF-8").lines().filter { "text=\"\"" !in it || "content-desc=\"\"" !in it }.take(80)
+                .forEach { android.util.Log.i("AshE2E", "[$name] $it") }
+        }
+    }
+
     private fun openBook() {
         launchApp()
         openFromLibrary(book, "EPUB")
@@ -204,8 +219,10 @@ class D04ReadingTest : E2eTest() {
             SystemClock.sleep(400)
             if (runCatching { field.text }.getOrNull() != "반딧불이") continue
             device.pressEnter()
+            // 작업 07 검색 시트는 "이 책에서 N곳"(07 CI 통과). 못 찾으면 화면 구조를 기록에 남긴다
             if (has(By.textStartsWith("이 책에서"), 30_000)) { found = true; break }
             shot("search-retry-$k")
+            dumpTree("search-retry-$k")
         }
         assertTrue("검색 결과가 나오지 않음", found)
         shot("search-results")

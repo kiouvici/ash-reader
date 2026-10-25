@@ -18,6 +18,11 @@ import org.junit.runner.RunWith
 class B02LibraryTest : E2eTest() {
     private val tileP = Pattern.compile(".*, .*% 읽음")
 
+    /** 글자판(IME) 창이 떠 있나. */
+    private fun imeShown(): Boolean = runCatching {
+        inst.uiAutomation.windows.any { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+    }.getOrDefault(false)
+
     /** 작업 06 B안: 첫 화면 카드(전체·형식·폴더·시리즈) → 들어가기 → 뒤로, '최근 ›', 전체의 상태 칸, 문서 메뉴. */
     @Test
     fun homeCards_statusChips_bookMenu() {
@@ -104,6 +109,9 @@ class B02LibraryTest : E2eTest() {
         obj(By.desc("검색"), 30_000).click()
         obj(By.clazz("android.widget.EditText")).text = "e2e-epub"
         SystemClock.sleep(600)
+        obj(By.desc(Pattern.compile("e2e-epub 소설, EPUB, .*")), 10_000)
+        // 가로 태블릿은 글자판이 화면 절반을 덮어 결과 대신 글자판을 길게 누를 수 있다(PR #49 CI land-a) — 닫고 누른다
+        if (imeShown()) { device.pressBack(); SystemClock.sleep(600) }
         obj(By.desc(Pattern.compile("e2e-epub 소설, EPUB, .*")), 10_000).longClick()
         // 작업 07 책 ⋯ 메뉴의 위 아이콘 '책 정보'. 검색 글자판이 닫히며 메뉴 자리가 옮겨질 수 있어,
         // 자리를 잡은 뒤 새로 찾아 누르고 넘어가지 않으면 다시 누른다
