@@ -58,6 +58,8 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("storeApps", JSONArray().apply { dao.allStoreApps().forEach { put(JSONObject().put("pkg", it.pkg).put("label", it.label).put("ord", it.ord)) } })
             .put("settings", s.toJson())
             .put("comicPrefs", ComicPrefsStore(context).exportAll())
+            // 작업 06: 고른 표지(인터넷·사진·첫 쪽·파일 속 그림) — 책 id → WebP(base64)
+            .put("covers", JSONObject().apply { books.filter { it.coverSource != Book.COVER_AUTO }.forEach { b -> kr.vici.ashreader.doc.Covers.chosenBytes(context, b.id)?.let { put(b.id, android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP)) } } })
         val out = context.contentResolver.openOutputStream(uri, "wt") ?: throw BadBackup("파일을 만들 수 없어요.")
         out.use { it.write(root.toString(1).toByteArray(Charsets.UTF_8)) }
         ExportResult(shown, bms.size, notes.size, hls.size, ses.size)
@@ -95,14 +97,15 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
                     val safe = LibraryRepo.insideBooks(booksDir, inc.path)
                     if (safe != null && safe.isFile) { dao.upsert(inc.copy(path = safe.path)); updated++ } else missing++
                 } else if (replace || inc.lastOpenedAt > cur.lastOpenedAt) {
-                    dao.upsert(cur.copy(lastPage = inc.lastPage, pageCount = inc.pageCount, status = inc.status, lastOpenedAt = inc.lastOpenedAt, viewMode = inc.viewMode,
+                    dao.upsert((if (takeInfo(cur, inc, replace)) cur.withInfoOf(inc) else cur).copy(lastPage = inc.lastPage, pageCount = inc.pageCount, status = inc.status, lastOpenedAt = inc.lastOpenedAt, viewMode = inc.viewMode,
                         favorite = inc.favorite || (cur.favorite && !replace), textEncoding = inc.textEncoding.ifEmpty { cur.textEncoding }).let { c ->
                             // 직접 묶기·풀기(F-62)는 백업 쪽이 정한 것을 따른다
                             if (inc.seriesManual != Book.SERIES_AUTO) c.copy(seriesKey = inc.seriesKey, seriesManual = inc.seriesManual) else c
                         })
                     updated++
-                } else if (inc.favorite && !cur.favorite) {
-                    dao.setFavorite(id, true)
+                } else {
+                    if (inc.favorite && !cur.favorite) dao.setFavorite(id, true)
+                    if (takeInfo(cur, inc, replace)) dao.upsert(cur.withInfoOf(inc).copy(favorite = cur.favorite || inc.favorite))
                 }
             }
             val bmKeys = dao.allBookmarks().map { it.bookId to it.page }.toMutableSet()
@@ -129,6 +132,11 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
                 val s = ReadingSession(bookId = o.optString("bookId"), startedAt = o.optLong("startedAt"), durationMs = o.optLong("durationMs"), pagesTurned = o.optInt("pagesTurned"))
                 if (s.bookId.isNotEmpty() && s.durationMs > 0 && sesKeys.add(s.bookId to s.startedAt)) { dao.addSession(s); ns++ }
             }
+        }
+        // 고른 표지(작업 06): 이 기기 서재에 있는 책만
+        root.optJSONObject("covers")?.let { cv ->
+            val ids = dao.allBooks().filter { it.coverSource != Book.COVER_AUTO }.map { it.id }.toHashSet()
+            for (id in cv.keys()) if (id in ids) runCatching { kr.vici.ashreader.doc.Covers.saveChosenBytes(context, id, android.util.Base64.decode(cv.getString(id), android.util.Base64.NO_WRAP)) }
         }
         // 서점 바로가기(F-36): 백업에 있으면 그 목록으로 바꾼다
         root.optJSONArray("storeApps")?.let { arr ->
@@ -176,6 +184,9 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("sizeBytes", sizeBytes).put("pageCount", pageCount).put("lastPage", lastPage).put("addedAt", addedAt)
             .put("lastOpenedAt", lastOpenedAt).put("status", status).put("seriesKey", seriesKey).put("volume", volume).put("viewMode", viewMode)
             .put("favorite", favorite).put("textEncoding", textEncoding).put("seriesManual", seriesManual)
+            // 작업 06 책 정보
+            .put("infoTitle", infoTitle).put("author", author).put("publisher", publisher).put("isbn", isbn).put("coverSource", coverSource)
+            .put("metaSource", metaSource).put("matchScore", matchScore).put("needsReview", needsReview).put("metaCheckedAt", metaCheckedAt)
 
         private fun bookOf(o: JSONObject) = Book(
             id = o.optString("id"), title = o.optString("title"), format = o.optString("format"), path = o.optString("path"),
@@ -185,6 +196,18 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             volume = o.optInt("volume"), viewMode = o.optInt("viewMode"),
             favorite = o.optBoolean("favorite", false), textEncoding = o.optString("textEncoding"),
             seriesManual = o.optInt("seriesManual", Book.SERIES_AUTO).coerceIn(Book.SERIES_AUTO, Book.SERIES_EXCLUDED),
+            infoTitle = o.optString("infoTitle"), author = o.optString("author"), publisher = o.optString("publisher"), isbn = o.optString("isbn"),
+            coverSource = o.optInt("coverSource").coerceIn(Book.COVER_AUTO, Book.COVER_PHOTO), metaSource = o.optInt("metaSource").coerceIn(Book.META_NONE, Book.META_USER),
+            matchScore = o.optInt("matchScore").coerceIn(0, 100), needsReview = o.optBoolean("needsReview", false), metaCheckedAt = o.optLong("metaCheckedAt"),
+        )
+
+        /** 백업 쪽 책 정보를 쓸까: 백업에 정보가 있고, 모두 바꾸기이거나 지금 정보가 더 약할 때(직접 고름 > 인터넷 자동 > 파일). */
+        internal fun takeInfo(cur: Book, inc: Book, replace: Boolean): Boolean =
+            inc.metaSource != Book.META_NONE && (replace || cur.metaSource == Book.META_NONE || inc.metaSource >= cur.metaSource)
+
+        internal fun Book.withInfoOf(o: Book) = copy(
+            infoTitle = o.infoTitle, author = o.author, publisher = o.publisher, isbn = o.isbn, metaSource = o.metaSource,
+            matchScore = o.matchScore, needsReview = o.needsReview, metaCheckedAt = o.metaCheckedAt, coverSource = o.coverSource,
         )
 
         private fun Bookmark.toJson() = JSONObject().put("bookId", bookId).put("page", page).put("label", label).put("createdAt", createdAt).put("frac", frac.toDouble())
@@ -213,7 +236,10 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("scrollView", scrollView).put("autoScrollSpeed", autoScrollSpeed).put("infoPerPage", infoPerPage)
             .put("paraSpace", paraSpace).put("marginH", marginH).put("marginV", marginV).put("align", align)
             .put("breakChar", breakChar).put("hyphen", hyphen).put("indent", indent).put("dialogIndent", dialogIndent)
-            .put("txtTocMask", txtTocMask).put("txtTocCustom", txtTocCustom).put("libSort", libSort).put("libSortDesc", libSortDesc)
+            .put("txtTocMask", txtTocMask).put("txtTocCustom", txtTocCustom).put("libSort", libSort).put("libSortDesc", libSortDesc).put("metaNet", metaNet).put("metaAuto", metaAuto)
+            .put("seriesAuto", seriesAuto).put("libList", libList).put("appTheme", appTheme).put("pinchFont", pinchFont)
+            .put("menuLabels", menuLabels).put("docDefaultView", docDefaultView).put("cropDefault", cropDefault).put("doubleTapZoom", doubleTapZoom.toDouble())
+            .put("dictPkg", dictPkg).put("webtoonSuggest", webtoonSuggest)
 
         private fun settingsOf(o: JSONObject, base: Settings) = base.copy(
             font = BodyFont.entries.firstOrNull { it.name == o.optString("font") } ?: base.font,
@@ -269,6 +295,13 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             txtTocCustom = kr.vici.ashreader.doc.TxtToc.safeCustom(o.optString("txtTocCustom", base.txtTocCustom)),
             libSort = o.optInt("libSort", base.libSort).coerceAtLeast(0),
             libSortDesc = o.optBoolean("libSortDesc", base.libSortDesc),
+        metaNet = o.optBoolean("metaNet", base.metaNet), metaAuto = o.optInt("metaAuto", base.metaAuto).coerceIn(0, 2),
+        seriesAuto = o.optBoolean("seriesAuto", base.seriesAuto), libList = o.optBoolean("libList", base.libList),
+        appTheme = o.optInt("appTheme", base.appTheme).coerceIn(0, 2),
+        pinchFont = o.optBoolean("pinchFont", base.pinchFont), menuLabels = o.optBoolean("menuLabels", base.menuLabels),
+        docDefaultView = o.optInt("docDefaultView", base.docDefaultView).coerceIn(0, 1), cropDefault = o.optBoolean("cropDefault", base.cropDefault),
+        doubleTapZoom = o.optDouble("doubleTapZoom", base.doubleTapZoom.toDouble()).toFloat().let { if (it.isNaN()) 2f else it.coerceIn(1.5f, 3f) },
+        dictPkg = o.optString("dictPkg", base.dictPkg), webtoonSuggest = o.optBoolean("webtoonSuggest", base.webtoonSuggest),
         )
     }
 }

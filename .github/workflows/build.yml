@@ -14,6 +14,10 @@ permissions:
 env:
   # :engine-comic 의 ncnn 소스 빌드 결과 위치 (actions/cache 대상, 체크아웃 밖)
   ASH_NCNN_DIR: /home/runner/ncnn-cache
+  # 작업 06: 책 정보 찾기 Open API 키(없으면 빈 값 = 구글 북스만). 저장소에는 넣지 않는다.
+  # 저장소 시크릿 이름: KAKAO_REST_KEY(카카오 REST API 키), NLK_API_KEY(국립중앙도서관 서지 API 인증키)
+  ASH_KAKAO_KEY: ${{ secrets.KAKAO_REST_KEY }}
+  ASH_NL_KEY: ${{ secrets.NLK_API_KEY }}
 
 concurrency:
   group: build-${{ github.ref }}
@@ -225,9 +229,9 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Permission check, merged manifest (N-05 ①)
+      - name: Permission check, merged manifest (N-05 ①) + network confined (⑤)
         shell: bash
-        run: .github/scripts/gradle-annotate.sh :app:checkDebugNoInternetPermission :app:checkReleaseNoInternetPermission :bench:checkDebugNoInternetPermission :bench:checkReleaseNoInternetPermission
+        run: .github/scripts/gradle-annotate.sh :app:checkDebugPermissions :app:checkReleasePermissions :bench:checkDebugPermissions :bench:checkReleasePermissions :app:checkNetworkConfined
 
       - name: Unit tests
         shell: bash
@@ -451,7 +455,7 @@ jobs:
   # 실험 ②: POI(poi + poi-scratchpad)를 넣었을 때 R8 후 release APK 증가량 측정. 서명은 AGP 기본 debug 키(크기만 봄).
   # office-apk-size(실험 ②) 제거: 2단계부터 :engine-office 가 앱에 항상 들어가므로 비교 대상이 없음
 
-  # P8: 음성 시험. INTERNET 권한을 넣은 시험용 빌드에서 두 검사가 모두 '실패'해야 이 job이 성공한다.
+  # P8: 음성 시험. 금지 권한(위치)을 넣은 시험용 빌드에서 두 검사가 모두 '실패'해야 이 job이 성공한다.
   permission-negative-test:
     needs: compile
     runs-on: ubuntu-24.04
@@ -498,7 +502,7 @@ jobs:
         run: |
           set -o pipefail
           if ./gradlew --console=plain -Pash.negativeTest=true :app:assembleNegativeProbe 2>&1 | tee neg1.log; then
-            echo "::error title=음성 시험 실패::INTERNET 권한이 있는데 병합 매니페스트 검사가 빌드를 막지 못했습니다"
+            echo "::error title=음성 시험 실패::위치 권한이 있는데 병합 매니페스트 검사가 빌드를 막지 못했습니다"
             exit 1
           fi
           if ! grep -q "N-05 위반 \[negativeProbe\]" neg1.log; then
@@ -506,21 +510,21 @@ jobs:
             grep -E "What went wrong|^> |^e: " neg1.log | head -20
             exit 1
           fi
-          echo "기대대로 실패: 병합 매니페스트 검사가 INTERNET 권한을 잡았습니다" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "기대대로 실패: 병합 매니페스트 검사가 금지 권한(위치)을 잡았습니다" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Final-APK (aapt2) check must fail
         shell: bash
         run: |
           set -o pipefail
-          ./gradlew --console=plain -Pash.negativeTest=true :app:assembleNegativeProbe -x :app:checkNegativeProbeNoInternetPermission
+          ./gradlew --console=plain -Pash.negativeTest=true :app:assembleNegativeProbe -x :app:checkNegativeProbePermissions
           APK=$(ls app/build/outputs/apk/negativeProbe/*.apk | head -1)
           if .github/scripts/check-apk-permissions.sh "$APK" > neg2.log 2>&1; then
             cat neg2.log
-            echo "::error title=음성 시험 실패::INTERNET 권한이 있는 APK를 aapt2 검사가 통과시켰습니다"
+            echo "::error title=음성 시험 실패::위치 권한이 있는 APK를 aapt2 검사가 통과시켰습니다"
             exit 1
           fi
-          grep -q "android.permission.INTERNET" neg2.log || { cat neg2.log; echo "::error::aapt2 검사 실패 원인이 INTERNET이 아닙니다"; exit 1; }
-          echo "기대대로 실패: aapt2 최종 APK 검사가 INTERNET 권한을 잡았습니다" | tee -a "$GITHUB_STEP_SUMMARY"
+          grep -q "android.permission.ACCESS_FINE_LOCATION" neg2.log || { cat neg2.log; echo "::error::aapt2 검사 실패 원인이 위치 권한이 아닙니다"; exit 1; }
+          echo "기대대로 실패: aapt2 최종 APK 검사가 금지 권한(위치)을 잡았습니다" | tee -a "$GITHUB_STEP_SUMMARY"
 
   # 실험 ③: 에뮬레이터에서 넘김 표면 스모크 시험 (성능 판정 아님, 동작 확인만)
   pagecurl-smoke:

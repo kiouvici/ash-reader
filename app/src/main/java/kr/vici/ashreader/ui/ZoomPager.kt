@@ -45,6 +45,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kr.vici.ashreader.data.ComicBookPrefs
 
+/** 여러 읽기 화면이 함께 쓰는 앱 설정 값(작업 06). 앱이 설정을 읽을 때 맞춘다. */
+object ViewDefaults {
+    /** 두 번 탭 확대 배율(설정 '두 번 탭 확대'). */
+    @Volatile var doubleTap: Float = 2f
+    /** 세로로 긴 만화를 웹툰 보기로 제안(설정 '웹툰 제안'). */
+    @Volatile var suggestWebtoon: Boolean = true
+}
+
 /** 쪽 그림 하나: [nativeW] = 원본 화소 폭(원본 맞춤 배율). */
 class ZoomImage(val bmp: Bitmap, val nativeW: Int)
 
@@ -218,7 +226,7 @@ fun ZoomPager(
                                 uz = 1f; clamp(); zoomTick++
                                 exit?.invoke()
                             } else {
-                                val k = 2f
+                                val k = ViewDefaults.doubleTap
                                 ox = p.x - (p.x - ox) * k; oy = p.y - (p.y - oy) * k; uz = k
                                 clamp(); zoomTick++
                             }

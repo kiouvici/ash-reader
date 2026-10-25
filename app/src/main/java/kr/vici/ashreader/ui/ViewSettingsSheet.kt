@@ -84,19 +84,6 @@ fun ViewSettingsSheet(
     val cs = MaterialTheme.colorScheme
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    /** 내 글꼴 목록(F-20). 더하거나 지우면 다시 읽는다. */
-    var fontsVer by remember { mutableIntStateOf(0) }
-    val userFonts = remember(fontsVer) { UserFonts.list(context) }
-    var fontMsg by remember { mutableStateOf<String?>(null) }
-    var deleting by remember { mutableStateOf<String?>(null) }
-    val pickFont = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            val r = withContext(Dispatchers.IO) { runCatching { UserFonts.import(context, uri) } }
-            r.onSuccess { f -> fontsVer++; fontMsg = "‘${UserFonts.label(f.name)}’ 글꼴을 넣었어요."; onChange { it.copy(userFont = f.name) } }
-                .onFailure { e -> fontMsg = (e as? UserFonts.ImportFailed)?.message ?: "글꼴을 가져오지 못했어요." }
-        }
-    }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             // 작업 04: 맨 위 AI 화질 향상 칸(만화 설정과 같은 모양). 이북·PDF 는 앱 전체 한 값
@@ -156,43 +143,7 @@ fun ViewSettingsSheet(
                             }
                         }
                     }
-                    // F-20 내 글꼴
-                    Label("내 글꼴", top = 8)
-                    Row(Modifier.padding(vertical = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        userFonts.forEach { f ->
-                            val sel = s.userFont == f.name && userFile != null
-                            Row(
-                                Modifier.clip(RoundedCornerShape(20.dp))
-                                    .border(if (sel) 2.dp else 1.dp, if (sel) cs.primary else cs.outline, RoundedCornerShape(20.dp))
-                                    .heightIn(min = 48.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Box(Modifier.heightIn(min = 48.dp).widthIn(max = 180.dp).clickable { onChange { it.copy(userFont = f.name) } }.padding(start = 14.dp, end = 4.dp), contentAlignment = Alignment.Center) {
-                                    Text(UserFonts.label(f.name), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                        fontWeight = if (sel) FontWeight.Medium else FontWeight.Normal)
-                                }
-                                IconButton(onClick = { deleting = f.name }, modifier = Modifier.size(48.dp)) { Icon(Icons.Close, "${UserFonts.label(f.name)} 글꼴 지우기", Modifier.size(18.dp)) }
-                            }
-                        }
-                        Pill("+ 글꼴 추가", false) {
-                            fontMsg = null
-                            pickFont.launch(arrayOf("font/ttf", "font/otf", "font/sfnt", "font/collection", "application/x-font-ttf", "application/x-font-otf", "application/vnd.ms-opentype", "application/octet-stream"))
-                        }
-                    }
-                    Hint(fontMsg ?: "TTF·OTF 파일을 넣으면 이북류 본문에 써요. 한글이 없는 글꼴이면 한글은 나눔명조로 나와요.")
-                    deleting?.let { name ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("‘${UserFonts.label(name)}’ 글꼴을 지울까요?", fontSize = 14.sp, modifier = Modifier.weight(1f))
-                            Pill("지우기", false) {
-                                scope.launch {
-                                    withContext(Dispatchers.IO) { UserFonts.delete(context, name) }
-                                    if (s.userFont == name) onChange { it.copy(userFont = "") }
-                                    deleting = null; fontsVer++
-                                }
-                            }
-                            Box(Modifier.padding(start = 8.dp)) { Pill("취소", false) { deleting = null } }
-                        }
-                    }
+                    UserFontsManager(s, onChange)
                     Hint("한자는 기기 글꼴로 표시돼요")
                     Stepper("글자 크기", "${s.fontSize}", small = "가", big = "가",
                         onMinus = { onChange { it.copy(fontSize = (it.fontSize - 1).coerceAtLeast(Prefs.MIN_SIZE)) } },
@@ -312,4 +263,65 @@ private fun previewFamily(f: BodyFont): FontFamily = when (f) {
     BodyFont.NANUM_MYEONGJO -> Myeongjo
     BodyFont.RIDI_BATANG -> RidiBatang
     BodyFont.MARUBURI -> MaruBuri
+}
+
+/** F-20 내 글꼴: 목록·고르기·더하기·지우기. 읽기 화면 Aa 시트와 설정 › 글자와 화면 › 내 글꼴 관리(작업 06)가 함께 쓴다. */
+@Composable
+fun UserFontsManager(s: Settings, onChange: ((Settings) -> Settings) -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val userFile = if (s.userFont.isNotEmpty()) UserFonts.file(context, s.userFont) else null
+    /** 내 글꼴 목록(F-20). 더하거나 지우면 다시 읽는다. */
+    var fontsVer by remember { mutableIntStateOf(0) }
+    val userFonts = remember(fontsVer) { UserFonts.list(context) }
+    var fontMsg by remember { mutableStateOf<String?>(null) }
+    var deleting by remember { mutableStateOf<String?>(null) }
+    val pickFont = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val r = withContext(Dispatchers.IO) { runCatching { UserFonts.import(context, uri) } }
+            r.onSuccess { f -> fontsVer++; fontMsg = "‘${UserFonts.label(f.name)}’ 글꼴을 넣었어요."; onChange { it.copy(userFont = f.name) } }
+                .onFailure { e -> fontMsg = (e as? UserFonts.ImportFailed)?.message ?: "글꼴을 가져오지 못했어요." }
+        }
+    }
+    Column {
+        // F-20 내 글꼴
+        Label("내 글꼴", top = 8)
+        Row(Modifier.padding(vertical = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            userFonts.forEach { f ->
+                val sel = s.userFont == f.name && userFile != null
+                Row(
+                    Modifier.clip(RoundedCornerShape(20.dp))
+                        .border(if (sel) 2.dp else 1.dp, if (sel) cs.primary else cs.outline, RoundedCornerShape(20.dp))
+                        .heightIn(min = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.heightIn(min = 48.dp).widthIn(max = 180.dp).clickable { onChange { it.copy(userFont = f.name) } }.padding(start = 14.dp, end = 4.dp), contentAlignment = Alignment.Center) {
+                        Text(UserFonts.label(f.name), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            fontWeight = if (sel) FontWeight.Medium else FontWeight.Normal)
+                    }
+                    IconButton(onClick = { deleting = f.name }, modifier = Modifier.size(48.dp)) { Icon(Icons.Close, "${UserFonts.label(f.name)} 글꼴 지우기", Modifier.size(18.dp)) }
+                }
+            }
+            Pill("+ 글꼴 추가", false) {
+                fontMsg = null
+                pickFont.launch(arrayOf("font/ttf", "font/otf", "font/sfnt", "font/collection", "application/x-font-ttf", "application/x-font-otf", "application/vnd.ms-opentype", "application/octet-stream"))
+            }
+        }
+        Hint(fontMsg ?: "TTF·OTF 파일을 넣으면 이북류 본문에 써요. 한글이 없는 글꼴이면 한글은 나눔명조로 나와요.")
+        deleting?.let { name ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("‘${UserFonts.label(name)}’ 글꼴을 지울까요?", fontSize = 14.sp, modifier = Modifier.weight(1f))
+                Pill("지우기", false) {
+                    scope.launch {
+                        withContext(Dispatchers.IO) { UserFonts.delete(context, name) }
+                        if (s.userFont == name) onChange { it.copy(userFont = "") }
+                        deleting = null; fontsVer++
+                    }
+                }
+                Box(Modifier.padding(start = 8.dp)) { Pill("취소", false) { deleting = null } }
+            }
+        }
+    }
 }

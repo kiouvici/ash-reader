@@ -106,12 +106,12 @@ fun paintMarks(bmp: Bitmap, tp: TextPage, marks: List<Mark>) {
 
 fun searchMark(h: Hit) = Mark(h.start, h.end, SEARCH_HIT)
 
-/** 사전 앱(말글사전)으로 글자 보내기. 없으면 PROCESS_TEXT 를 받는 앱 고르기. */
-fun lookUp(context: Context, text: String, onError: (String) -> Unit) {
+/** 사전 앱으로 글자 보내기: [pkg](설정 '사전 앱', 작업 06 — 비어 있으면 말글사전). 없으면 PROCESS_TEXT 를 받는 앱 고르기. */
+fun lookUp(context: Context, text: String, pkg: String = "", onError: (String) -> Unit) {
     val base = Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain")
         .putExtra(Intent.EXTRA_PROCESS_TEXT, text).putExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, true)
     try {
-        context.startActivity(Intent(base).setPackage("kr.vici.malgeul"))
+        context.startActivity(Intent(base).setPackage(pkg.ifBlank { "kr.vici.malgeul" }))
     } catch (_: ActivityNotFoundException) {
         try {
             context.startActivity(Intent.createChooser(base, "사전으로 찾기").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

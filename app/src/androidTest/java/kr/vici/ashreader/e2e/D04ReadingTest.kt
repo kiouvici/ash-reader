@@ -22,6 +22,21 @@ import org.junit.runner.RunWith
 class D04ReadingTest : E2eTest() {
     private val book = "e2e-epub 소설"
 
+    /** 글자판(IME) 창이 떠 있나. */
+    private fun imeShown(): Boolean = runCatching {
+        inst.uiAutomation.windows.any { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+    }.getOrDefault(false)
+
+    /** 실패 원인을 보려고 지금 화면 구조를 기록에 남긴다. */
+    private fun dumpTree(name: String) {
+        runCatching {
+            val out = java.io.ByteArrayOutputStream()
+            device.dumpWindowHierarchy(out)
+            out.toString("UTF-8").lines().filter { "text=\"\"" !in it || "content-desc=\"\"" !in it }.take(80)
+                .forEach { android.util.Log.i("AshE2E", "[$name] $it") }
+        }
+    }
+
     private fun openBook() {
         launchApp()
         openFromLibrary(book, "EPUB")
@@ -130,14 +145,15 @@ class D04ReadingTest : E2eTest() {
         clickText("문단")
         for (step in listOf("줄 간격", "문단 간격", "좌우 여백", "위아래 여백")) {
             val label = scrollFind(By.text(step)) ?: continue
-            val y = label.visibleBounds.centerY()
+            // 시트가 다시 그려지면 낡을 수 있다 → 위치를 못 읽으면 그 줄은 건너뜀
+            val y = runCatching { label.visibleBounds.centerY() }.getOrNull() ?: continue
             stale { device.findObjects(By.text("+")).minByOrNull { kotlin.math.abs(it.visibleBounds.centerY() - y) }?.click() }
             SystemClock.sleep(300)
         }
-        scrollFind(By.text("왼쪽 맞춤"))?.click()
-        scrollFind(By.text("2글자"))?.click()
-        scrollFind(By.text("글자 단위"))?.click()
-        scrollFind(By.text("영문 하이픈 넣기"))?.click()
+        tryClick(By.text("왼쪽 맞춤"))
+        tryClick(By.text("2글자"))
+        tryClick(By.text("글자 단위"))
+        tryClick(By.text("영문 하이픈 넣기"))
         shot("aa-para")
         // 시트 닫기: 쪽이 다시 보일 때까지 '뒤로'(시트가 다 펼쳐지면 탭 이름이 화면 밖이라 글자로는 못 본다)
         backToPage()
@@ -196,9 +212,28 @@ class D04ReadingTest : E2eTest() {
         openBook()
         openMenu()
         obj(By.desc("검색")).click()
-        val field = obj(By.clazz("android.widget.EditText"))
-        field.text = "반딧불이"
-        assertTrue("검색 결과가 나오지 않음", has(By.textEndsWith("곳을 찾았어요."), 60_000))
+        // 검색어가 실제로 들어갔는지 보고 검색 키(Enter)도 누른다. 결과가 안 나오면 다시 넣는다(흔들림 — PR #50·#49 CI)
+        var found = false
+        for (k in 0 until 3) {
+            val field = obj(By.clazz("android.widget.EditText"))
+            field.text = "반딧불이"
+            SystemClock.sleep(400)
+            if (runCatching { field.text }.getOrNull() != "반딧불이") continue
+            device.pressEnter()
+            // 결과가 화면에 떠도 글자판이 열린 동안 시험이 글자를 읽지 못한 적이 있다(PR #49 CI: '1곳을 찾았어요.'·'13쪽'이 보이는데 못 찾음).
+            // 글자판을 닫고(검색 화면은 남음), 진행 글자나 결과 줄('N쪽') 중 하나만 보여도 찾은 것으로 본다
+            SystemClock.sleep(1_500)
+            if (imeShown()) { device.pressBack(); SystemClock.sleep(600) }
+            val end = SystemClock.uptimeMillis() + 30_000
+            while (SystemClock.uptimeMillis() < end) {
+                if (device.hasObject(By.textEndsWith("곳을 찾았어요.")) || device.hasObject(By.text(Pattern.compile("\\d+쪽")))) { found = true; break }
+                SystemClock.sleep(300)
+            }
+            if (found) break
+            shot("search-retry-$k")
+            dumpTree("search-retry-$k")
+        }
+        assertTrue("검색 결과가 나오지 않음", found)
         shot("search-results")
         // 결과 줄("N쪽" + 글 조각)을 누르면 그 쪽으로
         val hit = device.findObjects(By.text(Pattern.compile("\\d+쪽"))).firstOrNull()
