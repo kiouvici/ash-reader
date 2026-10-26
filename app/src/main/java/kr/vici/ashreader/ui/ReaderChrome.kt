@@ -102,10 +102,14 @@ fun ReaderChrome(
     Box(modifier.fillMaxSize()) {
         Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().heightIn(min = 54.dp).padding(start = 24.dp, end = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             val pct = if (count > 0) ((page + 1) * 100 / count) else 0
-            Text(
-                when { chapterLeft != null && chapterLeft > 0 -> "챕터 끝까지 ${chapterLeft}쪽 남음"; chapterLeft == 0 -> "챕터 마지막 쪽"; else -> "$pct% 읽음" },
-                fontSize = 12.5.sp, color = c.subC, modifier = Modifier.weight(1f),
-            )
+            // 본문이 화면 끝까지 차는 문서(TXT·HWP 원본 등)에서 글자와 겹쳐 읽기 어려워 단추와 같은 유리 바탕을 깐다 — 살짝 비치게(대표님 2026-10-26)
+            Box(Modifier.weight(1f)) {
+                Text(
+                    when { chapterLeft != null && chapterLeft > 0 -> "챕터 끝까지 ${chapterLeft}쪽 남음"; chapterLeft == 0 -> "챕터 마지막 쪽"; else -> "$pct% 읽음" },
+                    fontSize = 12.5.sp, color = k.sub,
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(k.btn).border(1.dp, k.line, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
             ChromeButton(k, Icons.Close, "책 닫기", onClick = onClose)
         }
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding()) {
@@ -117,7 +121,12 @@ fun ReaderChrome(
                     Modifier.weight(1f).heightIn(min = 48.dp).clickable(role = Role.Button) { seeking = !seeking }
                         .semantics { contentDescription = "${page + 1}쪽, 전체 ${count}쪽. 눌러서 쪽 옮기기" },
                     contentAlignment = Alignment.Center,
-                ) { Text("${page + 1} / $count", fontSize = 12.5.sp, color = c.subC) }
+                ) {
+                    Text(
+                        "${page + 1} / $count", fontSize = 12.5.sp, color = k.sub,
+                        modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(k.btn).border(1.dp, k.line, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
                 ChromeButton(k, Icons.Menu, if (stackOpen) "메뉴 닫기" else "메뉴", on = stackOpen, onClick = onMenu)
             }
         }

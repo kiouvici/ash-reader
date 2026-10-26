@@ -93,6 +93,8 @@ fun ScreenTitle(t: String, onBack: (() -> Unit)? = null) {
 
 fun formatDuration(ms: Long): String {
     val m = ms / 60000
+    // 몇 초만 읽은 날이 '0분'인데 막대는 서 있어 헷갈리던 것(대표님 2026-10-26)
+    if (ms in 1 until 60000) return "1분 미만"
     return if (m >= 60) "${m / 60}시간 ${m % 60}분" else "${m}분"
 }
 
@@ -193,7 +195,8 @@ private fun MonthStats(sessions: List<ReadingSession>, streak: Int, books: List<
 @Composable
 private fun Bars(labels: List<String>, values: LongArray, highlight: Int, barWidth: Int, describe: (Int) -> String) {
     val cs = MaterialTheme.colorScheme
-    val max = (values.maxOrNull() ?: 0L).coerceAtLeast(1L)
+    // 막대 높이의 바닥값 10분: 몇 초만 읽어도 막대가 꽉 차 보이지 않게(대표님 2026-10-26)
+    val max = (values.maxOrNull() ?: 0L).coerceAtLeast(10 * 60_000L)
     Row(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(150.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
         labels.forEachIndexed { i, d ->
             Column(Modifier.weight(1f).fillMaxHeight().semantics { contentDescription = describe(i) }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
