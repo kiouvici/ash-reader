@@ -40,6 +40,20 @@ class PageAnchorTest {
         assertEquals(0, PageAnchor.find(a, 2, pages.size, radius = 3) { pages[it] })
     }
 
+    /** 쪽 경계에 걸친 줄이 앞 쪽 끝과 뒤 쪽 첫머리 두 쪽 글에 다 들어가도(한글 표 문서) 첫머리에 있는 뒤 쪽을 고른다. */
+    @Test fun duplicatedBoundaryLine_prefersPageStart() {
+        val line = "제4항 띄어쓰기는 단어별로 하되 조사는 앞말에 붙여 쓴다"
+        val pages = listOf(
+            "앞 쪽 글 ".repeat(30),
+            "둘째 쪽 본문입니다 ".repeat(20) + line, // 경계 줄이 끝에 걸쳐 들어감
+            line + " 다음 내용이 이어집니다 ".repeat(20),
+            "넷째 쪽 ".repeat(30),
+        )
+        val a = PageAnchor.of(pages[2])!!
+        // 비율로 짐작한 쪽이 앞 쪽(1)이어도 첫머리에 있는 2쪽
+        assertEquals(2, PageAnchor.find(a, 1, pages.size, radius = 3) { pages[it] })
+    }
+
     /** 띄어쓰기·줄바꿈이 배치마다 달라도 같은 글자로 본다. */
     @Test fun ignoresWhitespace() {
         val a = PageAnchor.of("그는 창밖을\n오래 바라보았다. 비는")!!
