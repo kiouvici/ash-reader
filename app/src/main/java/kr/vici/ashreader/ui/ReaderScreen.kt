@@ -450,6 +450,8 @@ fun ReaderScreen(
      */
     var anchor by rememberSaveable(target.id) { mutableStateOf<String?>(null) }
     var heldPage by rememberSaveable(target.id) { mutableIntStateOf(-1) }
+    /** [anchor] 가 가리키는 쪽(지금 배치 기준). 지금 쪽과 다르면(넘기자마자 앱이 꺼져 새로 못 잡음) 그 자리 표시는 쓰지 않는다(CI process-death 4 → 3). */
+    var anchorPage by rememberSaveable(target.id) { mutableIntStateOf(-1) }
     /**
      * 다시 나눈 뒤 옮기는 중: -2 = 아님, -1 = 자리 찾는 중, 0 이상 = 그 쪽으로 옮기는 중. 이동 중에는 쪽 화면이 스스로 알리는 쪽(옛 번호·끝 쪽 맞춤 등)으로
      * 자리 표시를 덮지 않는다(CI 태블릿: 가로 7쪽 → 세로 4쪽 → 가로 3쪽).
@@ -702,7 +704,8 @@ fun ReaderScreen(
                     } else if (!first && pageCountSeen > 0 && n > 0 && n != pageCountSeen) {
                         // 회전·글꼴 변경으로 다시 배치돼 쪽 수가 바뀜 → 읽던 비율로 짐작한 뒤, 읽던 쪽 첫 글자가 든 쪽으로(작업 11)
                         val est = locatorPage(page, locatorFrac(page, pageCountSeen), n)
-                        val a = anchor
+                        // 자리 표시가 지금 쪽 것일 때만(옛 쪽 것이면 비율로만)
+                        val a = anchor.takeIf { anchorPage == page }
                         heldPage = page // 옮기기 전 옛 쪽 번호로 새 문서의 글을 읽어 자리 표시를 덮지 않게
                         relocateTo = -1
                         pageCountSeen = n
@@ -711,6 +714,7 @@ fun ReaderScreen(
                             PageAnchor.find(a, est, n, radius = maxOf(8, n / 15)) { i -> guarded(doc, null) { doc.pageText(i)?.text } }
                         } else null
                         heldPage = found ?: est
+                        if (found != null) anchorPage = found
                         relocateTo = found ?: est
                         jumpReq = found ?: est
                     }
@@ -747,17 +751,24 @@ fun ReaderScreen(
                     if (to >= 0) {
                         // 옮기는 중: 도착하면(또는 1.5초 안에 다른 쪽으로 자리 잡으면 — 두 쪽 펼침 맞춤) 그 쪽을 '옮겨 온 쪽'으로
                         if (page != to) delay(1_500)
+                        if (anchorPage == to) anchorPage = page
                         heldPage = page
                         relocateTo = -2
                         return@LaunchedEffect
                     }
                     if (page == heldPage) return@LaunchedEffect
+                    // 두 쪽 펼침: 옮겨 온 뒤 화면이 펼침 왼쪽 쪽으로 번호를 맞추면(±1) 같은 자리로 본다(CI 태블릿 세로 4 → 3)
+                    if (spreadNow && heldPage >= 0 && kotlin.math.abs(page - heldPage) <= 1) {
+                        if (anchorPage == heldPage) anchorPage = page
+                        heldPage = page
+                        return@LaunchedEffect
+                    }
                     heldPage = -1
                     delay(300)
                     val p = page
                     withContext(Dispatchers.IO) {
                         PageAnchor.capture(p, count, radius = 8) { i -> anchorTexts.getOrPut(i) { guarded(doc, null) { doc.pageText(i)?.text }.orEmpty() } }
-                    }?.let { anchor = it }
+                    }?.let { anchor = it; anchorPage = p }
                 }
                 LaunchedEffect(page, count) {
                     if (count > 0) {
