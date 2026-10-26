@@ -204,6 +204,8 @@ class PageCurlView @JvmOverloads constructor(
     override fun surfaceCreated(holder: SurfaceHolder) {
         val surface = holder.surface
         gl.post {
+            // 그사이 surfaceDestroyed 로 바탕이 사라졌으면 만들지 않는다(다음 surfaceCreated 에서)
+            if (!surface.isValid) return@post
             val core = EglCore()
             if (!core.init(surface)) {
                 Log.e(EglCore.TAG, "EGL 초기화 실패")
