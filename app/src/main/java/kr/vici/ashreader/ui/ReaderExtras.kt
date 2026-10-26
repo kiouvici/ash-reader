@@ -75,6 +75,7 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.delay
 import kr.vici.ashreader.data.InfoItem
+import kr.vici.ashreader.data.infoLineItems
 import kr.vici.ashreader.data.ReadTheme
 import kr.vici.ashreader.data.ScreenTimeout
 import kr.vici.ashreader.data.Settings
@@ -145,7 +146,7 @@ fun ReaderInfoLine(
     val tick by produceState(0L) { while (true) { delay(30_000); value = SystemClock.elapsedRealtime() } }
     val clock = remember(tick) { SimpleDateFormat("HH:mm", Locale.KOREA).format(Date()) }
     val bat = remember(tick) { battery(context) }
-    val on = { item: InfoItem -> s.infoItems and item.bit != 0 }
+    val on = { item: InfoItem -> s.infoLineItems and item.bit != 0 }
     val left = ArrayList<String>()
     if (on(InfoItem.CLOCK)) left += clock
     if (on(InfoItem.BATTERY) && bat in 0..100) left += "배터리 $bat%"

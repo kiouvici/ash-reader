@@ -43,7 +43,8 @@ enum class TapLayout(val label: String) { SIDES("좌우"), L_SHAPE("L자"), ANYW
 
 /** 하단 정보줄 항목(F-45). [bit] = Settings.infoItems 비트. */
 enum class InfoItem(val label: String, val bit: Int) {
-    CLOCK("시계", 1), BATTERY("배터리", 2), CHAPTER_LEFT("이번 장 남은 쪽", 4), PROGRESS("전체 진행률", 8), TIME_LEFT("남은 읽기 시간", 16),
+    CLOCK("시계", 1), BATTERY("배터리", 2), CHAPTER_LEFT("이번 장 남은 쪽", 4), PROGRESS("전체 진행률", 8), TIME_LEFT("남은 읽기 시간", 16);
+    companion object
 }
 
 /** 화면 꺼짐 시간(F-67). */
@@ -52,6 +53,15 @@ enum class ScreenTimeout(val label: String) { SYSTEM("시스템 따름"), FIVE_M
 /** 화면 회전(F-67, S-51 5). */
 enum class Rotation(val label: String) { AUTO("자동"), PORTRAIT("세로 고정"), LANDSCAPE("가로 고정") }
 
+
+/**
+ * 읽기 화면 정보줄에 실제로 보일 항목 비트. 시계는 위 상태 표시줄에 이미 보이므로 뺀다(작업 09 C, 대표님 결정
+ * 2026-10-26 20:59). 상태 표시줄을 숨기는 설정이 생기면 그때만 시계를 다시 넣는다(지금은 그런 설정 없음).
+ */
+val Settings.infoLineItems: Int get() = infoItems and InfoItem.CLOCK.bit.inv()
+
+/** 정보줄 항목 설정에 보일 것(시계 제외 — [infoLineItems]). */
+val InfoItem.Companion.choosable: List<InfoItem> get() = InfoItem.entries.filter { it != InfoItem.CLOCK }
 
 data class Settings(
     val font: BodyFont = BodyFont.NANUM_MYEONGJO,
