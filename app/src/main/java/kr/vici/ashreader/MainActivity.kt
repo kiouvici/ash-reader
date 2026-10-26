@@ -72,6 +72,9 @@ import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.ui.AppSettingsScreen
 import kr.vici.ashreader.ui.AshTheme
 import kr.vici.ashreader.ui.crossWindowBlur
+import kr.vici.ashreader.ui.inAppBlur
+import kr.vici.ashreader.ui.openGlass
+import androidx.compose.ui.draw.blur
 import kr.vici.ashreader.ui.ExportSheet
 import kr.vici.ashreader.ui.LibraryFoldersScreen
 import kr.vici.ashreader.ui.BackupImportScreen
@@ -248,7 +251,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             // 작업 06: 앱 테마(시스템/밝게/어둡게)
             val st by (application as AshApp).prefs.settings.collectAsState(initial = null)
-            AshTheme(st?.appTheme ?: 0) { AshRoot(nav) }
+            AshTheme(st?.appTheme ?: 0) {
+                // 기기 창 흐림이 없으면 유리 메뉴·시트가 떠 있는 동안 앱 화면을 직접 흐린다(LibraryMenus.inAppBlur)
+                val blur by androidx.compose.animation.core.animateDpAsState(if (inAppBlur && openGlass > 0) 40.dp else 0.dp, label = "inAppBlur")
+                Box(if (blur > 0.dp) Modifier.fillMaxSize().blur(blur) else Modifier.fillMaxSize()) { AshRoot(nav) }
+            }
         }
     }
 

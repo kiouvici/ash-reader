@@ -87,6 +87,16 @@ var crossWindowBlur by mutableStateOf(true)
 val canBlur: Boolean get() = Build.VERSION.SDK_INT >= 31 && crossWindowBlur
 
 /**
+ * 앱 안 흐림: 기기 창 흐림이 없는 휴대폰(삼성 — 시스템이 지원하지 않아 개발자 옵션을 켜도 꺼짐)에서는
+ * 앱이 자기 화면을 직접 흐린다(대표님 2026-10-26). 메뉴·시트는 따로 창이라 함께 흐려지지 않는다.
+ * 쪽 넘김 화면(SurfaceView)은 앱이 그리지 않아 흐려지지 않는다.
+ */
+val inAppBlur: Boolean get() = Build.VERSION.SDK_INT >= 31 && !crossWindowBlur
+
+/** 지금 떠 있는 유리 메뉴·시트 수([BlurBehind] 가 센다). 앱 화면 맨 바깥(MainActivity)이 보고 흐린다. */
+var openGlass by mutableIntStateOf(0)
+
+/**
  * 모든 떠 있는 메뉴·시트·단추의 바탕 불투명도(대표님 2026-10-25 00:02: 모두 같게, 지금보다 조금 더 투명하게).
  * 서재 ⋯·≡ 메뉴, 선택 막대, 읽기 화면 바깥 틀 단추·떠 있는 메뉴·테마 및 설정·사용자화가 함께 쓴다.
  */
@@ -110,6 +120,7 @@ fun BlurBehind(radius: Dp = 40.dp, dim: Float = 0.10f) { // 대표님 2026-10-25
     val px = with(LocalDensity.current) { radius.roundToPx() }
     // 시스템은 어둡게 깃발이 켜진 창 아래에만 흐림을 그린다 — 흐림 세기도 그 진하기를 따르므로 흐릴 때는 모든 메뉴·시트를 같은 10%로(대표님 01:35 확인: 블러 통일)
     val dimNow = if (canBlur) maxOf(dim, 0.10f) else dim
+    DisposableEffect(Unit) { openGlass++; onDispose { openGlass-- } }
     DisposableEffect(view) {
         val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
         if (window != null) {
