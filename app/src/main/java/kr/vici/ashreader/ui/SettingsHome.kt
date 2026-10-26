@@ -70,6 +70,7 @@ import kr.vici.ashreader.Links
 import kr.vici.ashreader.ash
 import kr.vici.ashreader.data.BodyFont
 import kr.vici.ashreader.data.InfoItem
+import kr.vici.ashreader.data.choosable
 import kr.vici.ashreader.data.Prefs
 import kr.vici.ashreader.data.ReadTheme
 import kr.vici.ashreader.data.Rotation
@@ -347,7 +348,7 @@ fun AppSettingsScreen(
                     Value("화면 회전", s.rotation.label, c, sub = "읽기 메뉴의 회전 잠금 버튼과 같아요") { onChange { it.copy(rotation = Rotation.entries[(it.rotation.ordinal + 1) % Rotation.entries.size]) } }
                 }
                 Section("정보줄", c) {
-                    Value("정보줄 항목", "${InfoItem.entries.count { s.infoItems and it.bit != 0 }}개", c, sub = "시계·배터리·이번 장 남은 쪽·진행률·남은 시간") { infoItems = true }
+                    Value("정보줄 항목", "${InfoItem.choosable.count { s.infoItems and it.bit != 0 }}개", c, sub = "배터리·이번 장 남은 쪽·진행률·남은 시간") { infoItems = true }
                     Toggle("정보줄을 위에", s.infoTop, c, sub = "끄면 아래") { v -> onChange { it.copy(infoTop = v) } }
                     Toggle("두 쪽 펼침에서 쪽마다 정보줄", s.infoPerPage, c, sub = "태블릿 가로: 각 쪽 아래에 쪽 번호. 끄면 전체 아래 한 줄") { v -> onChange { it.copy(infoPerPage = v) } }
                     Toggle("메뉴 버튼 이름 보이기", s.menuLabels, c, sub = "읽기 메뉴 아래 단추(목차·보기·넘김…) 이름") { v -> onChange { it.copy(menuLabels = v) } }
@@ -490,7 +491,8 @@ fun AppSettingsScreen(
         title = { Text("정보줄 항목") },
         text = {
             Column {
-                InfoItem.entries.forEach { item ->
+                // 시계는 위 상태 표시줄에 있어 정보줄에서 뺐다(작업 09 C)
+                InfoItem.choosable.forEach { item ->
                     SwitchLine(item.label, "", s.infoItems and item.bit != 0) { v -> onChange { it.copy(infoItems = if (v) it.infoItems or item.bit else it.infoItems and item.bit.inv()) } }
                 }
             }

@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # P4: APK 서명 인증서 확인 (apksigner verify --print-certs).
 # 사용법: verify-apk-signers.sh <release.apk> <debug.apk>
-# 환경변수: EXPECTED_RELEASE_SHA256 (콜론 구분 가능), RELEASE_MODE(release|fallback), DEBUG_MODE(fixed|fallback)
+# 환경변수: EXPECTED_RELEASE_SHA256 (콜론 구분 가능), RELEASE_MODE(release|test|fallback), DEBUG_MODE(fixed|fallback)
+# test(작업 09 정식 서명 잠금): 가지·PR 빌드 — release APK 가 정식 키 지문이면 실패(정식 키가 새어 들어옴).
 set -euo pipefail
 RELEASE_APK="$1"; DEBUG_APK="$2"
 APKSIGNER="$(ls -1d "${ANDROID_HOME:?ANDROID_HOME 없음}"/build-tools/*/apksigner | sort -V | tail -1)"
@@ -41,6 +42,13 @@ if [ "${RELEASE_MODE:-}" = "release" ]; then
     echo "::error title=release 서명 지문 불일치::기대 $(colon <<<"$EXP"), 실제 ${R_FP}"
     fail=1
   fi
+elif [ "${RELEASE_MODE:-}" = "test" ]; then
+  if [ "$R_SHA" = "$EXP" ]; then
+    echo "::error title=정식 키 사용 금지::가지·PR 빌드의 release APK 가 정식 키로 서명됐습니다(정식 키는 v* 태그 release 작업만)"
+    fail=1
+  else
+    echo "release APK: 시험용 키 서명(정식 키 아님) 확인" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
+  fi
 else
   echo "::warning title=release 지문 검사 생략::릴리스 키 시크릿이 없어 대체 서명된 빌드입니다"
 fi
@@ -50,7 +58,7 @@ if [ "${DEBUG_MODE:-}" = "fixed" ]; then
     echo "::error title=debug 서명 오류::고정 디버그 키(ashdebug)가 아니라 AGP 기본 키로 서명됐습니다"
     fail=1
   fi
-  if [ "$D_SHA" = "$R_SHA" ]; then
+  if [ "${RELEASE_MODE:-}" = "release" ] && [ "$D_SHA" = "$R_SHA" ]; then
     echo "::error title=debug 서명 오류::debug APK가 release 키로 서명됐습니다"
     fail=1
   fi

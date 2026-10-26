@@ -73,6 +73,11 @@ jobs:
         with:
           cache-provider: basic
 
+      # 작업 09: 정식 키 시크릿은 release 작업(v* 태그 + 승인)에서만 — 다른 곳에 나오면 실패
+      - name: Release secrets only in release job
+        shell: bash
+        run: bash .github/scripts/check-release-secrets.sh .github/workflows
+
       # 앱 코드가 컴파일되는지만 먼저 본다. 실패하면 뒤 작업(빌드·권한·넘김 검사)은 돌지 않는다.
       - name: Compile app (Kotlin)
         shell: bash
@@ -175,58 +180,36 @@ jobs:
           cache-provider: basic
 
       # P4/P9: 시크릿은 이 단계와 빌드 단계에만 노출한다.
-      # release = ASH_KEYSTORE_BASE64/ASH_KEYSTORE_PASSWORD/ASH_KEY_ALIAS/ASH_KEY_PASSWORD
-      # debug   = ASH_DEBUG_KEYSTORE_BASE64/ASH_DEBUG_KEYSTORE_PASSWORD/ASH_DEBUG_KEY_ALIAS (키 비밀번호 = 저장소 비밀번호)
-      # main·태그: 두 키 중 하나라도 없으면 실패. 그 밖의 브랜치: 경고 후 AGP 기본 debug 키로 대체.
-      - name: Prepare signing keys
+      # 작업 09(정식 서명 잠금, 대표님 결정 2026-10-26): 가지·PR·태그 빌드는 정식 키를 읽지 않는다.
+      # 이 작업의 release APK 는 고정 시험용 키(ASH_DEBUG_*)로 서명한다(시험용 — 정식 판과 덮어 설치 안 됨).
+      # 정식 키는 아래 'release' 작업(v* 태그 + Environment release 승인)만 쓴다(check-release-secrets.sh 가 검사).
+      # debug = ASH_DEBUG_KEYSTORE_BASE64/ASH_DEBUG_KEYSTORE_PASSWORD/ASH_DEBUG_KEY_ALIAS (키 비밀번호 = 저장소 비밀번호)
+      # main·태그: 시험용 키가 없으면 실패. 그 밖의 가지: 경고 후 AGP 기본 debug 키로 대체.
+      - name: Prepare signing keys (test key only)
         id: signing
         shell: bash
         env:
-          ASH_KEYSTORE_BASE64: ${{ secrets.ASH_KEYSTORE_BASE64 }}
-          ASH_KEYSTORE_PASSWORD: ${{ secrets.ASH_KEYSTORE_PASSWORD }}
-          ASH_KEY_ALIAS: ${{ secrets.ASH_KEY_ALIAS }}
-          ASH_KEY_PASSWORD: ${{ secrets.ASH_KEY_PASSWORD }}
           ASH_DEBUG_KEYSTORE_BASE64: ${{ secrets.ASH_DEBUG_KEYSTORE_BASE64 }}
           ASH_DEBUG_KEYSTORE_PASSWORD: ${{ secrets.ASH_DEBUG_KEYSTORE_PASSWORD }}
           ASH_DEBUG_KEY_ALIAS: ${{ secrets.ASH_DEBUG_KEY_ALIAS }}
           IS_PROTECTED_REF: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
         run: |
-          missing=()
-          if [ -n "$ASH_KEYSTORE_BASE64" ] && [ -n "$ASH_KEYSTORE_PASSWORD" ] && [ -n "$ASH_KEY_ALIAS" ] && [ -n "$ASH_KEY_PASSWORD" ]; then
-            KS="$RUNNER_TEMP/ash-release.jks"
-            printf '%s' "$ASH_KEYSTORE_BASE64" | base64 -d > "$KS"
-            echo "release_keystore=$KS" >> "$GITHUB_OUTPUT"
-            echo "release_mode=release" >> "$GITHUB_OUTPUT"
-            echo "- release: 릴리스 키 (ASH_KEY*)" >> "$GITHUB_STEP_SUMMARY"
-          else
-            missing+=("release(ASH_KEYSTORE_BASE64/ASH_KEYSTORE_PASSWORD/ASH_KEY_ALIAS/ASH_KEY_PASSWORD)")
-            echo "release_keystore=" >> "$GITHUB_OUTPUT"
-            echo "release_mode=fallback" >> "$GITHUB_OUTPUT"
-          fi
+          echo "release_mode=test" >> "$GITHUB_OUTPUT"
           if [ -n "$ASH_DEBUG_KEYSTORE_BASE64" ] && [ -n "$ASH_DEBUG_KEYSTORE_PASSWORD" ] && [ -n "$ASH_DEBUG_KEY_ALIAS" ]; then
             KS="$RUNNER_TEMP/ash-debug.jks"
             printf '%s' "$ASH_DEBUG_KEYSTORE_BASE64" | base64 -d > "$KS"
             echo "debug_keystore=$KS" >> "$GITHUB_OUTPUT"
             echo "debug_mode=fixed" >> "$GITHUB_OUTPUT"
-            echo "- debug: 고정 디버그 키 (ASH_DEBUG_*)" >> "$GITHUB_STEP_SUMMARY"
+            echo "- debug·release: 고정 시험용 키 (ASH_DEBUG_*) — 정식 키는 release 작업만" >> "$GITHUB_STEP_SUMMARY"
           else
-            missing+=("debug(ASH_DEBUG_KEYSTORE_BASE64/ASH_DEBUG_KEYSTORE_PASSWORD/ASH_DEBUG_KEY_ALIAS)")
             echo "debug_keystore=" >> "$GITHUB_OUTPUT"
             echo "debug_mode=fallback" >> "$GITHUB_OUTPUT"
-          fi
-          if [ "${#missing[@]}" -gt 0 ]; then
             if [ "$IS_PROTECTED_REF" = "true" ]; then
-              echo "::error title=서명 키 없음::main 브랜치·태그 빌드에 필요한 시크릿이 없습니다: ${missing[*]}"
-              echo "### 실패: main·태그 빌드인데 서명 키 시크릿이 없습니다: ${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
+              echo "::error title=시험용 서명 키 없음::main·태그 빌드에 필요한 시크릿이 없습니다: ASH_DEBUG_KEYSTORE_BASE64/ASH_DEBUG_KEYSTORE_PASSWORD/ASH_DEBUG_KEY_ALIAS"
               exit 1
             fi
-            echo "::warning title=서명 키 없음::시크릿이 없어 AGP 기본 debug 키로 대체 서명했습니다: ${missing[*]}. 배포용으로 쓰지 마세요."
-            {
-              echo ""
-              echo "### 경고: 일부 APK가 AGP 기본 debug 키로 서명됨"
-              echo "없는 시크릿: ${missing[*]}"
-              echo "이 APK는 시험용이며, 정식 키로 서명한 APK와 덮어 설치되지 않습니다."
-            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=시험용 서명 키 없음::시크릿이 없어 AGP 기본 debug 키로 대체 서명했습니다."
+            echo "### 경고: APK 가 AGP 기본 debug 키로 서명됨(시험용)" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Permission check, merged manifest (N-05 ①) + network confined (⑤)
@@ -240,10 +223,6 @@ jobs:
       - name: Assemble debug & release (app, bench)
         shell: bash
         env:
-          ASH_KEYSTORE_FILE: ${{ steps.signing.outputs.release_keystore }}
-          ASH_KEYSTORE_PASSWORD: ${{ secrets.ASH_KEYSTORE_PASSWORD }}
-          ASH_KEY_ALIAS: ${{ secrets.ASH_KEY_ALIAS }}
-          ASH_KEY_PASSWORD: ${{ secrets.ASH_KEY_PASSWORD }}
           ASH_DEBUG_KEYSTORE_FILE: ${{ steps.signing.outputs.debug_keystore }}
           ASH_DEBUG_KEYSTORE_PASSWORD: ${{ secrets.ASH_DEBUG_KEYSTORE_PASSWORD }}
           ASH_DEBUG_KEY_ALIAS: ${{ secrets.ASH_DEBUG_KEY_ALIAS }}
@@ -314,13 +293,13 @@ jobs:
       - name: Remove keystore
         if: always()
         shell: bash
-        run: rm -f "$RUNNER_TEMP/ash-release.jks" "$RUNNER_TEMP/ash-debug.jks"
+        run: rm -f "$RUNNER_TEMP/ash-debug.jks"
 
       - name: Permission check, final APK (aapt2)
         shell: bash
         run: .github/scripts/check-apk-permissions.sh app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk bench/build/outputs/apk/debug/bench-debug.apk bench/build/outputs/apk/release/bench-release.apk
 
-      # P4: 서명 인증서 지문 확인. release는 기대 지문과 다르면 실패, debug는 지문을 요약에 표시.
+      # P4: 서명 인증서 지문 확인. 이 작업(가지·PR·태그)의 release APK 가 정식 키 지문이면 실패(작업 09 잠금).
       - name: Verify signing certificates
         shell: bash
         env:
@@ -362,7 +341,7 @@ jobs:
           VC=$((1000 + GITHUB_RUN_NUMBER))
           SHA="${GITHUB_SHA::7}"
           RS=""; DS=""
-          [ "$RELEASE_MODE" = "fallback" ] && RS="-debugsigned"
+          [ "$RELEASE_MODE" = "test" ] && RS="-testsigned"
           [ "$DEBUG_MODE" = "fallback" ] && DS="-agpkey"
           cp app/build/outputs/apk/debug/app-debug.apk "dist/ash-reader-${VC}-${SHA}-debug${DS}.apk"
           cp app/build/outputs/apk/release/app-release.apk "dist/ash-reader-${VC}-${SHA}-release${RS}.apk"
@@ -800,3 +779,135 @@ jobs:
           if [ "${{ steps.run1.outcome }}" = "success" ] || [ "${{ steps.run2.outcome }}" = "success" ]; then exit 0; fi
           echo "::error title=e2e (${{ matrix.name }})::종단 시험 실패 — 산출물 e2e-${{ matrix.name }}-${{ github.run_number }} 의 shots/·logcat.txt·instrument/ 를 보세요"
           exit 1
+
+  # 작업 09 정식 서명 잠금(대표님 결정 2026-10-26): 정식 키(ASH_KEYSTORE_*·ASH_KEY_*)는 이 작업만 쓴다.
+  # v* 태그 push → 빌드·종단 시험이 녹색이면 Environment 'release' 승인 대기(대표님 버튼) → 정식 키로 서명 →
+  # GitHub 릴리스 초안(APK·THIRD_PARTY_NOTICES·소스). 초안 공개(Publish)는 대표님이 누른다.
+  # 다른 작업에 정식 키 시크릿이 나오면 compile 작업의 check-release-secrets.sh 가 실패시킨다.
+  release:
+    needs: [build, e2e]
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: "platform-tools build-tools;36.0.0 ndk;28.2.13676358 cmake;3.22.1"
+
+      - name: Set up Rust + cargo-ndk
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-linux-android x86_64-linux-android armv7-linux-androideabi i686-linux-android
+          cargo install cargo-ndk --version 4.1.2 --locked
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - name: Cache ncnn build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /home/runner/ncnn-cache
+          key: ncnn-20261020-ndk28.2.13676358-arm64-v8a_x86_64-v2-simpleomp
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-provider: basic
+          cache-read-only: true
+
+      - name: Prepare release key
+        shell: bash
+        env:
+          ASH_KEYSTORE_BASE64: ${{ secrets.ASH_KEYSTORE_BASE64 }}
+        run: |
+          [ -n "$ASH_KEYSTORE_BASE64" ] || { echo "::error title=정식 키 없음::Environment release 에 ASH_KEYSTORE_BASE64 가 없습니다"; exit 1; }
+          printf '%s' "$ASH_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ash-release.jks"
+
+      # 대표님 스크립트(set-release-secrets.ps1)로 넣은 값이 맞는지 — 키 파일·비밀번호·별칭을 keytool 로 먼저 확인(값은 출력 안 함)
+      - name: Check release key (비밀번호·별칭)
+        shell: bash
+        env:
+          ASH_KEYSTORE_PASSWORD: ${{ secrets.ASH_KEYSTORE_PASSWORD }}
+          ASH_KEY_ALIAS: ${{ secrets.ASH_KEY_ALIAS }}
+        run: |
+          keytool -list -keystore "$RUNNER_TEMP/ash-release.jks" -storepass:env ASH_KEYSTORE_PASSWORD -alias "$ASH_KEY_ALIAS" > /dev/null             || { echo "::error title=정식 키 확인 실패::Environment release 의 ASH_KEYSTORE_BASE64·ASH_KEYSTORE_PASSWORD·ASH_KEY_ALIAS 가 서로 맞지 않습니다(set-release-secrets.ps1 다시 실행)"; exit 1; }
+          echo "정식 키 파일·저장소 비밀번호·별칭 확인됨" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Assemble release (정식 키)
+        shell: bash
+        env:
+          ASH_KEYSTORE_FILE: ${{ runner.temp }}/ash-release.jks
+          ASH_KEYSTORE_PASSWORD: ${{ secrets.ASH_KEYSTORE_PASSWORD }}
+          ASH_KEY_ALIAS: ${{ secrets.ASH_KEY_ALIAS }}
+          ASH_KEY_PASSWORD: ${{ secrets.ASH_KEY_PASSWORD }}
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          .github/scripts/gradle-annotate.sh :app:assembleRelease "-Pash.versionName=$V"
+
+      - name: Remove keystore
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/ash-release.jks"
+
+      - name: Verify release signing (정식 키 지문)
+        shell: bash
+        env:
+          EXPECTED_RELEASE_SHA256: "AE:6D:B1:29:FB:E2:1E:5B:F4:AA:56:41:55:BC:7C:4B:53:D1:F9:43:AA:86:50:D0:79:0A:E3:4D:2A:25:B6:F1"
+        run: |
+          APKSIGNER="$(ls -1d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
+          norm() { tr -d ':[:space:]' | tr 'A-F' 'a-f'; }
+          GOT="$("$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk | grep -m1 'certificate SHA-256 digest:' | sed 's/.*digest: //' | norm)"
+          EXP="$(norm <<<"$EXPECTED_RELEASE_SHA256")"
+          echo "### 정식 서명 지문: \`$GOT\`" >> "$GITHUB_STEP_SUMMARY"
+          [ "$GOT" = "$EXP" ] || { echo "::error title=정식 서명 지문 불일치::기대 $EXP, 실제 $GOT"; exit 1; }
+
+      # 같은 실행의 build 작업이 만든 서드파티 대응 소스(GPL §3·AGPL §6)
+      - name: Download third-party sources
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: third-party-sources-${{ github.run_number }}
+          path: dist-3p
+
+      - name: Package release files
+        shell: bash
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          mkdir -p rel
+          cp app/build/outputs/apk/release/app-release.apk "rel/ash-reader-${V}.apk"
+          cp THIRD_PARTY_NOTICES "rel/THIRD_PARTY_NOTICES.txt"
+          cp LICENSE "rel/LICENSE.txt"
+          git archive --format=zip --prefix="ash-reader-${V}/" -o "rel/ash-reader-${V}-source.zip" "$GITHUB_SHA"
+          cp dist-3p/*.tar.gz "rel/ash-reader-${V}-third-party-sources.tar.gz"
+          { echo '### 릴리스 파일'; echo '```'; (cd rel && sha256sum *); echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      # 초안으로만 만든다(공개는 대표님). '-' 가 든 태그(v0.0.0-test1 등)는 사전 배포 표시.
+      - name: Create draft GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          PRE=""; case "$V" in *-*) PRE="--prerelease";; esac
+          {
+            echo "ASH Reader ${V}"
+            echo ""
+            echo "- ash-reader-${V}.apk — 정식 키 서명(SHA-256 AE:6D:B1:29:…:25:B6:F1)"
+            echo "- ash-reader-${V}-source.zip — 이 판의 앱 소스(AGPL-3.0-or-later)"
+            echo "- ash-reader-${V}-third-party-sources.tar.gz — 빌드에 쓴 서드파티 대응 소스"
+            echo "- THIRD_PARTY_NOTICES.txt · LICENSE.txt"
+          } > /tmp/notes.md
+          gh release create "$GITHUB_REF_NAME" rel/* --repo "$GITHUB_REPOSITORY" --draft $PRE --verify-tag \
+            --title "ASH Reader ${V}" --notes-file /tmp/notes.md
