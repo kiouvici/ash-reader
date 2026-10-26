@@ -836,6 +836,16 @@ jobs:
           [ -n "$ASH_KEYSTORE_BASE64" ] || { echo "::error title=정식 키 없음::Environment release 에 ASH_KEYSTORE_BASE64 가 없습니다"; exit 1; }
           printf '%s' "$ASH_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ash-release.jks"
 
+      # 대표님 스크립트(set-release-secrets.ps1)로 넣은 값이 맞는지 — 키 파일·비밀번호·별칭을 keytool 로 먼저 확인(값은 출력 안 함)
+      - name: Check release key (비밀번호·별칭)
+        shell: bash
+        env:
+          ASH_KEYSTORE_PASSWORD: ${{ secrets.ASH_KEYSTORE_PASSWORD }}
+          ASH_KEY_ALIAS: ${{ secrets.ASH_KEY_ALIAS }}
+        run: |
+          keytool -list -keystore "$RUNNER_TEMP/ash-release.jks" -storepass:env ASH_KEYSTORE_PASSWORD -alias "$ASH_KEY_ALIAS" > /dev/null             || { echo "::error title=정식 키 확인 실패::Environment release 의 ASH_KEYSTORE_BASE64·ASH_KEYSTORE_PASSWORD·ASH_KEY_ALIAS 가 서로 맞지 않습니다(set-release-secrets.ps1 다시 실행)"; exit 1; }
+          echo "정식 키 파일·저장소 비밀번호·별칭 확인됨" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Assemble release (정식 키)
         shell: bash
         env:

@@ -67,13 +67,16 @@ function Set-ReleaseSecret([string]$name, [string]$value) {
     $psi.RedirectStandardError = $true
     $p = [System.Diagnostics.Process]::Start($psi)
     $bytes = [Text.Encoding]::UTF8.GetBytes($value)
+    # 넘긴 값 확인(값은 보이지 않고 글자 수·SHA-256 앞 8자리만) — 같은 값을 다시 넣으면 같은 숫자가 나온다
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $h = ([BitConverter]::ToString($sha.ComputeHash($bytes)) -replace '-', '').Substring(0, 8).ToLower()
     $p.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
     $p.StandardInput.Close()
     $null = $p.StandardOutput.ReadToEnd()
     $err = $p.StandardError.ReadToEnd()
     $p.WaitForExit()
     if ($p.ExitCode -ne 0) { throw "$name 넣기 실패: $err" }
-    Write-Host "  $name 넣음"
+    Write-Host ("  {0} 넣음 — 글자 수 {1}, SHA-256 앞자리 {2}" -f $name, $value.Length, $h)
 }
 
 Write-Host "Environment 'release' 에 정식 키 시크릿 4개를 넣습니다($Repo)."
@@ -86,15 +89,20 @@ Write-Host "Environment 'release' 시크릿 목록(이름만):"
 & $gh secret list --env release --repo $Repo
 
 # --- 비밀번호 백업(대표님 결정 21:07): 화면 출력 없이 클립보드로 하나씩 ---
+# 클립보드는 STA 스레드에서만 된다(powershell.exe -File 은 기본 STA)
+if ([Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') { throw '클립보드를 쓰려면 STA 가 필요합니다: powershell -STA -File ... 로 다시 실행해 주세요.' }
 Add-Type -AssemblyName System.Windows.Forms
 function Copy-Private([string]$text) {
     $d = New-Object System.Windows.Forms.DataObject
-    $d.SetData([System.Windows.Forms.DataFormats]::UnicodeText, $text)
+    $d.SetData([System.Windows.Forms.DataFormats]::UnicodeText, $true, $text)
     # Windows 클립보드 기록(Win+V)·클라우드 클립보드에 남지 않게
     $d.SetData('ExcludeClipboardContentFromMonitorProcessing', (New-Object IO.MemoryStream (, [byte[]](1, 0, 0, 0))))
     $d.SetData('CanIncludeInClipboardHistory', (New-Object IO.MemoryStream (, [byte[]](0, 0, 0, 0))))
     $d.SetData('CanUploadToCloudClipboard', (New-Object IO.MemoryStream (, [byte[]](0, 0, 0, 0))))
     [System.Windows.Forms.Clipboard]::SetDataObject($d, $true)
+    # 들어간 값이 맞는지(값은 보이지 않고 같은지만) 확인
+    $back = [System.Windows.Forms.Clipboard]::GetText()
+    if ($back -cne $text) { throw "클립보드에 다른 값이 들어갔습니다(글자 수 $($back.Length), 기대 $($text.Length)). 클립보드를 지우고 멈춥니다." }
 }
 function Wait-EnterOr30s {
     $end = (Get-Date).AddSeconds(30)
@@ -104,18 +112,25 @@ function Wait-EnterOr30s {
     }
     Write-Host '  (30초가 지나 클립보드를 지웁니다)'
 }
-$items = if ($storePw -ceq $keyPw) { @(, @('스토어·키 비밀번호(둘이 같음)', $storePw)) } else { @(@('스토어 비밀번호', $storePw), @('키 비밀번호', $keyPw)) }
+# 항목 목록은 List 로 만든다 — @(@(…)) 한 개짜리는 PowerShell 이 풀어 버려 글자 하나('5')만 복사되던 버그(대표님 21:20)
+$items = New-Object 'System.Collections.Generic.List[object]'
+if ($storePw -ceq $keyPw) {
+    $items.Add([pscustomobject]@{ Label = '스토어·키 비밀번호(둘이 같음)를'; Value = $storePw })
+} else {
+    $items.Add([pscustomobject]@{ Label = '스토어 비밀번호를'; Value = $storePw })
+    $items.Add([pscustomobject]@{ Label = '키 비밀번호를'; Value = $keyPw })
+}
 Write-Host ''
 Write-Host "비밀번호 백업 — 키 별칭: $alias (비밀 아님)"
 try {
     for ($i = 0; $i -lt $items.Count; $i++) {
-        Copy-Private $items[$i][1]
-        Write-Host "[$($i + 1)/$($items.Count)] $($items[$i][0])를 복사했습니다. 비밀번호 관리 앱에 붙여 넣고 Enter"
+        Copy-Private $items[$i].Value
+        Write-Host ("[{0}/{1}] {2} 복사했습니다(글자 수 {3}). 비밀번호 관리 앱에 붙여 넣고 Enter" -f ($i + 1), $items.Count, $items[$i].Label, $items[$i].Value.Length)
         Wait-EnterOr30s
         [System.Windows.Forms.Clipboard]::Clear()
     }
 } finally {
     [System.Windows.Forms.Clipboard]::Clear()
-    $storePw = $null; $keyPw = $null
+    $storePw = $null; $keyPw = $null; $items = $null
 }
 Write-Host '클립보드를 지웠습니다. 끝났습니다 — 대화창에 "시크릿 넣음"이라고 알려 주세요.'
