@@ -75,10 +75,12 @@ android {
                 "proguard-rules.pro",
             )
             if (withOffice) proguardFile("office-probe.pro")
-            signingConfig = if (releaseKey != null) {
-                signingConfigs.getByName("ashRelease")
-            } else {
-                signingConfigs.getByName("debug")
+            // 작업 09(정식 서명 잠금): 정식 키는 v* 태그 release 작업·노트북 빌드만 넘긴다.
+            // 가지·PR CI 빌드는 정식 키가 없으므로 고정 시험용 키(ashDebug), 그것도 없으면 AGP 기본 debug 키.
+            signingConfig = when {
+                releaseKey != null -> signingConfigs.getByName("ashRelease")
+                debugKey != null -> signingConfigs.getByName("ashDebug")
+                else -> signingConfigs.getByName("debug")
             }
         }
         if (negativeTest) {

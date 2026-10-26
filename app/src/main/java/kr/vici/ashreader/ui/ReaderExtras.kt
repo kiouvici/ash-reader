@@ -75,6 +75,7 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.delay
 import kr.vici.ashreader.data.InfoItem
+import kr.vici.ashreader.data.infoLineItems
 import kr.vici.ashreader.data.ReadTheme
 import kr.vici.ashreader.data.ScreenTimeout
 import kr.vici.ashreader.data.Settings
@@ -135,12 +136,17 @@ fun ReaderInfoLine(
      * 띄우면 기기(작업 표시줄·두 쪽 펼침 등)에 따라 비워 둔 자리와 어긋나 마지막 줄과 겹칠 수 있었다.
      */
     frame: PageFrame? = null,
+    /**
+     * 스크롤 보기·웹툰: 본문이 정보줄 밑으로 지나가 글자와 겹치므로 위쪽 띠와 같은 유리 알약 바탕([chromePill])을 깐다
+     * (작업 09 B, 대표님 결정 2026-10-26).
+     */
+    glass: Boolean = false,
 ) {
     val context = LocalContext.current
     val tick by produceState(0L) { while (true) { delay(30_000); value = SystemClock.elapsedRealtime() } }
     val clock = remember(tick) { SimpleDateFormat("HH:mm", Locale.KOREA).format(Date()) }
     val bat = remember(tick) { battery(context) }
-    val on = { item: InfoItem -> s.infoItems and item.bit != 0 }
+    val on = { item: InfoItem -> s.infoLineItems and item.bit != 0 }
     val left = ArrayList<String>()
     if (on(InfoItem.CLOCK)) left += clock
     if (on(InfoItem.BATTERY) && bat in 0..100) left += "배터리 $bat%"
@@ -178,6 +184,15 @@ fun ReaderInfoLine(
         return
     }
     if (left.isEmpty() && right.isEmpty()) return
+    if (glass) {
+        Row(modifier.fillMaxWidth().then(pad).padding(horizontal = 12.dp).semantics { contentDescription = (left + right).joinToString(", ") }, verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) {
+                if (left.isNotEmpty()) Text(left.joinToString(" · "), fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, maxLines = 1, modifier = Modifier.chromePill(c))
+            }
+            if (right.isNotEmpty()) Text(right.joinToString("  "), fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp).chromePill(c))
+        }
+        return
+    }
     Row(modifier.fillMaxWidth().then(pad).padding(horizontal = 20.dp).semantics { contentDescription = (left + right).joinToString(", ") }, verticalAlignment = Alignment.CenterVertically) {
         Text(left.joinToString(" · "), fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, maxLines = 1, modifier = Modifier.weight(1f))
         Text(right.joinToString("  "), fontSize = 12.sp, lineHeight = PageFrame.INFO_LINE_SP.sp, color = c.subC, maxLines = 1, overflow = TextOverflow.Ellipsis)

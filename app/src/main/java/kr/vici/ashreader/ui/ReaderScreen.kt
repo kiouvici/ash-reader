@@ -1202,6 +1202,7 @@ fun ReaderScreen(
                         page, count, chapterLeft, msPerPage, s, colors, Modifier.align(if (s.infoTop) Alignment.TopCenter else Alignment.BottomCenter), halves = halves,
                         // 7G: 쪽 넘김 eBook 보기(가로·세로·두 쪽 펼침)는 쪽 배치가 비운 띠에 정확히 놓는다
                         frame = frame?.takeIf { !scrollView && !webtoon && !fitMode && zoomAt == null },
+                        glass = scrollView || webtoon,
                     )
                 }
                 // 자동 넘김 멈춤 띠
