@@ -129,6 +129,12 @@ class D04ReadingTest : E2eTest() {
      * 작업 11: 회전(세로↔가로, 태블릿은 두 쪽 펼침) 3번 왕복 뒤 처음 방향으로 돌아오면 같은 쪽(같은 배치 = 같은 문장).
      * 다시 나눌 때 비율이 아니라 읽던 쪽 첫 글자로 찾으므로 앞쪽에서도 깎이지 않아야 한다. EPUB·TXT·HWP(eBook 보기).
      */
+    /** 정보줄 "N/M쪽"의 M(전체 쪽 수). 못 읽으면 null. */
+    private fun pageTotal(): Int? {
+        val t = device.findObject(By.text(INFO))?.text ?: return null
+        return Regex("\\d+ ?/ ?(\\d+)쪽").find(t)?.groupValues?.get(1)?.toIntOrNull()
+    }
+
     private fun rotationKeepsSpot(title: String, badge: String, hwpEbook: Boolean = false) {
         launchApp()
         openFromLibrary(title, badge)
@@ -148,7 +154,8 @@ class D04ReadingTest : E2eTest() {
         var p = page()
         repeat(3) { p = tapTurn(0.9f, p, forward = true) ?: p }
         val before = settledPage()
-        android.util.Log.i("AshAnchor", "TEST $badge start before=$before rot=${device.displayRotation}")
+        val total0 = pageTotal()
+        android.util.Log.i("AshAnchor", "TEST $badge start before=$before total=$total0 rot=${device.displayRotation}")
         shot("$badge-before")
         val rot0 = device.displayRotation
         try {
@@ -160,9 +167,17 @@ class D04ReadingTest : E2eTest() {
                 if (rot0 == 0) device.setOrientationNatural() else shell("settings put system user_rotation $rot0")
                 SystemClock.sleep(2_500); waitPage(120_000)
                 val now = settledPage()
-                android.util.Log.i("AshAnchor", "TEST $badge rot$i back page=$now (기대 $before)")
+                val total = pageTotal()
+                android.util.Log.i("AshAnchor", "TEST $badge rot$i back page=$now total=$total (기대 $before/$total0)")
                 shot("$badge-rot$i-back")
-                assertEquals("'$title' 회전 ${i + 1}번 왕복 뒤 읽던 쪽이 아님", before, now)
+                // 지시 기준 = 같은 문장이 화면에 있는가. 같은 배치(전체 쪽 수 같음)로 돌아오면 정확히 같은 쪽.
+                // 같은 화면이어도 배치가 달라지면(전체 쪽 수가 다름 — CI: HWP 67 ↔ 62쪽) 읽던 글은 비율 근처 쪽 안에 있다(±1)
+                if (total == null || total0 == null || total == total0) {
+                    assertEquals("'$title' 회전 ${i + 1}번 왕복 뒤 읽던 쪽이 아님", before, now)
+                } else {
+                    val expect = ((before - 1 + 0.5f) / total0 * total).toInt() + 1
+                    assertTrue("'$title' 회전 ${i + 1}번 왕복 뒤 읽던 자리에서 멂(배치 $total0 → $total 쪽, 기대 약 $expect, 지금 $now)", kotlin.math.abs(now - expect) <= 1)
+                }
             }
         } finally {
             if (rot0 == 0) device.setOrientationNatural() else shell("settings put system user_rotation $rot0")
