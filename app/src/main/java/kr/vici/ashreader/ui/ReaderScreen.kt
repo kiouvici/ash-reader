@@ -789,6 +789,9 @@ fun ReaderScreen(
                         heldPage = page
                         return@LaunchedEffect
                     }
+                    // 자리 표시가 이미 이 쪽을 가리키면(옮겨 와 도착한 쪽 등) 새로 잡지 않는다 — CI 진단: 가로로 옮겨 도착한 직후
+                    // 같은 쪽에서 다시 잡혀(가로 쪽 첫머리) 세로로 돌아올 때 한 쪽 앞으로 갔다(HWP 4 → 3)
+                    if (anchorPage == page && anchor != null) return@LaunchedEffect
                     heldPage = -1
                     delay(300)
                     val p = page
