@@ -186,6 +186,25 @@ object MetaRules {
                 .thenByDescending { it.first.coverUrl.isNotEmpty() },
         )
 
+    /**
+     * 국립중앙도서관 저자 칸 정리: "저자 : 생텍쥐페리;역자 : 양태철;" → "생텍쥐페리".
+     * 역할 이름(저자·지은이·글·역자·옮긴이·그림 등)을 떼고, 지은 사람 칸이 있으면 그것만, 없으면 모두를 ", " 로 잇는다.
+     * 앞에 붙은 "저자 :" 말고 뒤에 붙은 "최준삼 지음"·"홍길동 옮김" 꼴도 같은 역할로 본다.
+     */
+    fun nlAuthor(s: String?): String {
+        val parts = s.orEmpty().split(';', '/').map { it.trim() }.filter { it.isNotEmpty() }
+        val roleRx = Regex("^([^:：]{1,8})\\s*[:：]\\s*(.+)$")
+        val tailRx = Regex("^(.+?)\\s+(지음|저|글|엮음|편저|편|옮김|역|그림|감수)$")
+        val main = setOf("저자", "지은이", "지음", "글", "저", "작가", "글쓴이", "편저", "엮은이", "엮음", "편")
+        val all = parts.map { p ->
+            roleRx.matchEntire(p)?.let { it.groupValues[1].trim() to it.groupValues[2].trim() }
+                ?: tailRx.matchEntire(p)?.let { it.groupValues[2] to it.groupValues[1].trim() }
+                ?: ("" to p)
+        }
+        val pick = all.filter { it.first in main }.ifEmpty { all.filter { it.first.isEmpty() } }.ifEmpty { all }
+        return pick.flatMap { it.second.split(',', '，') }.map { it.trim() }.filter { it.isNotEmpty() }.distinct().joinToString(", ")
+    }
+
     /** ISBN-10/13 만 남김(숫자·X). 아니면 "". */
     fun isbn(s: String?): String {
         val d = s.orEmpty().filter { it.isDigit() || it == 'X' || it == 'x' }.uppercase()
