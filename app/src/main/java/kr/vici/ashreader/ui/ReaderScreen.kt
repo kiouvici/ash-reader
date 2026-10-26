@@ -457,6 +457,12 @@ fun ReaderScreen(
      * 자리 표시를 덮지 않는다(CI 태블릿: 가로 7쪽 → 세로 4쪽 → 가로 3쪽).
      */
     var relocateTo by remember(target.id) { mutableIntStateOf(-2) }
+    /**
+     * 옮기기 전 위치(쪽·쪽 수, 옛 배치 기준). 자리를 찾는 사이 새 배치가 또 열리면(회전 직후 두 쪽 펼침이 켜져 같은 쪽 수로 한 번 더 —
+     * CI 진단 로그) 찾기가 취소되는데, 그때도 이 위치에서 다시 찾는다. 다 옮기면 -1.
+     */
+    var relocFromPage by rememberSaveable(target.id) { mutableIntStateOf(-1) }
+    var relocFromCount by rememberSaveable(target.id) { mutableIntStateOf(0) }
     val reflow = if (isWord) hwpEbook else fmt.reflowable || (isHwp && hwpEbook)
     /** F-22 스크롤 보기(만화는 웹툰 보기로 대신). */
     val scrollView = s.scrollView && fmt.group != FormatGroup.COMIC && !pdfComic
@@ -690,6 +696,8 @@ fun ReaderScreen(
                     }
                 }
                 LaunchedEffect(doc) {
+                    // 진단(작업 11): 배치 크기 — 같은 기기인데 쪽 수가 달라지는 때(앱을 다시 연 뒤 26 → 25쪽) 원인 보기
+                    if (reflow) android.util.Log.i("AshAnchor", "doc n=${doc.pageCount} w=${pageWdp.toInt()} h=${hDp.toInt()} spread=$spread frame=$frame")
                     openDoc = doc; sel = null; hit = null
                     val first = !firstLoadDone
                     firstLoadDone = true
@@ -701,15 +709,16 @@ fun ReaderScreen(
                     } else if (first && target.startCount > 0 && n > 0 && n != target.startCount) {
                         // 저장할 때와 쪽 수가 다름(글꼴·크기·보기 방식) → 읽은 비율로 옮긴다
                         jumpReq = locatorPage(target.startPage, locatorFrac(target.startPage, target.startCount), n)
-                    } else if (!first && pageCountSeen > 0 && n > 0 && n != pageCountSeen) {
-                        // 회전·글꼴 변경으로 다시 배치돼 쪽 수가 바뀜 → 읽던 비율로 짐작한 뒤, 읽던 쪽 첫 글자가 든 쪽으로(작업 11)
-                        val oldPage = page; val oldN = pageCountSeen
-                        val est = locatorPage(page, locatorFrac(page, pageCountSeen), n)
-                        // 자리 표시가 지금 쪽 것일 때만(옛 쪽 것이면 비율로만)
-                        val a = anchor.takeIf { anchorPage == page }
+                    } else if (n > 0 && (relocFromPage >= 0 || (!first && pageCountSeen > 0 && n != pageCountSeen))) {
+                        // 회전·글꼴 변경으로 다시 배치돼 쪽 수가 바뀜 → 읽던 비율로 짐작한 뒤, 읽던 쪽 첫 글자가 든 쪽으로(작업 11).
+                        // 앞 배치에서 찾다 끊겼으면(relocFrom) 그 옛 위치에서 다시
+                        if (relocFromPage < 0) { relocFromPage = page; relocFromCount = pageCountSeen }
+                        val oldPage = relocFromPage; val oldN = relocFromCount
+                        val est = locatorPage(oldPage, locatorFrac(oldPage, oldN), n)
+                        // 자리 표시가 옮기기 전 쪽 것일 때만(옛 쪽 것이면 비율로만)
+                        val a = anchor.takeIf { anchorPage == oldPage }
                         heldPage = page // 옮기기 전 옛 쪽 번호로 새 문서의 글을 읽어 자리 표시를 덮지 않게
                         relocateTo = -1
-                        pageCountSeen = n
                         // 자리 표시가 있으면 찾은 뒤 한 번만 옮긴다(짐작한 쪽으로 먼저 가면 그 쪽 글로 자리 표시가 덮일 수 있음)
                         val radius = maxOf(8, n / 15)
                         val found = if (a != null && reflow) withContext(Dispatchers.IO) {
@@ -726,6 +735,7 @@ fun ReaderScreen(
                         if (found != null) anchorPage = found
                         relocateTo = found ?: est
                         jumpReq = found ?: est
+                        relocFromPage = -1
                     }
                     if (n > 0) pageCountSeen = n
                     // 그림만 든 PDF 인지 한 번 본다('만화로 보기' 제안)
