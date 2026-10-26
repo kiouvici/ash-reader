@@ -71,10 +71,13 @@ import kr.vici.ashreader.data.Settings
 import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.ui.AppSettingsScreen
 import kr.vici.ashreader.ui.AshTheme
-import kr.vici.ashreader.ui.crossWindowBlur
-import kr.vici.ashreader.ui.inAppBlur
-import kr.vici.ashreader.ui.openGlass
-import androidx.compose.ui.draw.blur
+import kr.vici.ashreader.ui.Backdrop
+import kr.vici.ashreader.ui.LocalBackdrop
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionOnScreen
 import kr.vici.ashreader.ui.ExportSheet
 import kr.vici.ashreader.ui.LibraryFoldersScreen
 import kr.vici.ashreader.ui.BackupImportScreen
@@ -238,8 +241,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // 기기가 창 흐림을 꺼 두면(삼성 휴대폰 등) 유리 메뉴를 불투명 92%로(감수 3) — 켜고 끌 때마다 알려 준다
-        if (Build.VERSION.SDK_INT >= 31) windowManager.addCrossWindowBlurEnabledListener(mainExecutor, blurListener)
         if (savedInstanceState == null) {
             // I-714: 최근 앱 목록에서 다시 띄운 경우(LAUNCHED_FROM_HISTORY)는 예전 '열기' 인텐트가 다시 오므로 무시한다
             if (!fromHistory(intent)) nav.inbox.offer(urisOf(intent))
@@ -252,9 +253,15 @@ class MainActivity : ComponentActivity() {
             // 작업 06: 앱 테마(시스템/밝게/어둡게)
             val st by (application as AshApp).prefs.settings.collectAsState(initial = null)
             AshTheme(st?.appTheme ?: 0) {
-                // 기기 창 흐림이 없으면 유리 메뉴·시트가 떠 있는 동안 앱 화면을 직접 흐린다(LibraryMenus.inAppBlur)
-                val blur by androidx.compose.animation.core.animateDpAsState(if (inAppBlur && openGlass > 0) 40.dp else 0.dp, label = "inAppBlur")
-                Box(if (blur > 0.dp) Modifier.fillMaxSize().blur(blur) else Modifier.fillMaxSize()) { AshRoot(nav) }
+                // 서재 유리 메뉴가 자기 뒤만 흐리도록 앱 화면을 한 장 더 담아 둔다(LibraryMenus.backdropBlur)
+                val layer = rememberGraphicsLayer()
+                val backdrop = remember(layer) { Backdrop(layer) }
+                androidx.compose.runtime.CompositionLocalProvider(LocalBackdrop provides backdrop) {
+                    Box(
+                        Modifier.fillMaxSize().onGloballyPositioned { backdrop.origin = it.positionOnScreen() }
+                            .drawWithContent { backdrop.layer.record { this@drawWithContent.drawContent() }; drawLayer(backdrop.layer) },
+                    ) { AshRoot(nav) }
+                }
             }
         }
     }
@@ -312,10 +319,7 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
-    private val blurListener = java.util.function.Consumer<Boolean> { crossWindowBlur = it }
-
     override fun onDestroy() {
-        if (Build.VERSION.SDK_INT >= 31) windowManager.removeCrossWindowBlurEnabledListener(blurListener)
         if (isFinishing) {
             // 필수 5: 앱을 닫으면 서재에 없는 문서의 변환 캐시는 늘 지우고,
             // '한 번만 보기 기록 지우기'(기본 켬)가 켜져 있을 때만 한 번만 보기 사본도 지운다.
@@ -634,7 +638,7 @@ private fun AshRoot(nav: NavModel) {
             bottomBar = {
                 if (!(land && sc == Screen.Library)) {
                     // 모음·검색은 서재에서 쓰는 기능 — 서재 화면에서만 보인다(대표님 2026-10-25 결정)
-                    FloatingNavBar(listOf("서재" to Icons.Library, "독서 기록" to Icons.Chart, "설정" to Icons.Gear), tabs.indexOf(nav.tab), ::pickTab, if (sc == Screen.Library) navActions else emptyList(), ::navAction)
+                    FloatingNavBar(listOf("서재" to Icons.Library, "독서 기록" to Icons.Chart, "설정" to Icons.Gear), tabs.indexOf(nav.tab), ::pickTab, if (sc == Screen.Library) navActions else emptyList(), ::navAction, actionsAt = 2)
                 }
             },
         ) { pad ->
@@ -737,10 +741,11 @@ private fun AshRoot(nav: NavModel) {
                     }
                     is Screen.Reader -> Unit
                 }
-                // 서재: 상태 표시줄 자리에 바탕색 막(메뉴와 같은 투명도 83%) — 위로 지나가는 책이 비쳐 보이게
+                // 서재: 상태 표시줄 자리에 서재 바탕색 막(메뉴와 같은 투명도 83%) — 위로 지나가는 책이 비쳐 보이게.
+                // 앱 바탕(크림)이 아니라 서재 바탕(밝게 흰·어둡게 검정)과 같게(대표님 2026-10-26)
                 if (throughBars) Box(
                     Modifier.fillMaxWidth().height(pad.calculateTopPadding())
-                        .background(androidx.compose.material3.MaterialTheme.colorScheme.background.copy(alpha = kr.vici.ashreader.ui.GLASS_ALPHA)),
+                        .background((if (kr.vici.ashreader.ui.LocalAshDark.current) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White).copy(alpha = kr.vici.ashreader.ui.GLASS_ALPHA)),
                 )
             }
             exportFor?.let { id -> ExportSheet(bookId = id) { exportFor = null } }

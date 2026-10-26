@@ -208,7 +208,7 @@ fun TurnSheet(
     var editor by remember { mutableStateOf(false) }
     val scroll = continuous
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        BlurBehind(dim = 0f)
+        SheetBars()
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             SheetLabel("넘김 효과")
             Row(
@@ -322,7 +322,7 @@ fun LightSheet(
     var customOpen by remember { mutableStateOf(false) }
     var timeOpen by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = { onLive(null); onDismiss() }) {
-        BlurBehind(dim = 0f)
+        SheetBars()
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             if (!fixed) {
                 SheetLabel("테마")
@@ -506,7 +506,6 @@ fun ListenBar(st: Listen.State, rate: Float, c: ReadingColors, onPlay: () -> Uni
                     )
                 }
                 DropdownMenu(expanded = sleepMenu, onDismissRequest = { sleepMenu = false }) {
-                    BlurBehind()
                     SLEEP_CHOICES.forEach { (m, label) ->
                         DropdownMenuItem(text = { Text(label) }, onClick = { sleepMenu = false; onSleep(m) }, modifier = Modifier.heightIn(min = 48.dp))
                     }
@@ -523,7 +522,7 @@ fun ListenBar(st: Listen.State, rate: Float, c: ReadingColors, onPlay: () -> Uni
 fun ListenTuneSheet(s: Settings, onChange: ((Settings) -> Settings) -> Unit, onOpenEngine: () -> Unit, onDismiss: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        BlurBehind(dim = 0f)
+        SheetBars()
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             var r by remember(s.ttsRate) { mutableFloatStateOf(s.ttsRate) }
             var p by remember(s.ttsPitch) { mutableFloatStateOf(s.ttsPitch) }

@@ -81,7 +81,7 @@ fun ViewSettingsSheet(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        BlurBehind(dim = 0f)
+        SheetBars()
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             // AI 화질 향상은 '테마 및 설정' 한 자리에만(작업 04 '한 자리로 통일', 대표님 2026-10-25 결정 — 여기 칸은 뺌)
             // 미리보기

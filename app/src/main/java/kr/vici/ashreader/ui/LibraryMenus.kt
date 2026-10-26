@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.ui
 
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.positionOnScreen
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.composed
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.layer.GraphicsLayer
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
@@ -80,87 +92,61 @@ class ShelfUi { var menus by mutableIntStateOf(0) }
 
 val LocalShelfUi = compositionLocalOf { ShelfUi() }
 
-/** 기기에서 창 흐림이 켜져 있나. 휴대폰(SM-S948N)은 꺼져 있어 흐림 깃발을 붙여도 그려지지 않는다(2026-10-26 확인). MainActivity 가 바꾼다. */
-var crossWindowBlur by mutableStateOf(true)
-
-/** 뒤 화면을 흐릴 수 있나(API 31+ 이고 기기 창 흐림이 켜져 있을 때, 감수 3). */
-val canBlur: Boolean get() = Build.VERSION.SDK_INT >= 31 && crossWindowBlur
-
 /**
- * 앱 안 흐림: 기기 창 흐림이 없는 휴대폰(삼성 — 시스템이 지원하지 않아 개발자 옵션을 켜도 꺼짐)에서는
- * 앱이 자기 화면을 직접 흐린다(대표님 2026-10-26). 메뉴·시트는 따로 창이라 함께 흐려지지 않는다.
- * 쪽 넘김 화면(SurfaceView)은 앱이 그리지 않아 흐려지지 않는다.
+ * 메뉴 뒤만 흐리기(애플 북스 방식, 대표님 2026-10-26): 앱 화면 맨 바깥(MainActivity)이 그린 화면을 [layer] 에 한 장 더 담아 두고,
+ * 서재 유리 메뉴가 자기 자리만큼 잘라 흐려서 바탕에 깐다. 기기 창 흐림(삼성 휴대폰은 지원하지 않음)에 기대지 않아 휴대폰·태블릿이 같다.
+ * 뒤 화면 전체는 흐리거나 어둡게 하지 않는다. 읽기 화면 메뉴는 흐리지 않고 바탕만 하얗게 한다(같은 날 대표님).
  */
-val inAppBlur: Boolean get() = Build.VERSION.SDK_INT >= 31 && !crossWindowBlur
+class Backdrop(val layer: GraphicsLayer) { var origin by mutableStateOf(Offset.Zero) }
 
-/** 지금 떠 있는 유리 메뉴·시트 수([BlurBehind] 가 센다). 앱 화면 맨 바깥(MainActivity)이 보고 흐린다. */
-var openGlass by mutableIntStateOf(0)
+val LocalBackdrop = staticCompositionLocalOf<Backdrop?> { null }
+
+/** 메뉴 뒤를 흐릴 수 있나(API 31+, 감수 3). */
+val canBlur: Boolean get() = Build.VERSION.SDK_INT >= 31
 
 /**
  * 모든 떠 있는 메뉴·시트·단추의 바탕 불투명도(대표님 2026-10-25 00:02: 모두 같게, 지금보다 조금 더 투명하게).
- * 서재 ⋯·≡ 메뉴, 선택 막대, 읽기 화면 바깥 틀 단추·떠 있는 메뉴·테마 및 설정·사용자화가 함께 쓴다.
+ * 서재 ⋯·≡ 메뉴, 선택 막대, 읽기 화면 바깥 틀 단추가 함께 쓴다.
  */
 const val GLASS_ALPHA = 0.83f // 대표님 2026-10-25 00:19: 83%
 
 /** 메뉴 바탕 불투명도: 흐릴 수 있으면 [GLASS_ALPHA], 못 흐리면 뒤 글자가 비치지 않게 92%(감수 3). */
 val glassAlpha: Float get() = if (canBlur) GLASS_ALPHA else 0.92f
 
-/** 유리 메뉴 바탕: 밝게 흰, 어둡게 #2C2C2E — 불투명도 [GLASS_ALPHA]. */
+/** 유리 메뉴 바탕: 밝게 흰, 어둡게 #2C2C2E — 불투명도 [glassAlpha]. */
 @Composable
 fun glassBg(): Color = if (LocalAshDark.current) Color(0xFF2C2C2E).copy(alpha = glassAlpha) else Color.White.copy(alpha = glassAlpha)
 
+/** 서재 유리 메뉴 바탕: 뒤를 흐릴 때는 애플 북스처럼 뒤 표지 색이 비치게 72%(대표님 2026-10-26: 흐림이 너무 셈), 못 흐리면 92%. */
+@Composable
+fun menuGlass(): Color {
+    val a = if (canBlur) 0.72f else 0.92f
+    return if (LocalAshDark.current) Color(0xFF2C2C2E).copy(alpha = a) else Color.White.copy(alpha = a)
+}
+
+/** 뒤 화면의 같은 자리를 흐려 그린다. 흐림은 자기 그림 전체에 걸리므로 내용과 따로 바탕 전용 상자에 붙인다. */
+fun Modifier.backdropBlur(radius: Dp = 16.dp): Modifier = composed {
+    val b = LocalBackdrop.current
+    if (b == null || !canBlur) return@composed this
+    var pos by remember { mutableStateOf(Offset.Zero) }
+    val px = with(LocalDensity.current) { radius.toPx() }
+    onGloballyPositioned { pos = it.positionOnScreen() }
+        .graphicsLayer { renderEffect = BlurEffect(px, px, TileMode.Clamp); clip = true }
+        .drawBehind { val o = pos - b.origin; translate(-o.x, -o.y) { drawLayer(b.layer) } }
+}
+
 /**
- * 투명 메뉴가 뜨면 뒤 화면을 살짝 흐리고 아주 옅게 어둡게(대표님 2026-10-25 01:00: 투명 메뉴 모두).
- * 메뉴가 떠 있는 창(Popup·바텀시트) 안에서 부른다 — 시스템 창 흐림이라 쪽 넘김(SurfaceView)·위아래 막대까지 함께 흐려진다.
- * 흐림은 API 31 이상(기기에서 창 흐림을 꺼 두면 어둡게만), 그 아래는 어둡게만. [dim] 0 = 어둡게 하지 않음(바텀시트는 자체 가림막이 있음).
+ * 바텀시트 창 안에서 부른다: 창 아래 내비게이션 줄이 흰 띠로 남지 않게.
+ * (예전 BlurBehind — 창 흐림·어둡게는 대표님 2026-10-26 애플 북스 방식으로 바꾸며 뺐다.)
  */
 @Composable
-fun BlurBehind(radius: Dp = 40.dp, dim: Float = 0.10f) { // 대표님 2026-10-25: 더 뭉개지게(24 → 40dp)
+fun SheetBars() {
     val view = androidx.compose.ui.platform.LocalView.current
-    val px = with(LocalDensity.current) { radius.roundToPx() }
-    // 시스템은 어둡게 깃발이 켜진 창 아래에만 흐림을 그린다 — 흐림 세기도 그 진하기를 따르므로 흐릴 때는 모든 메뉴·시트를 같은 10%로(대표님 01:35 확인: 블러 통일)
-    val dimNow = if (canBlur) maxOf(dim, 0.10f) else dim
-    DisposableEffect(Unit) { openGlass++; onDispose { openGlass-- } }
     DisposableEffect(view) {
-        val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
-        if (window != null) {
-            // 바텀시트 창 아래 내비게이션 줄이 흰 띠로 남지 않게(가림막·흐림이 화면 끝까지)
+        (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window?.let { window ->
             @Suppress("DEPRECATION")
             window.navigationBarColor = android.graphics.Color.TRANSPARENT
             if (Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
-            // 바텀시트(대화 창)는 흐림 깃발을 붙여도 이 기기들에서 흐림이 그려지지 않는다(01:40 태블릿 확인).
-            // 메뉴와 똑같이 보이도록, 앱 화면에 딸린 투명 창(누름은 받지 않음)을 깔아 그 창이 흐림·어둡게를 맡고 시트를 닫으면 걷는다
-            val act = generateSequence(view.context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<android.app.Activity>().firstOrNull()
-            val token = act?.window?.decorView?.windowToken
-            if (act != null && token != null && dimNow > 0f) {
-                val veil = android.view.View(act).apply { setBackgroundColor(android.graphics.Color.argb(1, 0, 0, 0)) } // 아무것도 안 그리면 창이 보이지 않은 것으로 쳐져 흐림이 안 걸린다
-                val lp = android.view.WindowManager.LayoutParams(
-                    1, 1, // 흐림·어둡게는 창 크기와 상관없이 화면 전체에 걸린다 — 화면 전체 크기의 투명 창은 흐림이 그려지지 않아(01:50 확인) 1점짜리로
-                    android.view.WindowManager.LayoutParams.TYPE_APPLICATION_PANEL,
-                    android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                        android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND or (if (canBlur) android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND else 0),
-                    android.graphics.PixelFormat.TRANSLUCENT,
-                ).apply {
-                    this.token = token
-                    dimAmount = dimNow
-                    if (canBlur) blurBehindRadius = px
-                    if (Build.VERSION.SDK_INT >= 30) fitInsetsTypes = 0
-                    if (Build.VERSION.SDK_INT >= 30) layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
-                }
-                val ok = runCatching { act.windowManager.addView(veil, lp) }.isSuccess
-                return@DisposableEffect onDispose { if (ok) runCatching { act.windowManager.removeViewImmediate(veil) } }
-            }
-        } else {
-            // Popup: 창에 붙은 맨 위 뷰의 창 속성을 바꾼다(Popup 이 다시 맞출 때도 같은 객체라 유지됨)
-            val root = view.rootView
-            val lp = root.layoutParams as? android.view.WindowManager.LayoutParams
-            val wm = view.context.getSystemService(android.content.Context.WINDOW_SERVICE) as? android.view.WindowManager
-            if (lp != null && wm != null) {
-                if (dimNow > 0f) { lp.flags = lp.flags or android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND; lp.dimAmount = dimNow }
-                if (canBlur) { lp.flags = lp.flags or android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND; lp.blurBehindRadius = px }
-                runCatching { wm.updateViewLayout(root, lp) }
-            }
         }
         onDispose {}
     }
@@ -195,15 +181,19 @@ fun GlassPopup(anchor: Rect, onDismiss: () -> Unit, width: Dp = 250.dp, below: B
     val dark = LocalAshDark.current
     val shape = RoundedCornerShape(14.dp)
     Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
-        BlurBehind()
-        Column(
+        Box(
             Modifier.width(width)
                 .shadow(24.dp, shape, ambientColor = Color.Black.copy(alpha = if (dark) 0.6f else 0.1f), spotColor = Color.Black.copy(alpha = if (dark) 0.8f else 0.25f))
-                .clip(shape).background(glassBg())
-                .border(1.dp, if (dark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.04f), shape)
-                .heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
-            content = content,
-        )
+                .clip(shape),
+        ) {
+            Box(Modifier.matchParentSize().backdropBlur())
+            Column(
+                Modifier.fillMaxWidth().background(menuGlass())
+                    .border(1.dp, if (dark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.04f), shape)
+                    .heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                content = content,
+            )
+        }
     }
 }
 

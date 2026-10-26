@@ -120,7 +120,7 @@ fun ComicSettingsSheet(
                 }
             }
         }
-    } else ModalBottomSheet(onDismissRequest = onDismiss) { BlurBehind(dim = 0f); content() }
+    } else ModalBottomSheet(onDismissRequest = onDismiss) { SheetBars(); content() }
 }
 
 @Composable

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.ui
 
-import androidx.compose.animation.animateContentSize
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibilityScope
@@ -150,24 +149,29 @@ internal fun rememberReduceMotion(): Boolean {
 
 /**
  * 아래 내비게이션(서재·독서 기록·설정 | 모음·검색): 위 탭과 같은 모양, 아이콘 + 이름.
- * [actions] = 탭 오른쪽에 붙는 단추(모음·검색, 대표님 2026-10-25 00:27) — 누르면 [onAction](번호, 단추 자리).
+ * [actions] = 탭 사이에 붙는 단추(모음·검색, 대표님 2026-10-25 00:27) — 누르면 [onAction](번호, 단추 자리).
+ * [actionsAt] = 단추가 들어갈 자리(탭 번호 앞). 대표님 2026-10-26: 설정을 맨 끝으로 → 서재·독서 기록 | 모음·검색 | 설정.
+ * 단추가 빠지고 붙을 때 애플처럼 막대가 양쪽에서 줄고 늘며 단추는 흐려지며 사라진다.
  */
 @Composable
 fun FloatingNavBar(
     items: List<Pair<String, ImageVector>>, selected: Int, onPick: (Int) -> Unit,
     actions: List<Pair<String, ImageVector>> = emptyList(), onAction: (Int, Rect) -> Unit = { _, _ -> },
+    actionsAt: Int = items.size,
 ) {
     val c = shelfColors()
     Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 6.dp, bottom = 8.dp), contentAlignment = Alignment.Center) {
         Row(
-            // 서재 밖 탭에서는 모음·검색이 빠져 막대가 줄어든다 — 부드럽게(대표님 2026-10-25)
-            Modifier.animateContentSize()
+            // 서재 밖 탭에서는 모음·검색이 빠져 막대가 줄어든다 — 가운데 맞춤이라 양쪽에서 함께 준다(아래 AnimatedVisibility)
+            Modifier
                 .shadow(18.dp, RoundedCornerShape(13.dp), ambientColor = Color.Black.copy(alpha = if (c.dark) 0.5f else 0.08f), spotColor = Color.Black.copy(alpha = if (c.dark) 0.6f else 0.2f))
                 .clip(RoundedCornerShape(13.dp)).background(c.bar).border(1.dp, c.barLine, RoundedCornerShape(13.dp))
                 .padding(3.dp).selectableGroup(),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            items.forEachIndexed { i, (label, icon) ->
+            @Composable
+            fun tab(i: Int) {
+                val (label, icon) = items[i]
                 val on = i == selected
                 Column(
                     Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(10.dp)).background(if (on) c.sel else Color.Transparent)
@@ -178,19 +182,34 @@ fun FloatingNavBar(
                     Text(label, fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, color = if (on) c.ink else c.sub, maxLines = 1)
                 }
             }
-            if (actions.isNotEmpty()) Box(Modifier.padding(vertical = 10.dp).width(1.dp).height(28.dp).background(c.barLine).align(Alignment.CenterVertically))
-            actions.forEachIndexed { i, (label, icon) ->
-                val r = remember { RectHolder() }
-                Column(
-                    Modifier.heightIn(min = 48.dp).trackRect(r).clip(RoundedCornerShape(10.dp))
-                        .clickable(role = Role.Button) { onAction(i, r.rect) }.padding(horizontal = 14.dp, vertical = 6.dp)
-                        .clearAndSetSemantics { contentDescription = label; role = Role.Button },
-                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-                ) {
-                    Icon(icon, contentDescription = null, tint = c.sub, modifier = Modifier.size(20.dp))
-                    Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = c.sub, maxLines = 1)
+            val at = actionsAt.coerceIn(0, items.size)
+            for (i in 0 until at) tab(i)
+            // 사라지는 동안에도 단추를 그리도록 마지막 단추 목록을 기억한다
+            var shown by remember { mutableStateOf(actions) }
+            if (actions.isNotEmpty()) shown = actions
+            androidx.compose.animation.AnimatedVisibility(
+                visible = actions.isNotEmpty(),
+                enter = androidx.compose.animation.expandHorizontally(expandFrom = Alignment.CenterHorizontally) + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.shrinkHorizontally(shrinkTowards = Alignment.CenterHorizontally) + androidx.compose.animation.fadeOut(),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (at > 0) Box(Modifier.padding(vertical = 10.dp).width(1.dp).height(28.dp).background(c.barLine))
+                    shown.forEachIndexed { i, (label, icon) ->
+                        val r = remember { RectHolder() }
+                        Column(
+                            Modifier.heightIn(min = 48.dp).trackRect(r).clip(RoundedCornerShape(10.dp))
+                                .clickable(role = Role.Button) { onAction(i, r.rect) }.padding(horizontal = 14.dp, vertical = 6.dp)
+                                .clearAndSetSemantics { contentDescription = label; role = Role.Button },
+                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+                        ) {
+                            Icon(icon, contentDescription = null, tint = c.sub, modifier = Modifier.size(20.dp))
+                            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = c.sub, maxLines = 1)
+                        }
+                    }
+                    if (at < items.size) Box(Modifier.padding(vertical = 10.dp).width(1.dp).height(28.dp).background(c.barLine))
                 }
             }
+            for (i in at until items.size) tab(i)
         }
     }
 }
@@ -491,7 +510,7 @@ fun LibraryPane(
     )
 
     androidx.compose.runtime.CompositionLocalProvider(LocalShelfUi provides ui) {
-        // 뒤 흐림은 메뉴 창이 맡는다(BlurBehind — 위아래 막대까지 함께 흐림, 대표님 01:00)
+        // 메뉴 뒤 흐림은 메뉴가 자기 자리만 흐린다(backdropBlur, 대표님 2026-10-26 애플 북스 방식)
         SharedTransitionLayout(modifier.fillMaxSize()) {
             AnimatedContent(
                 targetState = live,

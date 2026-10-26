@@ -81,9 +81,9 @@ private class ChromeColors(val btn: Color, val line: Color, val fg: Color, val s
 
 private fun chromeOf(c: ReadingColors): ChromeColors {
     val dark = luminance(c.bg) < 0.35
-    // 단추·시트 바탕은 모든 메뉴와 같은 불투명도(GLASS_ALPHA, 대표님 00:02)
-    return if (dark) ChromeColors(Color(0xFF2C2C2E).copy(alpha = glassAlpha), Color.White.copy(alpha = 0.08f), Color(0xFFE8E8EA), Color(0xFF98989F), Color(0xFF1C1C1E).copy(alpha = glassAlpha), Color(0xFF3A3A3C).copy(alpha = 0.6f), true)
-    else ChromeColors(Color.White.copy(alpha = glassAlpha), Color.Black.copy(alpha = 0.07f), Color(0xFF111316), Color(0xFF6C6C70), Color.White.copy(alpha = glassAlpha), Color(0xFFEFEFF2).copy(alpha = 0.7f), false)
+    // 단추는 모든 메뉴와 같은 불투명도(GLASS_ALPHA, 대표님 00:02). 시트·떠 있는 메뉴는 애플 북스처럼 뒤를 흐리지 않고 바탕만 하얗게(불투명, 대표님 2026-10-26)
+    return if (dark) ChromeColors(Color(0xFF2C2C2E).copy(alpha = glassAlpha), Color.White.copy(alpha = 0.08f), Color(0xFFE8E8EA), Color(0xFF98989F), Color(0xFF1C1C1E), Color(0xFF3A3A3C).copy(alpha = 0.6f), true)
+    else ChromeColors(Color.White.copy(alpha = glassAlpha), Color.Black.copy(alpha = 0.07f), Color(0xFF111316), Color(0xFF6C6C70), Color.White, Color(0xFFEFEFF2).copy(alpha = 0.7f), false)
 }
 
 /**
@@ -179,7 +179,7 @@ fun ReaderMenuStack(
     val k = chromeOf(c)
     val shape = RoundedCornerShape(14.dp)
     fun Modifier.glass() = shadow(if (k.dark) 0.dp else 16.dp, shape, ambientColor = Color.Black.copy(alpha = 0.08f), spotColor = Color.Black.copy(alpha = 0.2f))
-        .clip(shape).background(k.btn).border(1.dp, k.line, shape)
+        .clip(shape).background(k.btn.copy(alpha = 1f)).border(1.dp, k.line, shape)
     Column(modifier.width(260.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         StackRow(k, "목차", "$percent%", Icons.ListView, Modifier.glass(), onToc)
         StackRow(k, "책 검색", null, Icons.Search, Modifier.glass(), onSearch)
@@ -232,7 +232,7 @@ fun ThemeSheet(
     val k = chromeOf(c)
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = k.sheet, contentColor = k.fg, scrimColor = Color.Black.copy(alpha = 0.22f)) {
-        BlurBehind(dim = 0f)
+        SheetBars()
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 18.dp).verticalScroll(rememberScrollState())) {
             Text("테마 및 설정", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = k.fg, modifier = Modifier.padding(bottom = 8.dp).semantics { heading() })
             // 대표님 00:40: 보기 전환도 넘김·어둡게와 같은 줄(한 칸, 누르면 다른 보기로) — 시트 세로를 줄인다
@@ -376,7 +376,7 @@ class CustomItem(val icon: ImageVector, val label: String, val sub: String?, val
 fun CustomizeSheet(c: ReadingColors, items: List<CustomItem>, onDismiss: () -> Unit) {
     val k = chromeOf(c)
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = k.sheet, contentColor = k.fg, scrimColor = Color.Black.copy(alpha = 0.22f)) {
-        BlurBehind(dim = 0f)
+        SheetBars()
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 18.dp).verticalScroll(rememberScrollState())) {
             Text("사용자화", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = k.fg, modifier = Modifier.padding(bottom = 8.dp).semantics { heading() })
             Column(Modifier.clip(RoundedCornerShape(12.dp)).background(k.chip)) {

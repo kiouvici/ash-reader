@@ -1224,7 +1224,7 @@ fun ReaderScreen(
                             )
                         },
                     )
-                    // 대표님 01:00: 투명 메뉴가 뜨면 뒤를 흐리게 — 쪽 넘김 화면(SurfaceView)까지 흐리려고 따로 창(Popup)에 띄우고 창 흐림(BlurBehind)
+                    // 떠 있는 메뉴는 쪽 넘김 화면(SurfaceView) 위에 뜨도록 따로 창(Popup)에. 뒤는 흐리지 않고 원본 그대로, 바탕만 하얗게(대표님 2026-10-26)
                     val density = LocalDensity.current
                     val navB = WindowInsets.navigationBars.getBottom(density)
                     if (stackOpen) androidx.compose.ui.window.Popup(
@@ -1233,7 +1233,6 @@ fun ReaderScreen(
                         onDismissRequest = { stackOpen = false; stackClosedAt = System.currentTimeMillis() },
                         properties = androidx.compose.ui.window.PopupProperties(focusable = true),
                     ) {
-                    BlurBehind()
                     ReaderMenuStack(
                         colors, percent = if (count > 0) (page + 1) * 100 / count else 0, bookmarked = curBookmark != null, guideOn = guideOn,
                         modifier = Modifier,
@@ -1466,7 +1465,7 @@ fun ReaderScreen(
     }
     val docCount = openDoc?.pageCount ?: 0
     if (showToc) ModalBottomSheet(onDismissRequest = { showToc = false }) {
-        BlurBehind(dim = 0f)
+        SheetBars()
         LazyColumn(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
