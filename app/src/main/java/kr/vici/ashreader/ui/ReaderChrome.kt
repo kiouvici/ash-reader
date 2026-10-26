@@ -86,6 +86,13 @@ private fun chromeOf(c: ReadingColors): ChromeColors {
     else ChromeColors(Color.White.copy(alpha = glassAlpha), Color.Black.copy(alpha = 0.07f), Color(0xFF111316), Color(0xFF6C6C70), Color.White, Color(0xFFEFEFF2).copy(alpha = 0.7f), false)
 }
 
+/** 위 "챕터 끝까지 N쪽 남음"·아래 "4 / 67"·스크롤 보기 정보줄이 함께 쓰는 유리 알약 바탕(단추와 같은 불투명도·테두리). */
+fun Modifier.chromePill(c: ReadingColors): Modifier {
+    val k = chromeOf(c)
+    val shape = RoundedCornerShape(12.dp)
+    return clip(shape).background(k.btn).border(1.dp, k.line, shape).padding(horizontal = 12.dp, vertical = 6.dp)
+}
+
 /**
  * 메뉴가 열린 동안의 바깥 틀: 위 왼쪽 "챕터 끝까지 N쪽 남음"(모르면 "N% 읽음") + 오른쪽 ✕(책 닫기),
  * 아래 가운데 "4 / 67"(누르면 쪽 옮기기 막대), 오른쪽 아래 메뉴(누르면 떠 있는 메뉴 — 안내선은 그 안에).
@@ -107,7 +114,7 @@ fun ReaderChrome(
                 Text(
                     when { chapterLeft != null && chapterLeft > 0 -> "챕터 끝까지 ${chapterLeft}쪽 남음"; chapterLeft == 0 -> "챕터 마지막 쪽"; else -> "$pct% 읽음" },
                     fontSize = 12.5.sp, color = k.sub,
-                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(k.btn).border(1.dp, k.line, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.chromePill(c),
                 )
             }
             ChromeButton(k, Icons.Close, "책 닫기", onClick = onClose)
@@ -124,7 +131,7 @@ fun ReaderChrome(
                 ) {
                     Text(
                         "${page + 1} / $count", fontSize = 12.5.sp, color = k.sub,
-                        modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(k.btn).border(1.dp, k.line, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.chromePill(c),
                     )
                 }
                 ChromeButton(k, Icons.Menu, if (stackOpen) "메뉴 닫기" else "메뉴", on = stackOpen, onClick = onMenu)
