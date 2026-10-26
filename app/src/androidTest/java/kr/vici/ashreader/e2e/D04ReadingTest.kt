@@ -154,6 +154,8 @@ class D04ReadingTest : E2eTest() {
         var p = page()
         repeat(3) { p = tapTurn(0.9f, p, forward = true) ?: p }
         val before = settledPage()
+        // 읽던 쪽 자리 표시가 잡히도록(쪽 글 읽기, 에뮬레이터 1~2초) — 넘기자마자 돌리면 자리 표시 없이 비율로만 옮긴다
+        SystemClock.sleep(3_000)
         val total0 = pageTotal()
         android.util.Log.i("AshAnchor", "TEST $badge start before=$before total=$total0 rot=${device.displayRotation}")
         shot("$badge-before")
@@ -166,8 +168,15 @@ class D04ReadingTest : E2eTest() {
                 shot("$badge-rot$i-away")
                 if (rot0 == 0) device.setOrientationNatural() else shell("settings put system user_rotation $rot0")
                 SystemClock.sleep(2_500); waitPage(120_000)
-                val now = settledPage()
+                // 다시 나눈 뒤 자리를 찾아 옮기기까지 에뮬레이터에서 2~3초 걸린다(새 배치의 쪽 글 읽기) — 최종 자리를 본다(최대 10초)
                 val total = pageTotal()
+                val target = if (total == null || total0 == null || total == total0) before
+                    else ((before - 1 + 0.5f) / total0 * total).toInt() + 1
+                var now = page()
+                val until = SystemClock.uptimeMillis() + 10_000
+                while (kotlin.math.abs(now - target) > (if (target == before) 0 else 1) && SystemClock.uptimeMillis() < until) {
+                    SystemClock.sleep(500); now = page()
+                }
                 android.util.Log.i("AshAnchor", "TEST $badge rot$i back page=$now total=$total (기대 $before/$total0)")
                 shot("$badge-rot$i-back")
                 // 지시 기준 = 같은 문장이 화면에 있는가. 같은 배치(전체 쪽 수 같음)로 돌아오면 정확히 같은 쪽.
