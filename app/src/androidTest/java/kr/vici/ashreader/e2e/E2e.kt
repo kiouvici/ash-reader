@@ -214,6 +214,22 @@ abstract class E2eTest {
         return currentPage()
     }
 
+    /**
+     * 쪽 넘김 탭. 느린 CI 에뮬레이터에서 누름이 길게 누름(글자 선택)으로 잡혀 쪽이 그대로일 때가 있다
+     * (CI tablet-35-port '왼쪽 탭으로 돌아오지 않음 2 → 2', 실패 화면에 선택 막대). 그러면 가운데를 눌러
+     * 선택을 지우고 한 번 더 누른다.
+     */
+    protected fun tapTurn(fx: Float, from: Int, forward: Boolean): Int? {
+        var p: Int? = null
+        for (k in 0 until 2) {
+            tap(fx, 0.5f)
+            p = waitPageChange(from, forward)
+            if (p != null && (if (forward) p > from else p < from)) return p
+            if (has(By.text("형광펜"), 500)) { tap(0.5f, 0.5f); SystemClock.sleep(400) }
+        }
+        return p
+    }
+
     /** 화면 비율 좌표로 누르기. */
     protected fun tap(fx: Float, fy: Float) {
         device.click((device.displayWidth * fx).toInt(), (device.displayHeight * fy).toInt())

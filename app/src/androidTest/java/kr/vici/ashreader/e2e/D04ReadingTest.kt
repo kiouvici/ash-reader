@@ -56,12 +56,10 @@ class D04ReadingTest : E2eTest() {
         clickText("알겠어요")
         val p0 = page()
         // 오른쪽 = 다음, 왼쪽 = 이전(좌우 배치 기본)
-        tap(0.9f, 0.5f)
-        val p1 = waitPageChange(p0, forward = true)!!
+        val p1 = tapTurn(0.9f, p0, forward = true)!!
         shot("tap-next")
         assertTrue("오른쪽 탭으로 넘어가지 않음 ($p0 → $p1)", p1 > p0)
-        tap(0.1f, 0.5f)
-        val p2 = waitPageChange(p1, forward = false)!!
+        val p2 = tapTurn(0.1f, p1, forward = false)!!
         shot("tap-prev")
         assertTrue("왼쪽 탭으로 돌아오지 않음 ($p1 → $p2)", p2 < p1)
         // 밀어서 넘기기
@@ -227,8 +225,10 @@ class D04ReadingTest : E2eTest() {
         assertTrue("검색 결과가 나오지 않음", found)
         shot("search-results")
         // 결과 줄("N쪽" + 글 조각)을 누르면 그 쪽으로
+        // "이 책에서 N곳"이 먼저 뜨고 결과 줄은 조금 늦게 잡힐 때가 있다(CI phone-36-b: 화면엔 '13쪽'이 있는데 못 찾음) — 기다린다
+        assertTrue("검색 결과 줄('N쪽')이 없음", has(By.text(Pattern.compile("\\d+쪽")), 10_000))
         val hit = device.findObjects(By.text(Pattern.compile("\\d+쪽"))).firstOrNull()
-        assertNotNull(hit)
+        assertNotNull("검색 결과 줄('N쪽')을 읽지 못함", hit)
         val target = hit!!.text.removeSuffix("쪽").toInt()
         hit.click()
         SystemClock.sleep(1_200)
