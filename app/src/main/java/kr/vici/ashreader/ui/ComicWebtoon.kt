@@ -232,12 +232,14 @@ fun ComicWebtoonReader(
                     val key = "${s.page}:${s.y0}:${s.y1}:${crop.first}:${if (up) 2 else 1}"
                     val ready = doc.ready(s.page) && s.y1 > 0
                     val img by produceState<ImageBitmap?>(cache.get(key)?.asImageBitmap(), key, ready, cache) {
-                        if (value != null || !ready) return@produceState
-                        value = withContext(Dispatchers.IO) {
+                        // 값은 키가 바뀌어도 남으므로 '이미 있음'이 아니라 이 키의 캐시로 판단한다(ScrollReader 와 같음)
+                        cache.get(key)?.let { value = it.asImageBitmap(); return@produceState }
+                        if (!ready) return@produceState
+                        withContext(Dispatchers.IO) {
                             try {
                                 doc.strip(s.page, s.y0, s.y1, dispW, crop.first, crop.second)?.also { cache.put(key, it) }?.asImageBitmap()
                             } catch (e: PageNotReady) { null } catch (e: Exception) { null } catch (e: OutOfMemoryError) { cache.evictAll(); null }
-                        }
+                        }?.let { value = it } // 못 그리면 있던 그림을 그대로 둔다
                     }
                     val hDp = with(density) { s.h.toDp() }
                     val padB = with(density) { (if (s.lastOfPage) gapPx else 0).toDp() }

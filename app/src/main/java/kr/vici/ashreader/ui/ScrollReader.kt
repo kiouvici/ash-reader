@@ -244,13 +244,15 @@ fun ScrollReader(
                             if (a != null && a > 0.05f && a < 20f) aspects[i] = a
                         }
                     }
+                    // produceState 의 값은 키가 바뀌어도 남는다 — '이미 그림 있음'으로 넘기면 테마(어둡게)를 바꿔도
+                    // 옛 색 그림이 그대로였다(태블릿 확인 2026-10-26). 새 원본·크기의 캐시에 없으면 다시 그린다(그동안은 옛 그림).
                     val img by produceState<ImageBitmap?>(cache.get(key)?.asImageBitmap(), key, cache) {
-                        if (value != null) return@produceState
-                        value = withContext(Dispatchers.IO) {
+                        cache.get(key)?.let { value = it.asImageBitmap(); return@produceState }
+                        withContext(Dispatchers.IO) {
                             try {
                                 source.render(i, colPx, hItem).also { cache.put(key, it) }.asImageBitmap()
                             } catch (e: Exception) { null } catch (e: OutOfMemoryError) { cache.evictAll(); null }
-                        }
+                        }?.let { value = it } // 못 그리면 있던 그림을 그대로 둔다
                     }
                     Box(
                         Modifier.fillMaxWidth().height(with(density) { hItem.toDp() })

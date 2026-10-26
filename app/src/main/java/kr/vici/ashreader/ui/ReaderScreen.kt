@@ -1227,12 +1227,16 @@ fun ReaderScreen(
                     // 떠 있는 메뉴는 쪽 넘김 화면(SurfaceView) 위에 뜨도록 따로 창(Popup)에. 뒤는 흐리지 않고 원본 그대로, 바탕만 하얗게(대표님 2026-10-26)
                     val density = LocalDensity.current
                     val navB = WindowInsets.navigationBars.getBottom(density)
+                    // 그림자 자리(MenuShadowRoom): 창이 메뉴 크기뿐이면 그림자가 창 끝에서 잘려 둘레에 네모 띠가 보인다(태블릿 TB375FC).
+                    // 창을 사방으로 넓힌 만큼 위치를 되밀어 메뉴 자리는 그대로 둔다
+                    val stackDismiss = { stackOpen = false; stackClosedAt = System.currentTimeMillis() }
                     if (stackOpen) androidx.compose.ui.window.Popup(
                         alignment = Alignment.BottomEnd,
-                        offset = with(density) { IntOffset(-14.dp.roundToPx(), -(76.dp.roundToPx() + navB)) },
-                        onDismissRequest = { stackOpen = false; stackClosedAt = System.currentTimeMillis() },
-                        properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+                        offset = with(density) { IntOffset(-14.dp.roundToPx() + MenuShadowRoom.roundToPx(), -(76.dp.roundToPx() + navB) + MenuShadowRoom.roundToPx()) },
+                        onDismissRequest = stackDismiss,
+                        properties = androidx.compose.ui.window.PopupProperties(focusable = true, clippingEnabled = false),
                     ) {
+                    ShadowRoomBox(stackDismiss) {
                     ReaderMenuStack(
                         colors, percent = if (count > 0) (page + 1) * 100 / count else 0, bookmarked = curBookmark != null, guideOn = guideOn,
                         modifier = Modifier,
@@ -1250,6 +1254,7 @@ fun ReaderScreen(
                         onGuide = { stackOpen = false; guideOn = !guideOn; menu = false },
                         onBookmark = { onToggleBookmark(page, locatorFrac(page, count), curBookmark?.id) },
                     )
+                    }
                     }
                     // 사용자화: 떠 있는 메뉴에 없는 예전 기능을 빠짐없이
                     if (customOpen) CustomizeSheet(colors, buildList {

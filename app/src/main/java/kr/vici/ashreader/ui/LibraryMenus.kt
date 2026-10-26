@@ -18,6 +18,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -163,6 +165,19 @@ fun SheetBars() {
 fun glassSep(): Color = if (LocalAshDark.current) Color(0xFF3A3A3C) else Color(0xFFE5E5EA)
 
 /**
+ * 떠 있는 메뉴 창의 그림자 자리. 창(Popup)이 메뉴 크기뿐이면 시스템이 둘레에 남겨 두는 자리(38px)보다
+ * 그림자가 넓어 창 끝에서 잘리고, 메뉴 둘레에 네모 띠가 보인다(태블릿 TB375FC 2026-10-26).
+ * 창을 사방으로 이만큼 넓혀 그림자가 다 흐려질 자리를 둔다 — 그림자 24dp 까지.
+ */
+val MenuShadowRoom = 40.dp
+
+/** [MenuShadowRoom] 만큼 둘러 싼다. 넓힌 빈 자리를 누르면 메뉴 바깥을 누른 것처럼 닫는다. */
+@Composable
+fun ShadowRoomBox(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    Box(Modifier.pointerInput(onDismiss) { detectTapGestures { onDismiss() } }.padding(MenuShadowRoom)) { content() }
+}
+
+/**
  * 떠 있는 유리 메뉴. [anchor] = 누른 곳(창 좌표). [below] = 단추 아래로 펼침(오른쪽 맞춤), 아니면 표지 옆에 겹쳐 펼침.
  * 화면 밖으로 나가지 않게 맞추고, 아래 자리가 모자라면 위로 올린다.
  */
@@ -171,22 +186,26 @@ fun GlassPopup(anchor: Rect, onDismiss: () -> Unit, width: Dp = 250.dp, below: B
     val ui = LocalShelfUi.current
     DisposableEffect(Unit) { ui.menus++; onDispose { ui.menus-- } }
     val margin = with(LocalDensity.current) { 8.dp.roundToPx() }
-    val provider = remember(anchor, below) {
+    // 위치는 메뉴 기준으로 잡은 뒤 넓힌 그림자 자리([MenuShadowRoom])만큼 당긴다
+    val room = with(LocalDensity.current) { MenuShadowRoom.roundToPx() }
+    val provider = remember(anchor, below, room) {
         object : PopupPositionProvider {
             override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
-                val w = popupContentSize.width; val h = popupContentSize.height
+                val w = popupContentSize.width - 2 * room; val h = popupContentSize.height - 2 * room
                 var x = if (below) anchor.right.toInt() - w else (anchor.left + anchor.width * 0.55f).toInt()
                 var y = if (below) anchor.bottom.toInt() + margin else (anchor.top + anchor.height * 0.3f).toInt()
                 x = x.coerceIn(margin, (windowSize.width - w - margin).coerceAtLeast(margin))
                 if (y + h > windowSize.height - margin) y = (if (below) anchor.top.toInt() - h - margin else windowSize.height - h - margin)
                 y = y.coerceIn(margin, (windowSize.height - h - margin).coerceAtLeast(margin))
-                return IntOffset(x, y)
+                return IntOffset(x - room, y - room)
             }
         }
     }
     val dark = LocalAshDark.current
     val shape = RoundedCornerShape(14.dp)
-    Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
+    // clippingEnabled = false: 넓힌 창이 화면 끝을 넘어도 밀려나지 않게(메뉴 자체는 위에서 화면 안에 맞춤)
+    Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true, clippingEnabled = false)) {
+        ShadowRoomBox(onDismiss) {
         Column(
             Modifier.width(width)
                 .shadow(24.dp, shape, ambientColor = Color.Black.copy(alpha = if (dark) 0.6f else 0.1f), spotColor = Color.Black.copy(alpha = if (dark) 0.8f else 0.25f))
@@ -195,6 +214,7 @@ fun GlassPopup(anchor: Rect, onDismiss: () -> Unit, width: Dp = 250.dp, below: B
                 .heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
             content = content,
         )
+        }
     }
 }
 
