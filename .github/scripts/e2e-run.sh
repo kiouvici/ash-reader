@@ -210,6 +210,18 @@ sleep 1
 kill "$LOGCAT_PID" 2>/dev/null || true
 wait "$LOGCAT_PID" 2>/dev/null || true
 
+# 작업 11 진단: 읽던 자리 로그(AshAnchor, 숫자만)를 주석으로(산출물 없이도 읽게). 주석 하나 3.5KB, 최대 8개
+if grep -q "AshAnchor" "$OUT/logcat.txt"; then
+  grep "AshAnchor" "$OUT/logcat.txt" | sed -E 's/^[0-9-]+ ([0-9:.]+) +[0-9]+ +[0-9]+ [A-Z] AshAnchor: /\1 /' > "$OUT/anchor-log.txt"
+  split -C 3400 "$OUT/anchor-log.txt" /tmp/ash-anchor-
+  n=0
+  for f in /tmp/ash-anchor-*; do
+    n=$((n + 1)); [ "$n" -gt 8 ] && break
+    echo "::notice title=AshAnchor $SUITE $n::$(sed -e 's/%/%25/g' "$f" | sed ':a;N;$!ba;s/\n/%0A/g')"
+  done
+  rm -f /tmp/ash-anchor-*
+fi
+
 # ── 앱 죽음·ANR 검사 ──
 # (다른 앱의 FATAL EXCEPTION 은 빼고, 'Process: kr.vici.ashreader' 가 붙은 것만)
 CRASH=$( { grep -A2 "FATAL EXCEPTION" "$OUT/logcat.txt" | grep -E "Process: $PKG(,|$| )"; grep -E "ANR in $PKG|>>> $PKG <<<|Fatal signal [0-9]+ .*\($PKG\)" "$OUT/logcat.txt"; } | head -20)

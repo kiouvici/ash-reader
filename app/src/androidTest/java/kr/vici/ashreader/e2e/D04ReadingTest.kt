@@ -148,16 +148,19 @@ class D04ReadingTest : E2eTest() {
         var p = page()
         repeat(3) { p = tapTurn(0.9f, p, forward = true) ?: p }
         val before = settledPage()
+        android.util.Log.i("AshAnchor", "TEST $badge start before=$before rot=${device.displayRotation}")
         shot("$badge-before")
         val rot0 = device.displayRotation
         try {
             repeat(3) { i ->
                 if (rot0 == 0 || rot0 == 2) device.setOrientationLeft() else device.setOrientationNatural()
                 SystemClock.sleep(2_500); waitPage(120_000)
+                android.util.Log.i("AshAnchor", "TEST $badge rot$i away page=${currentPage()}")
                 shot("$badge-rot$i-away")
                 if (rot0 == 0) device.setOrientationNatural() else shell("settings put system user_rotation $rot0")
                 SystemClock.sleep(2_500); waitPage(120_000)
                 val now = settledPage()
+                android.util.Log.i("AshAnchor", "TEST $badge rot$i back page=$now (기대 $before)")
                 shot("$badge-rot$i-back")
                 assertEquals("'$title' 회전 ${i + 1}번 왕복 뒤 읽던 쪽이 아님", before, now)
             }

@@ -70,6 +70,21 @@ object PageAnchor {
         return nearest
     }
 
+    /** 진단(작업 11): [radius] 안에서 [anchor] 가 든 쪽과 그 쪽 안 위치(띄어쓰기 뺀 글자 번호). 로그에는 숫자만 쓴다. */
+    fun matches(anchor: String, estimate: Int, count: Int, radius: Int, textOf: (Int) -> String?): List<Pair<Int, Int>> {
+        if (count <= 0 || anchor.isEmpty()) return emptyList()
+        val est = estimate.coerceIn(0, count - 1)
+        val out = ArrayList<Pair<Int, Int>>()
+        for (k in maxOf(0, est - radius)..minOf(count - 1, est + radius)) {
+            val a = norm(textOf(k).orEmpty())
+            if (a.isEmpty()) continue
+            val joined = if (k + 1 < count) a + norm(textOf(k + 1).orEmpty()).take(anchor.length) else a
+            val at = joined.indexOf(anchor)
+            if (at in a.indices) out += k to at
+        }
+        return out
+    }
+
     /** '쪽 첫머리'로 볼 글자 수(띄어쓰기 뺌). 쪽 위 머리글·쪽 번호 몇 글자가 앞에 붙어도 첫머리로 본다. */
     const val HEAD = 40
 }
