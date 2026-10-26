@@ -450,6 +450,11 @@ fun ReaderScreen(
      */
     var anchor by rememberSaveable(target.id) { mutableStateOf<String?>(null) }
     var heldPage by rememberSaveable(target.id) { mutableIntStateOf(-1) }
+    /**
+     * 다시 나눈 뒤 옮기는 중: -2 = 아님, -1 = 자리 찾는 중, 0 이상 = 그 쪽으로 옮기는 중. 이동 중에는 쪽 화면이 스스로 알리는 쪽(옛 번호·끝 쪽 맞춤 등)으로
+     * 자리 표시를 덮지 않는다(CI 태블릿: 가로 7쪽 → 세로 4쪽 → 가로 3쪽).
+     */
+    var relocateTo by remember(target.id) { mutableIntStateOf(-2) }
     val reflow = if (isWord) hwpEbook else fmt.reflowable || (isHwp && hwpEbook)
     /** F-22 스크롤 보기(만화는 웹툰 보기로 대신). */
     val scrollView = s.scrollView && fmt.group != FormatGroup.COMIC && !pdfComic
@@ -699,12 +704,14 @@ fun ReaderScreen(
                         val est = locatorPage(page, locatorFrac(page, pageCountSeen), n)
                         val a = anchor
                         heldPage = page // 옮기기 전 옛 쪽 번호로 새 문서의 글을 읽어 자리 표시를 덮지 않게
+                        relocateTo = -1
                         pageCountSeen = n
                         // 자리 표시가 있으면 찾은 뒤 한 번만 옮긴다(짐작한 쪽으로 먼저 가면 그 쪽 글로 자리 표시가 덮일 수 있음)
                         val found = if (a != null && reflow) withContext(Dispatchers.IO) {
                             PageAnchor.find(a, est, n, radius = maxOf(8, n / 15)) { i -> guarded(doc, null) { doc.pageText(i)?.text } }
                         } else null
                         heldPage = found ?: est
+                        relocateTo = found ?: est
                         jumpReq = found ?: est
                     }
                     if (n > 0) pageCountSeen = n
@@ -732,7 +739,16 @@ fun ReaderScreen(
                 LaunchedEffect(pxW) { sel = null }
                 val count = doc.pageCount
                 // 작업 11: 읽던 쪽이 바뀌면(넘김·이동) 그 쪽 첫 글자를 자리 표시로. 다시 나눈 뒤 옮겨 온 쪽([heldPage])은 그대로 둔다.
-                if (reflow) LaunchedEffect(doc, page) {
+                if (reflow) LaunchedEffect(doc, page, relocateTo) {
+                    val to = relocateTo
+                    if (to == -1) return@LaunchedEffect // 자리 찾는 중
+                    if (to >= 0) {
+                        // 옮기는 중: 도착하면(또는 1.5초 안에 다른 쪽으로 자리 잡으면 — 두 쪽 펼침 맞춤) 그 쪽을 '옮겨 온 쪽'으로
+                        if (page != to) delay(1_500)
+                        heldPage = page
+                        relocateTo = -2
+                        return@LaunchedEffect
+                    }
                     if (page == heldPage) return@LaunchedEffect
                     heldPage = -1
                     delay(300)

@@ -7,8 +7,8 @@ package kr.vici.ashreader.doc
  * 그 글자가 '시작하는' 쪽을 찾는다. 앞쪽에서 비율 반올림으로 몇 쪽씩 깎이던 것(태블릿 4쪽 → 1쪽)을 막는다.
  */
 object PageAnchor {
-    /** 자리 표시 길이(띄어쓰기 뺀 글자 수). 짧으면 다른 곳과 겹치고, 길면 쪽 끝에 걸릴 때가 많다. */
-    const val LEN = 16
+    /** 자리 표시 길이(띄어쓰기 뺀 글자 수). 짧으면 비슷한 문장이 되풀이되는 책에서 다른 곳과 겹친다(쪽 끝에 걸쳐도 찾으므로 길어도 됨). */
+    const val LEN = 32
 
     /** 비교용: 띄어쓰기·줄바꿈·소프트 하이픈을 뺀다(배치에 따라 줄이 바뀌는 곳만 달라지게). */
     fun norm(s: String): String = buildString(s.length) { s.forEach { if (!it.isWhitespace() && it != '­') append(it) } }
