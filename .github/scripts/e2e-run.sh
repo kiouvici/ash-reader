@@ -177,7 +177,7 @@ case "$SUITE" in
     ;;
   b)
     grant
-    run D04ReadingTest 900
+    run D04ReadingTest 1200
     run E05ComicTest 900
     run F06SettingsTest 600
     run G07IntentTest 600
@@ -186,7 +186,7 @@ case "$SUITE" in
     ;;
   portrait)
     grant
-    run D04ReadingTest 900
+    run D04ReadingTest 1200
     run E05ComicTest 900
     run G07IntentTest 600
     ;;

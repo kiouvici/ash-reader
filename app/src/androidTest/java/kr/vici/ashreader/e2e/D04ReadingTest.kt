@@ -125,6 +125,52 @@ class D04ReadingTest : E2eTest() {
         assertAlive()
     }
 
+    /**
+     * 작업 11: 회전(세로↔가로, 태블릿은 두 쪽 펼침) 3번 왕복 뒤 처음 방향으로 돌아오면 같은 쪽(같은 배치 = 같은 문장).
+     * 다시 나눌 때 비율이 아니라 읽던 쪽 첫 글자로 찾으므로 앞쪽에서도 깎이지 않아야 한다. EPUB·TXT·HWP(eBook 보기).
+     */
+    private fun rotationKeepsSpot(title: String, badge: String, hwpEbook: Boolean = false) {
+        launchApp()
+        openFromLibrary(title, badge)
+        waitPage(120_000)
+        dismissTapGuide()
+        if (hwpEbook) {
+            stackItem("테마 및 설정")
+            val toggle = device.wait(Until.findObject(By.desc(Pattern.compile("보기 전환.*지금 원본.*"))), 4_000)
+            assertNotNull("'$title' 원본 → eBook 보기 전환 단추가 없음", toggle)
+            toggle!!.click()
+            SystemClock.sleep(800)
+            // 시트가 아직 열려 있으면 닫는다(없을 때 뒤로 가기를 누르면 책이 닫힘)
+            if (has(By.text("테마 및 설정"), 1_000)) { device.pressBack(); SystemClock.sleep(500) }
+            waitPage(120_000)
+            closeMenu()
+        }
+        var p = page()
+        repeat(3) { p = tapTurn(0.9f, p, forward = true) ?: p }
+        val before = settledPage()
+        shot("$badge-before")
+        val rot0 = device.displayRotation
+        try {
+            repeat(3) { i ->
+                if (rot0 == 0 || rot0 == 2) device.setOrientationLeft() else device.setOrientationNatural()
+                SystemClock.sleep(2_500); waitPage(120_000)
+                shot("$badge-rot$i-away")
+                if (rot0 == 0) device.setOrientationNatural() else shell("settings put system user_rotation $rot0")
+                SystemClock.sleep(2_500); waitPage(120_000)
+                val now = settledPage()
+                shot("$badge-rot$i-back")
+                assertEquals("'$title' 회전 ${i + 1}번 왕복 뒤 읽던 쪽이 아님", before, now)
+            }
+        } finally {
+            if (rot0 == 0) device.setOrientationNatural() else shell("settings put system user_rotation $rot0")
+        }
+        assertAlive()
+    }
+
+    @Test fun rotation_sameSpot_epub() = rotationKeepsSpot(book, "EPUB")
+    @Test fun rotation_sameSpot_txt() = rotationKeepsSpot("e2e-txt utf8", "TXT")
+    @Test fun rotation_sameSpot_hwpEbook() = rotationKeepsSpot("gov-03-한글맞춤법-고시2017-12", "HWP", hwpEbook = true)
+
     @Test
     fun viewSettingsSheet_allTabs() {
         openBook()

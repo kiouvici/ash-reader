@@ -116,6 +116,7 @@ import kr.vici.ashreader.data.locatorPage
 import kr.vici.ashreader.data.Highlight
 import kr.vici.ashreader.doc.TextGeo
 import kr.vici.ashreader.doc.TextPage
+import kr.vici.ashreader.doc.PageAnchor
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.FormatGroup
 import kr.vici.ashreader.data.Note
@@ -443,6 +444,12 @@ fun ReaderScreen(
     var firstLoadDone by rememberSaveable(target.id) { mutableStateOf(false) }
     /** [page] 를 정할 때의 쪽 수. 회전 등으로 다시 배치돼 쪽 수가 바뀌면 비율로 옮긴다. */
     var pageCountSeen by rememberSaveable(target.id) { mutableIntStateOf(0) }
+    /**
+     * 작업 11: 읽던 자리 표시(읽던 쪽의 첫 글자 — [PageAnchor]). 다시 나눠 쪽 수가 바뀌면 비율로 짐작한 쪽 근처에서 이 글자가 든 쪽으로 간다.
+     * [heldPage] = 다시 나눈 뒤 옮겨 온 쪽 — 그 쪽에서는 자리 표시를 새로 잡지 않는다(가로의 큰 쪽 첫 글자로 바꾸면 세로로 돌아올 때마다 앞으로 밀림).
+     */
+    var anchor by rememberSaveable(target.id) { mutableStateOf<String?>(null) }
+    var heldPage by rememberSaveable(target.id) { mutableIntStateOf(-1) }
     val reflow = if (isWord) hwpEbook else fmt.reflowable || (isHwp && hwpEbook)
     /** F-22 스크롤 보기(만화는 웹툰 보기로 대신). */
     val scrollView = s.scrollView && fmt.group != FormatGroup.COMIC && !pdfComic
@@ -688,8 +695,17 @@ fun ReaderScreen(
                         // 저장할 때와 쪽 수가 다름(글꼴·크기·보기 방식) → 읽은 비율로 옮긴다
                         jumpReq = locatorPage(target.startPage, locatorFrac(target.startPage, target.startCount), n)
                     } else if (!first && pageCountSeen > 0 && n > 0 && n != pageCountSeen) {
-                        // 회전·글꼴 변경으로 다시 배치돼 쪽 수가 바뀜 → 읽던 비율로 옮긴다
-                        jumpReq = locatorPage(page, locatorFrac(page, pageCountSeen), n)
+                        // 회전·글꼴 변경으로 다시 배치돼 쪽 수가 바뀜 → 읽던 비율로 짐작한 뒤, 읽던 쪽 첫 글자가 든 쪽으로(작업 11)
+                        val est = locatorPage(page, locatorFrac(page, pageCountSeen), n)
+                        val a = anchor
+                        heldPage = page // 옮기기 전 옛 쪽 번호로 새 문서의 글을 읽어 자리 표시를 덮지 않게
+                        pageCountSeen = n
+                        // 자리 표시가 있으면 찾은 뒤 한 번만 옮긴다(짐작한 쪽으로 먼저 가면 그 쪽 글로 자리 표시가 덮일 수 있음)
+                        val found = if (a != null && reflow) withContext(Dispatchers.IO) {
+                            PageAnchor.find(a, est, n, radius = maxOf(8, n / 15)) { i -> guarded(doc, null) { doc.pageText(i)?.text } }
+                        } else null
+                        heldPage = found ?: est
+                        jumpReq = found ?: est
                     }
                     if (n > 0) pageCountSeen = n
                     // 그림만 든 PDF 인지 한 번 본다('만화로 보기' 제안)
@@ -715,6 +731,14 @@ fun ReaderScreen(
                 // 높이는 보지 않는다 — 메뉴를 닫으며 시스템 막대가 숨어 높이만 바뀌어도 방금 고른 글자가 닫히지 않게.
                 LaunchedEffect(pxW) { sel = null }
                 val count = doc.pageCount
+                // 작업 11: 읽던 쪽이 바뀌면(넘김·이동) 그 쪽 첫 글자를 자리 표시로. 다시 나눈 뒤 옮겨 온 쪽([heldPage])은 그대로 둔다.
+                if (reflow) LaunchedEffect(doc, page) {
+                    if (page == heldPage) return@LaunchedEffect
+                    heldPage = -1
+                    delay(300)
+                    val p = page
+                    PageAnchor.of(withContext(Dispatchers.IO) { guarded(doc, null) { doc.pageText(p)?.text } })?.let { anchor = it }
+                }
                 LaunchedEffect(page, count) {
                     if (count > 0) {
                         delay(400)
