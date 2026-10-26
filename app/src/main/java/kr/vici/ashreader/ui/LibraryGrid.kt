@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.ui
 
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.window.Popup
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -185,7 +189,7 @@ internal fun FlatShelf(
             FloatingButton(c, "모음", Icons.Menu, Modifier.trackRect(collBtn)) { h.collMenu(collBtn.rect) }
             FloatingButton(c, "보기·정렬", Icons.Dots, Modifier.padding(start = 6.dp).trackRect(moreBtn)) { moreOpen = true }
         }
-        if (modes.selecting) SelectBar(h, books.filter { it.id in modes.selected }, hiddenShelf, collection, Modifier.align(Alignment.BottomCenter).padding(bottom = barBottom())) {
+        if (modes.selecting) SelectBar(h, books.filter { it.id in modes.selected }, hiddenShelf, collection, Modifier) {
             modes.selecting = false; modes.selected = emptySet()
         }
     }
@@ -234,8 +238,12 @@ private fun SelectBar(h: ShelfHost, picked: List<Book>, hiddenShelf: Boolean, co
     val dao = app.db.books()
     var confirm by remember { mutableStateOf(false) }
     val on = picked.isNotEmpty()
+    // 메뉴와 같은 유리(83% + 뒤만 살짝 흐림, 대표님 2026-10-26) — 흐림은 따로 띄운 창에서만 되므로 막대를 Popup 에 띄운다.
+    // 막대 크기만 한 창이라 막대 밖을 누르면 그대로 아래 책이 눌린다
+    val lift = with(LocalDensity.current) { barBottom().roundToPx() }
+    Popup(alignment = Alignment.BottomCenter, offset = IntOffset(0, -lift), properties = PopupProperties(focusable = false, dismissOnBackPress = false, dismissOnClickOutside = false)) {
     Row(
-        modifier.padding(12.dp).clip(RoundedCornerShape(16.dp)).background(glassBg())
+        modifier.padding(12.dp).clip(RoundedCornerShape(16.dp)).backdropBlur().background(menuGlass())
             .border(1.dp, c.barLine, RoundedCornerShape(16.dp)).padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -248,6 +256,7 @@ private fun SelectBar(h: ShelfHost, picked: List<Book>, hiddenShelf: Boolean, co
             app.appScope.launch { picked.forEach { dao.removeFromCollection(collection.id, it.id) } }; onDone()
         }
         BarAction(c, "빼기", Icons.Trash, on, Color(0xFFFF3B30)) { confirm = true }
+    }
     }
     if (confirm) AlertDialog(
         onDismissRequest = { confirm = false },
@@ -588,7 +597,7 @@ internal fun HeroDetail(h: ShelfHost, g: LibGroup, sec: LibSection, folderPath: 
             Spacer(Modifier.weight(1f))
             FloatingButton(c, "보기·정렬", Icons.Dots, Modifier.trackRect(moreBtn), onHero = !pastHero) { moreOpen = true }
         }
-        if (modes.selecting) SelectBar(h, g.books.filter { it.id in modes.selected }, false, null, Modifier.align(Alignment.BottomCenter).padding(bottom = barBottom())) {
+        if (modes.selecting) SelectBar(h, g.books.filter { it.id in modes.selected }, false, null, Modifier) {
             modes.selecting = false; modes.selected = emptySet()
         }
     }
