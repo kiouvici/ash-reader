@@ -17,6 +17,33 @@ object PageAnchor {
     fun of(text: String?): String? = text?.let(::norm)?.takeIf { it.length >= 6 }?.take(LEN)
 
     /**
+     * [page] 쪽 첫머리부터의 자리 표시를, 앞뒤 [radius] 쪽 글 안에서 '한 번만' 나오는 길이까지 늘려 잡는다
+     * ([LEN] → 64 → 128 → 256자, 다음 쪽 글까지 이어서). 글 자체가 유일하면 새 배치에서도 그 자리는 한 곳뿐이다 —
+     * 같은 문장이 되풀이되는 책·쪽 경계 줄이 두 쪽에 든 한글 표 문서(CI)에서 짧은 표시가 다른 쪽과 겹치던 것.
+     */
+    fun capture(page: Int, count: Int, radius: Int, textOf: (Int) -> String?): String? {
+        if (page !in 0 until count) return null
+        val t = HashMap<Int, String>()
+        fun tx(i: Int): String = if (i !in 0 until count) "" else t.getOrPut(i) { norm(textOf(i).orEmpty()) }
+        val head = tx(page)
+        if (head.length < 6) return null
+        val from = head + tx(page + 1) + tx(page + 2)
+        val region = buildString { for (i in (page - radius)..(page + radius)) append(tx(i)) }
+        var best = from.take(LEN)
+        for (len in intArrayOf(LEN, 64, 128, 256)) {
+            best = from.take(len)
+            if (best.length < len || occurrences(region, best) <= 1) return best
+        }
+        return best
+    }
+
+    private fun occurrences(hay: String, needle: String): Int {
+        var n = 0; var at = hay.indexOf(needle)
+        while (at >= 0) { n++; if (n > 1) return n; at = hay.indexOf(needle, at + 1) }
+        return n
+    }
+
+    /**
      * [estimate] 쪽 근처 [radius] 쪽 안에서 [anchor] 가 든 쪽. 쪽 끝에 걸쳐 다음 쪽으로 이어져도 찾는다.
      * 쪽 경계에 걸친 줄은 앞 쪽 끝과 뒤 쪽 첫머리 두 쪽 글에 모두 들어갈 수 있다(한글 표 문서, CI 4쪽 → 3쪽) —
      * 그래서 자리 표시가 쪽 첫머리([HEAD] 글자 안)에 있는 쪽을 먼저, 그런 쪽이 없으면 [estimate] 에 가장 가까운 쪽.

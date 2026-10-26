@@ -54,6 +54,29 @@ class PageAnchorTest {
         assertEquals(2, PageAnchor.find(a, 1, pages.size, radius = 3) { pages[it] })
     }
 
+    /**
+     * 같은 문단이 번호만 바꿔 되풀이되는 책(시험용 EPUB): 쪽 첫머리가 되풀이 문장 한가운데여도, 앞뒤 쪽에서 한 번만 나오는
+     * 길이까지 늘린 자리 표시로 세로↔가로 3번 왕복 뒤 같은 쪽.
+     */
+    @Test fun repetitiveBook_captureIsUnique() {
+        val body = "그는 창밖을 오래 바라보았다. 비는 그칠 기색이 없었고, 골목 끝 가로등은 젖은 길 위에 노란 빛을 길게 늘어뜨리고 있었다."
+        val text = (1..60).joinToString(" ") { "${it}문단. $body" }
+        // 쪽 = 글자 수로 자른 배치(문단 중간에서 끊김)
+        fun layout(perPage: Int) = text.chunked(perPage)
+        val portrait = layout(230); val landscape = layout(410)
+        for (p in listOf(2, 3, 5, 9, 14)) {
+            val a = PageAnchor.capture(p, portrait.size, radius = 8) { portrait.getOrNull(it) }!!
+            var cur = p
+            repeat(3) {
+                val estL = cur * landscape.size / portrait.size
+                val l = PageAnchor.find(a, estL, landscape.size, radius = 8) { landscape.getOrNull(it) }!!
+                val estP = l * portrait.size / landscape.size
+                cur = PageAnchor.find(a, estP, portrait.size, radius = 8) { portrait.getOrNull(it) }!!
+                assertEquals("되풀이 책 $p 쪽 왕복", p, cur)
+            }
+        }
+    }
+
     /** 띄어쓰기·줄바꿈이 배치마다 달라도 같은 글자로 본다. */
     @Test fun ignoresWhitespace() {
         val a = PageAnchor.of("그는 창밖을\n오래 바라보았다. 비는")!!

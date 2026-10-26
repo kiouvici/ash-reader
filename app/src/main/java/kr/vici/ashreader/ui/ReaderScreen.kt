@@ -738,6 +738,8 @@ fun ReaderScreen(
                 // 높이는 보지 않는다 — 메뉴를 닫으며 시스템 막대가 숨어 높이만 바뀌어도 방금 고른 글자가 닫히지 않게.
                 LaunchedEffect(pxW) { sel = null }
                 val count = doc.pageCount
+                // 자리 표시용 쪽 글(이 배치에서 한 번 읽은 쪽은 다시 읽지 않는다)
+                val anchorTexts = remember(doc) { java.util.concurrent.ConcurrentHashMap<Int, String>() }
                 // 작업 11: 읽던 쪽이 바뀌면(넘김·이동) 그 쪽 첫 글자를 자리 표시로. 다시 나눈 뒤 옮겨 온 쪽([heldPage])은 그대로 둔다.
                 if (reflow) LaunchedEffect(doc, page, relocateTo) {
                     val to = relocateTo
@@ -753,7 +755,9 @@ fun ReaderScreen(
                     heldPage = -1
                     delay(300)
                     val p = page
-                    PageAnchor.of(withContext(Dispatchers.IO) { guarded(doc, null) { doc.pageText(p)?.text } })?.let { anchor = it }
+                    withContext(Dispatchers.IO) {
+                        PageAnchor.capture(p, count, radius = 8) { i -> anchorTexts.getOrPut(i) { guarded(doc, null) { doc.pageText(i)?.text }.orEmpty() } }
+                    }?.let { anchor = it }
                 }
                 LaunchedEffect(page, count) {
                     if (count > 0) {
