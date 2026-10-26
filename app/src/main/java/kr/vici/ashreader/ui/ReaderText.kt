@@ -286,6 +286,8 @@ fun SearchPanel(
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     LaunchedEffect(query, submitted) {
         results.clear()
+        // 다시 찾을 때 지난 "이 책에서 N곳" 을 지운다 — 목록은 비었는데 문구만 남아 있던 순간이 있었다(D04 CI phone-36-b)
+        progress = ""
         val q = query.trim()
         if (q.length < 1) { progress = ""; return@LaunchedEffect }
         delay(350) // 입력 중엔 기다림(새 글자가 오면 이 작업은 취소됨)
