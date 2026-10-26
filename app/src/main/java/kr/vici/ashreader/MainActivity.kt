@@ -253,14 +253,11 @@ class MainActivity : ComponentActivity() {
             // 작업 06: 앱 테마(시스템/밝게/어둡게)
             val st by (application as AshApp).prefs.settings.collectAsState(initial = null)
             AshTheme(st?.appTheme ?: 0) {
-                // 서재 유리 메뉴가 자기 뒤만 흐리도록 앱 화면을 한 장 더 담아 둔다(LibraryMenus.backdropBlur)
+                // 유리 메뉴·아래 내비게이션이 자기 뒤만 흐리도록 화면 본문을 한 장 더 담아 둔다(LibraryMenus.backdropBlur) — 담는 곳은 AshRoot 의 본문 상자
                 val layer = rememberGraphicsLayer()
                 val backdrop = remember(layer) { Backdrop(layer) }
                 androidx.compose.runtime.CompositionLocalProvider(LocalBackdrop provides backdrop) {
-                    Box(
-                        Modifier.fillMaxSize().onGloballyPositioned { backdrop.origin = it.positionOnScreen() }
-                            .drawWithContent { backdrop.layer.record { this@drawWithContent.drawContent() }; drawLayer(backdrop.layer) },
-                    ) { AshRoot(nav) }
+                    AshRoot(nav)
                 }
             }
         }
@@ -647,7 +644,14 @@ private fun AshRoot(nav: NavModel) {
             // 설정·독서 기록은 애플식 회색 바탕을 위아래 막대 자리까지(크림색 띠가 남지 않게)
             val grouped = sc == Screen.Stats || sc == Screen.Settings
             val groupedBg = if (kr.vici.ashreader.ui.LocalAshDark.current) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color(0xFFF2F2F7)
-            Box(Modifier.fillMaxSize().then(if (grouped) Modifier.background(groupedBg) else Modifier).then(if (throughBars) Modifier else Modifier.padding(pad))) {
+            // 본문만 담는다(아래 내비게이션은 빼야 막대가 자기 자신을 흐리지 않는다)
+            val backdrop = kr.vici.ashreader.ui.LocalBackdrop.current
+            val capture = if (backdrop == null) Modifier else Modifier.onGloballyPositioned { backdrop.origin = it.positionOnScreen() }
+                .drawWithContent { backdrop.layer.record { this@drawWithContent.drawContent() }; drawLayer(backdrop.layer) }
+            // 독서 기록·설정도 아래 내비게이션 밑까지 화면이 이어진다(대표님 2026-10-26) — 위만 비우고 아래는 각 화면이 막대 높이만큼 비운다
+            Box(Modifier.fillMaxSize().then(capture).then(if (grouped) Modifier.background(groupedBg) else Modifier)
+                .then(if (throughBars) Modifier else if (grouped) Modifier.padding(top = pad.calculateTopPadding()) else Modifier.padding(pad))) {
+              androidx.compose.runtime.CompositionLocalProvider(kr.vici.ashreader.ui.LocalBarInsets provides pad) {
                 when (sc) {
                     Screen.Library -> androidx.compose.runtime.CompositionLocalProvider(kr.vici.ashreader.ui.LocalBarInsets provides pad) { LibraryScreen(
                         books = books, unavailable = unavailableBooks, onOpen = ::open, onAdd = { picker.launch(arrayOf("*/*")) },
@@ -741,6 +745,7 @@ private fun AshRoot(nav: NavModel) {
                     }
                     is Screen.Reader -> Unit
                 }
+              }
                 // 서재: 상태 표시줄 자리에 서재 바탕색 막(메뉴와 같은 투명도 83%) — 위로 지나가는 책이 비쳐 보이게.
                 // 앱 바탕(크림)이 아니라 서재 바탕(밝게 흰·어둡게 검정)과 같게(대표님 2026-10-26)
                 if (throughBars) Box(

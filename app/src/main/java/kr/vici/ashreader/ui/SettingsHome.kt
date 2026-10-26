@@ -454,17 +454,20 @@ fun AppSettingsScreen(
             Row(Modifier.fillMaxSize()) {
                 Column(Modifier.width(400.dp).fillMaxHeight().verticalScroll(rememberScrollState())) {
                     HomeList(c, compact = true, selected = cur, hint = ::hint) { pageName = it.name }
+                    Spacer(Modifier.height(barBottom()))
                 }
                 Box(Modifier.width(1.dp).fillMaxHeight().background(c.line))
                 Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
                     PageTitle(cur, c, big = true)
                     pageBody(cur)
-                    Spacer(Modifier.height(30.dp))
+                    Spacer(Modifier.height(30.dp + barBottom()))
                 }
             }
         } else if (page == null) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 HomeList(c, compact = false, selected = null, hint = ::hint) { pageName = it.name }
+                // 아래 내비게이션 밑까지 목록이 지나가므로 끝에 막대 높이만큼 비운다(대표님 2026-10-26)
+                Spacer(Modifier.height(barBottom()))
             }
         } else {
             BackHandler { pageName = null }
@@ -472,7 +475,7 @@ fun AppSettingsScreen(
                 Box(Modifier.padding(start = 10.dp, top = 6.dp)) { BackSquare(c) { pageName = null } }
                 PageTitle(page, c, big = false)
                 pageBody(page)
-                Spacer(Modifier.height(30.dp))
+                Spacer(Modifier.height(30.dp + barBottom()))
             }
         }
     }

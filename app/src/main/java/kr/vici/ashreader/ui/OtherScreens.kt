@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -122,6 +123,8 @@ fun StatsScreen(sessions: List<ReadingSession>, streak: Int, books: List<Book>, 
             }
         }
         Text("기록은 이 기기에만 저장돼요", fontSize = 12.sp, color = cs.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(24.dp))
+        // 아래 내비게이션 밑까지 목록이 지나가므로 끝에 막대 높이만큼 비운다(대표님 2026-10-26)
+        Spacer(Modifier.height(barBottom()))
     }
 }
 

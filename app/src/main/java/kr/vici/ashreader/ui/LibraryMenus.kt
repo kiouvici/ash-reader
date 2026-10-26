@@ -6,13 +6,13 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.BlurEffect
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.composed
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
@@ -117,22 +117,27 @@ val glassAlpha: Float get() = if (canBlur) GLASS_ALPHA else 0.92f
 @Composable
 fun glassBg(): Color = if (LocalAshDark.current) Color(0xFF2C2C2E).copy(alpha = glassAlpha) else Color.White.copy(alpha = glassAlpha)
 
-/** 서재 유리 메뉴 바탕: 뒤를 흐릴 때는 애플 북스처럼 뒤 표지 색이 비치게 72%(대표님 2026-10-26: 흐림이 너무 셈), 못 흐리면 92%. */
+/** 서재 유리 메뉴 바탕: 아래 내비게이션 막대와 같은 투명도·흐림(대표님 2026-10-26: 일체감) — [glassAlpha]. */
 @Composable
-fun menuGlass(): Color {
-    val a = if (canBlur) 0.72f else 0.92f
-    return if (LocalAshDark.current) Color(0xFF2C2C2E).copy(alpha = a) else Color.White.copy(alpha = a)
-}
+fun menuGlass(): Color = glassBg()
 
-/** 뒤 화면의 같은 자리를 흐려 그린다. 흐림은 자기 그림 전체에 걸리므로 내용과 따로 바탕 전용 상자에 붙인다. */
+/**
+ * 바탕에 뒤 화면의 같은 자리를 흐려 그린다(내용은 흐리지 않음). 흐린 그림은 따로 층에 담아 그 층에만 흐림을 건다.
+ * 모서리는 앞의 clip 을 따른다 — `.clip(shape).backdropBlur().background(유리색)` 순서로 쓴다.
+ */
 fun Modifier.backdropBlur(radius: Dp = 16.dp): Modifier = composed {
     val b = LocalBackdrop.current
     if (b == null || !canBlur) return@composed this
+    val blurred = rememberGraphicsLayer()
     var pos by remember { mutableStateOf(Offset.Zero) }
     val px = with(LocalDensity.current) { radius.toPx() }
-    onGloballyPositioned { pos = it.positionOnScreen() }
-        .graphicsLayer { renderEffect = BlurEffect(px, px, TileMode.Clamp); clip = true }
-        .drawBehind { val o = pos - b.origin; translate(-o.x, -o.y) { drawLayer(b.layer) } }
+    onGloballyPositioned { pos = it.positionOnScreen() }.drawBehind {
+        val o = pos - b.origin
+        blurred.renderEffect = BlurEffect(px, px, TileMode.Clamp)
+        blurred.clip = true
+        blurred.record { translate(-o.x, -o.y) { drawLayer(b.layer) } }
+        drawLayer(blurred)
+    }
 }
 
 /**
@@ -181,19 +186,14 @@ fun GlassPopup(anchor: Rect, onDismiss: () -> Unit, width: Dp = 250.dp, below: B
     val dark = LocalAshDark.current
     val shape = RoundedCornerShape(14.dp)
     Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
-        Box(
+        Column(
             Modifier.width(width)
                 .shadow(24.dp, shape, ambientColor = Color.Black.copy(alpha = if (dark) 0.6f else 0.1f), spotColor = Color.Black.copy(alpha = if (dark) 0.8f else 0.25f))
-                .clip(shape),
-        ) {
-            Box(Modifier.matchParentSize().backdropBlur())
-            Column(
-                Modifier.fillMaxWidth().background(menuGlass())
-                    .border(1.dp, if (dark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.04f), shape)
-                    .heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
-                content = content,
-            )
-        }
+                .clip(shape).backdropBlur().background(menuGlass())
+                .border(1.dp, if (dark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.04f), shape)
+                .heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+            content = content,
+        )
     }
 }
 

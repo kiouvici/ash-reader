@@ -165,6 +165,7 @@ fun FloatingNavBar(
             // 서재 밖 탭에서는 모음·검색이 빠져 막대가 줄어든다 — 가운데 맞춤이라 양쪽에서 함께 준다(아래 AnimatedVisibility)
             Modifier
                 .shadow(18.dp, RoundedCornerShape(13.dp), ambientColor = Color.Black.copy(alpha = if (c.dark) 0.5f else 0.08f), spotColor = Color.Black.copy(alpha = if (c.dark) 0.6f else 0.2f))
+                // 흐리지 않고 83% 투명 — 지나가는 책이 그대로 비쳐 보이게(대표님 2026-10-25 00:24, 2026-10-26 다시 확인)
                 .clip(RoundedCornerShape(13.dp)).background(c.bar).border(1.dp, c.barLine, RoundedCornerShape(13.dp))
                 .padding(3.dp).selectableGroup(),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
