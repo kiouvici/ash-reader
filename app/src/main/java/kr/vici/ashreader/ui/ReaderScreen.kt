@@ -340,7 +340,6 @@ fun ReaderScreen(
     // 읽는 동안에는 위아래 줄을 종이 색에 맞춘다(투명 + 밝은/어두운 아이콘), 나가면 앱 테마로 되돌린다
     run {
         val paperDark = colors.bgC.luminance() < 0.4f
-        val appDark = LocalAshDark.current
         val act = LocalContext.current as? Activity
         DisposableEffect(act, paperDark) {
             val w = act?.window
@@ -348,13 +347,10 @@ fun ReaderScreen(
                 @Suppress("DEPRECATION")
                 w.navigationBarColor = android.graphics.Color.TRANSPARENT
                 if (android.os.Build.VERSION.SDK_INT >= 29) w.isNavigationBarContrastEnforced = false
-                androidx.core.view.WindowCompat.getInsetsController(w, w.decorView).run {
-                    isAppearanceLightStatusBars = !paperDark; isAppearanceLightNavigationBars = !paperDark
-                }
             }
-            onDispose {
-                w?.let { androidx.core.view.WindowCompat.getInsetsController(it, it.decorView).run { isAppearanceLightStatusBars = !appDark; isAppearanceLightNavigationBars = !appDark } }
-            }
+            // 아이콘 색은 AshTheme 한 곳에서 정한다(앱 테마가 다시 그려져도 종이 색 유지)
+            readerBarsDark = paperDark
+            onDispose { readerBarsDark = null }
         }
     }
     var menu by remember { mutableStateOf(false) }

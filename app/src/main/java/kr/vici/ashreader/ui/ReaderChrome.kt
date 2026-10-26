@@ -82,8 +82,8 @@ private class ChromeColors(val btn: Color, val line: Color, val fg: Color, val s
 private fun chromeOf(c: ReadingColors): ChromeColors {
     val dark = luminance(c.bg) < 0.35
     // 단추·시트 바탕은 모든 메뉴와 같은 불투명도(GLASS_ALPHA, 대표님 00:02)
-    return if (dark) ChromeColors(Color(0xFF2C2C2E).copy(alpha = GLASS_ALPHA), Color.White.copy(alpha = 0.08f), Color(0xFFE8E8EA), Color(0xFF98989F), Color(0xFF1C1C1E).copy(alpha = GLASS_ALPHA), Color(0xFF3A3A3C).copy(alpha = 0.6f), true)
-    else ChromeColors(Color.White.copy(alpha = GLASS_ALPHA), Color.Black.copy(alpha = 0.07f), Color(0xFF111316), Color(0xFF6C6C70), Color.White.copy(alpha = GLASS_ALPHA), Color(0xFFEFEFF2).copy(alpha = 0.7f), false)
+    return if (dark) ChromeColors(Color(0xFF2C2C2E).copy(alpha = glassAlpha), Color.White.copy(alpha = 0.08f), Color(0xFFE8E8EA), Color(0xFF98989F), Color(0xFF1C1C1E).copy(alpha = glassAlpha), Color(0xFF3A3A3C).copy(alpha = 0.6f), true)
+    else ChromeColors(Color.White.copy(alpha = glassAlpha), Color.Black.copy(alpha = 0.07f), Color(0xFF111316), Color(0xFF6C6C70), Color.White.copy(alpha = glassAlpha), Color(0xFFEFEFF2).copy(alpha = 0.7f), false)
 }
 
 /**

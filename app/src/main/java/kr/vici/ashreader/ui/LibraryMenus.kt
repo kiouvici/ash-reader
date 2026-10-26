@@ -80,8 +80,11 @@ class ShelfUi { var menus by mutableIntStateOf(0) }
 
 val LocalShelfUi = compositionLocalOf { ShelfUi() }
 
-/** 뒤 화면을 흐릴 수 있나(API 31+, 감수 3). */
-val canBlur: Boolean get() = Build.VERSION.SDK_INT >= 31
+/** 기기에서 창 흐림이 켜져 있나. 휴대폰(SM-S948N)은 꺼져 있어 흐림 깃발을 붙여도 그려지지 않는다(2026-10-26 확인). MainActivity 가 바꾼다. */
+var crossWindowBlur by mutableStateOf(true)
+
+/** 뒤 화면을 흐릴 수 있나(API 31+ 이고 기기 창 흐림이 켜져 있을 때, 감수 3). */
+val canBlur: Boolean get() = Build.VERSION.SDK_INT >= 31 && crossWindowBlur
 
 /**
  * 모든 떠 있는 메뉴·시트·단추의 바탕 불투명도(대표님 2026-10-25 00:02: 모두 같게, 지금보다 조금 더 투명하게).
@@ -89,9 +92,12 @@ val canBlur: Boolean get() = Build.VERSION.SDK_INT >= 31
  */
 const val GLASS_ALPHA = 0.83f // 대표님 2026-10-25 00:19: 83%
 
+/** 메뉴 바탕 불투명도: 흐릴 수 있으면 [GLASS_ALPHA], 못 흐리면 뒤 글자가 비치지 않게 92%(감수 3). */
+val glassAlpha: Float get() = if (canBlur) GLASS_ALPHA else 0.92f
+
 /** 유리 메뉴 바탕: 밝게 흰, 어둡게 #2C2C2E — 불투명도 [GLASS_ALPHA]. */
 @Composable
-fun glassBg(): Color = if (LocalAshDark.current) Color(0xFF2C2C2E).copy(alpha = GLASS_ALPHA) else Color.White.copy(alpha = GLASS_ALPHA)
+fun glassBg(): Color = if (LocalAshDark.current) Color(0xFF2C2C2E).copy(alpha = glassAlpha) else Color.White.copy(alpha = glassAlpha)
 
 /**
  * 투명 메뉴가 뜨면 뒤 화면을 살짝 흐리고 아주 옅게 어둡게(대표님 2026-10-25 01:00: 투명 메뉴 모두).

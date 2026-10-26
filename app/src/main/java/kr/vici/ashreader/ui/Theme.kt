@@ -9,6 +9,9 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
@@ -61,6 +64,9 @@ private val Dark = darkColorScheme(
     error = Color(0xFFFF453A),
 )
 
+/** 읽기 화면이 떠 있을 때 종이가 어두운가(위아래 줄 아이콘 색). null = 앱 테마를 따른다. 읽기 화면이 넣고 나갈 때 비운다. */
+var readerBarsDark by mutableStateOf<Boolean?>(null)
+
 /** 지금 앱 화면이 어둡게인가(표지 은은한 빛·유리 메뉴 색 등에 씀). */
 val LocalAshDark = staticCompositionLocalOf { false }
 
@@ -75,11 +81,13 @@ val smallSub: Color @Composable get() = if (LocalAshDark.current) Color(0xFF9898
 fun AshTheme(mode: Int = 0, content: @Composable () -> Unit) {
     val dark = when (mode) { 1 -> false; 2 -> true; else -> isSystemInDarkTheme() }
     val view = LocalView.current
+    // 읽는 동안은 종이 색을 따른다 — 앱 테마가 다시 그려질 때 읽기 화면 값을 덮어써 밝은 종이에 흰 아이콘이 되던 것(2026-10-26 휴대폰 확인)
+    val barsDark = readerBarsDark ?: dark
     if (!view.isInEditMode) SideEffect {
         val window = (view.context as? Activity)?.window ?: return@SideEffect
         WindowCompat.getInsetsController(window, view).run {
-            isAppearanceLightStatusBars = !dark
-            isAppearanceLightNavigationBars = !dark
+            isAppearanceLightStatusBars = !barsDark
+            isAppearanceLightNavigationBars = !barsDark
         }
     }
     CompositionLocalProvider(LocalAshDark provides dark) {

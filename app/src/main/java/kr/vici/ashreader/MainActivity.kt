@@ -71,6 +71,7 @@ import kr.vici.ashreader.data.Settings
 import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.ui.AppSettingsScreen
 import kr.vici.ashreader.ui.AshTheme
+import kr.vici.ashreader.ui.crossWindowBlur
 import kr.vici.ashreader.ui.ExportSheet
 import kr.vici.ashreader.ui.LibraryFoldersScreen
 import kr.vici.ashreader.ui.BackupImportScreen
@@ -234,6 +235,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // 기기가 창 흐림을 꺼 두면(삼성 휴대폰 등) 유리 메뉴를 불투명 92%로(감수 3) — 켜고 끌 때마다 알려 준다
+        if (Build.VERSION.SDK_INT >= 31) windowManager.addCrossWindowBlurEnabledListener(mainExecutor, blurListener)
         if (savedInstanceState == null) {
             // I-714: 최근 앱 목록에서 다시 띄운 경우(LAUNCHED_FROM_HISTORY)는 예전 '열기' 인텐트가 다시 오므로 무시한다
             if (!fromHistory(intent)) nav.inbox.offer(urisOf(intent))
@@ -302,7 +305,10 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    private val blurListener = java.util.function.Consumer<Boolean> { crossWindowBlur = it }
+
     override fun onDestroy() {
+        if (Build.VERSION.SDK_INT >= 31) windowManager.removeCrossWindowBlurEnabledListener(blurListener)
         if (isFinishing) {
             // 필수 5: 앱을 닫으면 서재에 없는 문서의 변환 캐시는 늘 지우고,
             // '한 번만 보기 기록 지우기'(기본 켬)가 켜져 있을 때만 한 번만 보기 사본도 지운다.
