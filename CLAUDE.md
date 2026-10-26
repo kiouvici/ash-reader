@@ -6,9 +6,9 @@
 - 구별: 작업 폴더가 Windows(`C:\Users\Ahn SH\…`)·Ahn-SH 노트북이 아니고 클라우드 리눅스이면 **리더 대화창**이다. 아래 '시작할 때'·'빌드'·'기기'는 노트북용이니 하지 않는다.
 - 대표님 첫마디(「리더」 등)에 답하기 전에, 묻지 말고:
   1. `inbox` 가지를 받아 `inbox/to-chat/` 최근 보고와 `to-code/` 지시 상태를 읽고 밀린 것을 요약한다.
-  2. 연락용 **PR #41** 에 「대화창 시작 — 알림 받음」 댓글을 단다(`gh api repos/kiouvici/ash-reader/issues/41/comments -f body=...`) → 이후 노트북 댓글 알림을 받는다.
+  2. **연락용 PR 을 이 창이 새로 연다** — 알림은 'PR 을 만든 세션'에만 온다(댓글로는 안 걸림, 2026-10-26 HA 창 시험으로 확인). 순서: ① 지금 열린 연락용 PR 번호 찾기 `gh api "repos/kiouvici/ash-reader/pulls?head=kiouvici:inbox&state=open" --jq '.[].number'` ② 있으면 닫기 `gh api -X PATCH repos/kiouvici/ash-reader/pulls/<번호> -f state=closed` ③ 새로 열기 `gh api repos/kiouvici/ash-reader/pulls -f head=inbox -f base=main -f title="연락용 inbox (대화창 <날짜>)" -f body="병합하지 않는 연락용 PR. 노트북은 보고 뒤 이 PR 에 한 줄 댓글." -F draft=true` ④ 새 번호를 대표님께 한 줄로 알린다. **병합하지 않는다.**
   3. 열린 PR 의 자동 검사 상태를 확인하고, 이후 노트북 댓글이 오면 바로 처리한다.
-- 역할: 조사·의논·결정·목업·지시(inbox/to-code + PR #41 한 줄 댓글)·**PR 병합**(자동 검사 녹색 확인 뒤). 코드·빌드·기기 시험은 노트북 몫.
+- 역할: 조사·의논·결정·목업·지시(inbox/to-code + 연락용 PR 한 줄 댓글)·**PR 병합**(자동 검사 녹색 확인 뒤). 코드·빌드·기기 시험은 노트북 몫.
 - 이 창은 ash-reader 만 다룬다(사전 앱 저장소는 사전 창 몫). 결정은 inbox 지시나 docs 에 남긴다(대화 기억은 세션이 끝나면 사라짐).
 
 ## 시작할 때
@@ -69,7 +69,7 @@
   - 대화창 → 노트북: `inbox/to-code/날짜-번호-제목.md` (작업 지시)
   - 노트북 → 대화창: `inbox/to-chat/날짜-제목.md` (결과·질문·중간 보고)
   - 끝난 작업 지시는 노트북이 `inbox/done/` 으로 옮긴다(`git mv`).
-- 노트북은 to-chat 에 쓰거나 done 으로 옮기면 **inbox 가지에 커밋·push** 한다(메시지 끝 `[skip ci]`, push 전 `git pull --rebase`). 그다음 **PR #41 에 한 줄 댓글**(`gh api repos/kiouvici/ash-reader/issues/41/comments -f body="파일 이름 — 한 줄 요약"`)을 단다. 커밋만으로는 대화창에 알림이 가지 않고, 댓글이 가야 대화창이 깨어난다(2026-10-24 시험).
+- 노트북은 to-chat 에 쓰거나 done 으로 옮기면 **inbox 가지에 커밋·push** 한다(메시지 끝 `[skip ci]`, push 전 `git pull --rebase`). 그다음 **연락용 PR 에 한 줄 댓글**을 단다. 연락용 PR 은 대화창이 새로 열 때마다 번호가 바뀌므로 고정 번호(#41)를 쓰지 말고 그때그때 찾는다: `N=$(gh api "repos/kiouvici/ash-reader/pulls?head=kiouvici:inbox&state=open" --jq '.[0].number')` → `gh api repos/kiouvici/ash-reader/issues/$N/comments -f body="파일 이름 — 한 줄 요약"`. 커밋만으로는 대화창에 알림이 가지 않고, 댓글이 가야 대화창이 깨어난다(2026-10-24 시험).
 - 코드 작업은 지금처럼 `feat/…`·`fix/…`·`device/…` 가지 + PR. 그 PR 번호는 to-chat 보고에 적는다.
 - 큰 파일(APK·화면 묶음·큰 측정 자료)은 커밋하지 말고 GitHub Releases 시험용 릴리스(`device-YYYYMMDD`, 사전 배포 표시)에 첨부하고 보고에 링크만 적는다. 이 저장소는 **공개**이므로 개인 문서·개인 정보·키는 inbox·Releases 어디에도 올리지 않는다.
 - **노트북 창은 프로젝트마다 따로 쓴다**(2026-10-24 22:14 대표님 결정). ASH Reader 창은 ASH Reader inbox 만 순찰·처리하고, 사전 앱 inbox 는 사전 앱 창이 맡는다.
