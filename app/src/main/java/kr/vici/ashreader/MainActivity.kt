@@ -71,13 +71,6 @@ import kr.vici.ashreader.data.Settings
 import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.ui.AppSettingsScreen
 import kr.vici.ashreader.ui.AshTheme
-import kr.vici.ashreader.ui.Backdrop
-import kr.vici.ashreader.ui.LocalBackdrop
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.rememberGraphicsLayer
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionOnScreen
 import kr.vici.ashreader.ui.ExportSheet
 import kr.vici.ashreader.ui.LibraryFoldersScreen
 import kr.vici.ashreader.ui.BackupImportScreen
@@ -253,12 +246,7 @@ class MainActivity : ComponentActivity() {
             // 작업 06: 앱 테마(시스템/밝게/어둡게)
             val st by (application as AshApp).prefs.settings.collectAsState(initial = null)
             AshTheme(st?.appTheme ?: 0) {
-                // 유리 메뉴·아래 내비게이션이 자기 뒤만 흐리도록 화면 본문을 한 장 더 담아 둔다(LibraryMenus.backdropBlur) — 담는 곳은 AshRoot 의 본문 상자
-                val layer = rememberGraphicsLayer()
-                val backdrop = remember(layer) { Backdrop(layer) }
-                androidx.compose.runtime.CompositionLocalProvider(LocalBackdrop provides backdrop) {
-                    AshRoot(nav)
-                }
+                AshRoot(nav)
             }
         }
     }
@@ -644,12 +632,8 @@ private fun AshRoot(nav: NavModel) {
             // 설정·독서 기록은 애플식 회색 바탕을 위아래 막대 자리까지(크림색 띠가 남지 않게)
             val grouped = sc == Screen.Stats || sc == Screen.Settings
             val groupedBg = if (kr.vici.ashreader.ui.LocalAshDark.current) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color(0xFFF2F2F7)
-            // 본문만 담는다(아래 내비게이션은 빼야 막대가 자기 자신을 흐리지 않는다)
-            val backdrop = kr.vici.ashreader.ui.LocalBackdrop.current
-            val capture = if (backdrop == null) Modifier else Modifier.onGloballyPositioned { backdrop.origin = it.positionOnScreen() }
-                .drawWithContent { backdrop.layer.record { this@drawWithContent.drawContent() }; drawLayer(backdrop.layer) }
             // 독서 기록·설정도 아래 내비게이션 밑까지 화면이 이어진다(대표님 2026-10-26) — 위만 비우고 아래는 각 화면이 막대 높이만큼 비운다
-            Box(Modifier.fillMaxSize().then(capture).then(if (grouped) Modifier.background(groupedBg) else Modifier)
+            Box(Modifier.fillMaxSize().then(if (grouped) Modifier.background(groupedBg) else Modifier)
                 .then(if (throughBars) Modifier else if (grouped) Modifier.padding(top = pad.calculateTopPadding()) else Modifier.padding(pad))) {
               androidx.compose.runtime.CompositionLocalProvider(kr.vici.ashreader.ui.LocalBarInsets provides pad) {
                 when (sc) {

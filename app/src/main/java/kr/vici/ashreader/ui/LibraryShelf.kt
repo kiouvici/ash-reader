@@ -511,7 +511,7 @@ fun LibraryPane(
     )
 
     androidx.compose.runtime.CompositionLocalProvider(LocalShelfUi provides ui) {
-        // 메뉴 뒤 흐림은 메뉴가 자기 자리만 흐린다(backdropBlur, 대표님 2026-10-26 애플 북스 방식)
+        // 메뉴는 뒤를 흐리지 않는다 — 아래 내비게이션과 같은 83% 유리(대표님 2026-10-26)
         SharedTransitionLayout(modifier.fillMaxSize()) {
             AnimatedContent(
                 targetState = live,

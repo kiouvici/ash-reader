@@ -1,18 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.ui
 
-import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.BlurEffect
-import androidx.compose.ui.layout.positionOnScreen
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.composed
-import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.rememberGraphicsLayer
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
@@ -92,15 +80,6 @@ class ShelfUi { var menus by mutableIntStateOf(0) }
 
 val LocalShelfUi = compositionLocalOf { ShelfUi() }
 
-/**
- * 메뉴 뒤만 흐리기(애플 북스 방식, 대표님 2026-10-26): 앱 화면 맨 바깥(MainActivity)이 그린 화면을 [layer] 에 한 장 더 담아 두고,
- * 서재 유리 메뉴가 자기 자리만큼 잘라 흐려서 바탕에 깐다. 기기 창 흐림(삼성 휴대폰은 지원하지 않음)에 기대지 않아 휴대폰·태블릿이 같다.
- * 뒤 화면 전체는 흐리거나 어둡게 하지 않는다. 읽기 화면 메뉴는 흐리지 않고 바탕만 하얗게 한다(같은 날 대표님).
- */
-class Backdrop(val layer: GraphicsLayer) { var origin by mutableStateOf(Offset.Zero) }
-
-val LocalBackdrop = staticCompositionLocalOf<Backdrop?> { null }
-
 /** 메뉴 뒤를 흐릴 수 있나(API 31+, 감수 3). */
 val canBlur: Boolean get() = Build.VERSION.SDK_INT >= 31
 
@@ -117,28 +96,9 @@ val glassAlpha: Float get() = if (canBlur) GLASS_ALPHA else 0.92f
 @Composable
 fun glassBg(): Color = if (LocalAshDark.current) Color(0xFF2C2C2E).copy(alpha = glassAlpha) else Color.White.copy(alpha = glassAlpha)
 
-/** 서재 유리 메뉴 바탕: 아래 내비게이션 막대와 같은 투명도·흐림(대표님 2026-10-26: 일체감) — [glassAlpha]. */
+/** 서재 유리 메뉴 바탕: 아래 내비게이션 막대와 완전히 같게 — 흐림 없이 같은 색·83%(대표님 2026-10-26: 일체감). */
 @Composable
-fun menuGlass(): Color = glassBg()
-
-/**
- * 바탕에 뒤 화면의 같은 자리를 흐려 그린다(내용은 흐리지 않음). 흐린 그림은 따로 층에 담아 그 층에만 흐림을 건다.
- * 모서리는 앞의 clip 을 따른다 — `.clip(shape).backdropBlur().background(유리색)` 순서로 쓴다.
- */
-fun Modifier.backdropBlur(radius: Dp = 16.dp): Modifier = composed {
-    val b = LocalBackdrop.current
-    if (b == null || !canBlur) return@composed this
-    val blurred = rememberGraphicsLayer()
-    var pos by remember { mutableStateOf(Offset.Zero) }
-    val px = with(LocalDensity.current) { radius.toPx() }
-    onGloballyPositioned { pos = it.positionOnScreen() }.drawBehind {
-        val o = pos - b.origin
-        blurred.renderEffect = BlurEffect(px, px, TileMode.Clamp)
-        blurred.clip = true
-        blurred.record { translate(-o.x, -o.y) { drawLayer(b.layer) } }
-        drawLayer(blurred)
-    }
-}
+fun menuGlass(): Color = (if (LocalAshDark.current) Color(0xFF1C1C1E) else Color.White).copy(alpha = GLASS_ALPHA)
 
 /**
  * 바텀시트 창 안에서 부른다: 창 아래 내비게이션 줄이 흰 띠로 남지 않게.
@@ -189,7 +149,7 @@ fun GlassPopup(anchor: Rect, onDismiss: () -> Unit, width: Dp = 250.dp, below: B
         Column(
             Modifier.width(width)
                 .shadow(24.dp, shape, ambientColor = Color.Black.copy(alpha = if (dark) 0.6f else 0.1f), spotColor = Color.Black.copy(alpha = if (dark) 0.8f else 0.25f))
-                .clip(shape).backdropBlur().background(menuGlass())
+                .clip(shape).background(menuGlass())
                 .border(1.dp, if (dark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.04f), shape)
                 .heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
             content = content,
