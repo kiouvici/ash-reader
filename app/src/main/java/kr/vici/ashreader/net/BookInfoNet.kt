@@ -68,9 +68,14 @@ object BookInfoNet {
     // ── 기기 저장(같은 검색어는 30일 동안 다시 묻지 않음) ──
     private const val CACHE_DAYS = 30L
 
+    // 2026-10-26: 국립중앙도서관 키를 넣고 저자 칸을 정리하며 v2 로 — 키 없이 받아 둔 옛 결과(국립중앙도서관 빠짐)는 버린다
+    private const val CACHE_DIR = "meta-cache-2"
+    private val OLD_CACHE_DIRS = listOf("meta-cache")
+
     private fun cacheFile(context: Context, text: String): java.io.File {
+        OLD_CACHE_DIRS.forEach { java.io.File(context.filesDir, it).takeIf { d -> d.exists() }?.deleteRecursively() }
         val h = java.security.MessageDigest.getInstance("SHA-1").digest(MetaRules.norm(text).toByteArray()).joinToString("") { "%02x".format(it) }
-        return java.io.File(java.io.File(context.filesDir, "meta-cache"), "$h.json")
+        return java.io.File(java.io.File(context.filesDir, CACHE_DIR), "$h.json")
     }
 
     private fun cached(context: Context, text: String): List<MetaRules.Candidate>? {
@@ -92,7 +97,7 @@ object BookInfoNet {
     }
 
     /** 저장해 둔 검색 결과 지우기(설정 › 책 정보 › 인터넷에서 받은 정보 모두 지우기). */
-    fun clearCache(context: Context) { java.io.File(context.filesDir, "meta-cache").deleteRecursively() }
+    fun clearCache(context: Context) { (OLD_CACHE_DIRS + CACHE_DIR).forEach { java.io.File(context.filesDir, it).deleteRecursively() } }
 
     /** 표지 그림 받기(https 만, 6MB 까지). 실패하면 null. */
     suspend fun download(url: String): ByteArray? = withContext(Dispatchers.IO) {
@@ -173,7 +178,7 @@ object BookInfoNet {
         json("https://www.nl.go.kr/seoji/SearchApi.do?cert_key=${enc(BuildConfig.NL_KEY)}&result_style=json&page_no=1&page_size=10&title=${enc(text)}")
             .optJSONArray("docs").objs().map {
                 MetaRules.Candidate(
-                    title = it.optString("TITLE"), author = it.optString("AUTHOR"), publisher = it.optString("PUBLISHER"), year = it.optString("PUBLISH_PREDATE").take(4),
+                    title = it.optString("TITLE"), author = MetaRules.nlAuthor(it.optString("AUTHOR")), publisher = it.optString("PUBLISHER"), year = it.optString("PUBLISH_PREDATE").take(4),
                     isbn = MetaRules.isbn(it.optString("EA_ISBN")), coverUrl = https(it.optString("TITLE_URL")), source = "국립중앙도서관",
                 )
             }

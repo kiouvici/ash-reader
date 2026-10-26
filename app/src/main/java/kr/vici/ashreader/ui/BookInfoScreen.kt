@@ -82,8 +82,9 @@ private class InfoColors(val bg: Color, val card: Color, val ink: Color, val ink
 @Composable
 private fun infoColors(): InfoColors {
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    return if (dark) InfoColors(Color(0xFF121417), Color(0xFF22252A), Color(0xFFE6E6E8), Color(0xFFC4C6CA), Color(0xFF8E9297), Color(0x1FFFFFFF), Color(0xFF5AA9FF), Color(0x295AA9FF), Color(0xFFE6E6E8), Color(0xFF111316))
-    else InfoColors(Color(0xFFF2F2F4), Color.White, Color(0xFF111316), Color(0xFF3A3A3C), Color(0xFF8E8E93), Color(0xFFECECEF), Color(0xFF0A6CD6), Color(0x1A0A84FF), Color(0xFF111316), Color.White)
+    // 작업 07: 어둡게는 애플 북스 다크(바탕 #000·카드 #1C1C1E), 작은 보조 글자는 감수 1 값
+    return if (dark) InfoColors(Color.Black, Color(0xFF1C1C1E), Color.White, Color(0xFFC7C7CC), Color(0xFF98989F), Color(0xFF2C2C2E), Color(0xFF409CFF), Color(0x29409CFF), Color.White, Color.Black)
+    else InfoColors(Color(0xFFF2F2F4), Color.White, Color(0xFF111316), Color(0xFF3A3A3C), Color(0xFF6C6C70), Color(0xFFECECEF), Color(0xFF0A6CD6), Color(0x1A0A84FF), Color(0xFF111316), Color.White)
 }
 
 /** 정보 출처 글자. */
@@ -251,7 +252,7 @@ private fun CoverChoice(label: String, on: Boolean, c: InfoColors, plus: Boolean
     ) {
         Box(
             Modifier.size(64.dp, 94.dp).then(if (on) Modifier.border(2.dp, Color(0xFF0A84FF), RoundedCornerShape(4.dp)).padding(4.dp) else Modifier.padding(4.dp))
-                .clip(RoundedCornerShape(2.dp)).background(if (plus) c.card else Color(0xFFD9D9DE)),
+                .clip(RoundedCornerShape(2.dp)).background(if (plus) c.card else if (LocalAshDark.current) Color(0xFF3A3A3C) else Color(0xFFD9D9DE)),
             contentAlignment = Alignment.Center,
         ) { if (plus) Text("+", fontSize = 22.sp, color = c.sub) }
         Text(label, fontSize = 11.sp, color = c.sub, modifier = Modifier.padding(top = 7.dp))
@@ -322,7 +323,7 @@ private fun ResultRow(cand: MetaRules.Candidate, m: MetaRules.Match, top: Boolea
             .semantics(mergeDescendants = true) {},
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(46.dp, 68.dp).clip(RoundedCornerShape(topStart = 1.dp, bottomStart = 1.dp, topEnd = 2.dp, bottomEnd = 2.dp)).background(Color(0xFFD9D9DE))) {
+        Box(Modifier.size(46.dp, 68.dp).clip(RoundedCornerShape(topStart = 1.dp, bottomStart = 1.dp, topEnd = 2.dp, bottomEnd = 2.dp)).background(if (LocalAshDark.current) Color(0xFF3A3A3C) else Color(0xFFD9D9DE))) {
             thumb?.let { Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
         }
         Column(Modifier.weight(1f)) {

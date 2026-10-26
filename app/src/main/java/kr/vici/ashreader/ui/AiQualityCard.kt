@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package kr.vici.ashreader.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -30,6 +33,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -61,6 +66,10 @@ fun AiQualityCard(
     modifier: Modifier = Modifier,
     comparing: Boolean = false,
     limitMb: Int = 1024,
+    /** 한 줄 모양(읽기 화면 테마 및 설정 맨 위) — [compactBg]·[compactFg] = 그 시트의 칸 바탕·글자색. */
+    compact: Boolean = false,
+    compactBg: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Transparent,
+    compactFg: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
     extra: @Composable ColumnScope.() -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -82,7 +91,28 @@ fun AiQualityCard(
         onToggle(true)
         if (thenCompare) onCompare?.invoke()
     }
-    Surface(
+    // 한 줄 모양(읽기 화면 '테마 및 설정', 대표님 2026-10-25 00:40): 아이콘 · 이름 · [전후 비교] · 스위치 — 세로를 줄인다
+    if (compact) Row(
+        modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).background(compactBg).padding(start = 12.dp, end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Sparkle, null, Modifier.size(20.dp), tint = compactFg)
+        Text("AI 화질 향상", fontSize = 14.sp, color = compactFg, modifier = Modifier.weight(1f).padding(start = 10.dp), maxLines = 1)
+        Box(
+            Modifier.heightIn(min = 48.dp).clickable(enabled = on && onCompare != null, role = Role.Button) { onCompare?.invoke() }
+                .semantics { contentDescription = if (comparing) "전후 비교 끄기" else "전후 비교" }.padding(horizontal = 4.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.clip(RoundedCornerShape(14.dp)).background(compactFg.copy(alpha = if (on) 0.12f else 0.05f)).padding(horizontal = 10.dp, vertical = 5.dp)) {
+                Text(if (comparing) "비교 끄기" else "전후 비교", fontSize = 12.5.sp, color = compactFg.copy(alpha = if (on) 1f else 0.4f))
+            }
+        }
+        Box(
+            Modifier.size(width = 56.dp, height = 48.dp).toggleable(value = on, role = Role.Switch) { v -> if (v) turnOn(false) else onToggle(false) }
+                .semantics { contentDescription = "AI 화질 향상" },
+            contentAlignment = Alignment.Center,
+        ) { AppleSwitch(checked = on, onCheckedChange = null, dark = compactFg.luminance() > 0.5f) }
+    } else Surface(
         modifier = modifier.fillMaxWidth().border(1.dp, cs.outlineVariant, RoundedCornerShape(14.dp)),
         shape = RoundedCornerShape(14.dp), color = cs.surface,
     ) {
@@ -99,7 +129,7 @@ fun AiQualityCard(
                     Text("AI 화질 향상", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Text(kind.sub, fontSize = 13.sp, color = cs.onSurfaceVariant)
                 }
-                Switch(checked = on, onCheckedChange = null)
+                AppleSwitch(checked = on, onCheckedChange = null)
             }
             if (!c.gpu) Text("이 기기에서는 쪽마다 시간이 조금 걸려요(약 ${c.secPerPage}초).", fontSize = 13.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
             extra()

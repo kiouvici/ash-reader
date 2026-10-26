@@ -33,7 +33,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kr.vici.ashreader.doc.ComicUpscale
 import kr.vici.ashreader.doc.PageNotReady
@@ -66,7 +64,7 @@ private data class Strip(val page: Int, val y0: Int, val y1: Int, val h: Int, va
 /**
  * F-53 웹툰 보기(세로 연속 스크롤). 폭 맞춤, 그림 사이 간격(없음/작게), 좌우 여백.
  * 메모리: 쪽을 화면 높이 정도의 띠로 나눠 보이는 띠만 디코딩한다(큰 그림은 BitmapRegionDecoder 영역 디코딩). 띠 캐시는 앱 메모리의 1/8(F-58).
- * 조작(화면 설계서 4.3): 위 30% = 위로 한 화면, 아래 30% = 아래로 한 화면(화면 높이 90% 이동), 가운데 = 메뉴. 두 손가락 = 확대, 두 번 탭 = 2배 ↔ 원래.
+ * 조작: 밀어서만 넘기고 탭은 메뉴(대표님 2026-10-26). 두 손가락 = 확대, 두 번 탭 = 2배 ↔ 원래.
  */
 @Composable
 fun ComicWebtoonReader(
@@ -92,7 +90,6 @@ fun ComicWebtoonReader(
     val p = cs.prefs
     val ext = doc.extract?.collectAsState()?.value
     val density = LocalDensity.current
-    val scope = rememberCoroutineScope()
     BoxWithConstraints(Modifier.fillMaxSize().background(colors.bgC)) {
         val wPx = constraints.maxWidth.coerceAtLeast(1)
         val hPx = constraints.maxHeight.coerceAtLeast(1)
@@ -220,15 +217,7 @@ fun ComicWebtoonReader(
                             val info = state.layoutInfo.visibleItemsInfo.firstOrNull { o.y >= it.offset && o.y < it.offset + it.size }
                             strips.getOrNull(info?.index ?: -1)?.let { s -> onLongPress(s.page) }
                         },
-                    ) { o ->
-                        val yf = o.y / hPx
-                        when {
-                            menuVisible -> onToggleMenu()
-                            yf < 0.3f -> scope.launch { state.animateScrollBy(-hPx * 0.9f / zoom) }
-                            yf > 0.7f -> scope.launch { state.animateScrollBy(hPx * 0.9f / zoom) }
-                            else -> onToggleMenu()
-                        }
-                    }
+                    ) { onToggleMenu() } // 대표님 2026-10-26: 위·아래 탭 넘김 없앰 — 밀어서만 넘긴다. 탭은 메뉴.
                 },
         ) {
             LazyColumn(
@@ -243,12 +232,14 @@ fun ComicWebtoonReader(
                     val key = "${s.page}:${s.y0}:${s.y1}:${crop.first}:${if (up) 2 else 1}"
                     val ready = doc.ready(s.page) && s.y1 > 0
                     val img by produceState<ImageBitmap?>(cache.get(key)?.asImageBitmap(), key, ready, cache) {
-                        if (value != null || !ready) return@produceState
-                        value = withContext(Dispatchers.IO) {
+                        // 값은 키가 바뀌어도 남으므로 '이미 있음'이 아니라 이 키의 캐시로 판단한다(ScrollReader 와 같음)
+                        cache.get(key)?.let { value = it.asImageBitmap(); return@produceState }
+                        if (!ready) return@produceState
+                        withContext(Dispatchers.IO) {
                             try {
                                 doc.strip(s.page, s.y0, s.y1, dispW, crop.first, crop.second)?.also { cache.put(key, it) }?.asImageBitmap()
                             } catch (e: PageNotReady) { null } catch (e: Exception) { null } catch (e: OutOfMemoryError) { cache.evictAll(); null }
-                        }
+                        }?.let { value = it } // 못 그리면 있던 그림을 그대로 둔다
                     }
                     val hDp = with(density) { s.h.toDp() }
                     val padB = with(density) { (if (s.lastOfPage) gapPx else 0).toDp() }

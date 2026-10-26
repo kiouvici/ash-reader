@@ -7,6 +7,12 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.By
@@ -69,6 +75,28 @@ class F06SettingsTest : E2eTest() {
         "듣기와 사전" to Page(cycles = listOf("기본 속도", "잠자기 타이머 기본"), dialogs = listOf("사전 앱"), screens = listOf("읽어 주기 엔진 설정 열기")),
         "앱 정보" to Page(dialogs = listOf("소스 코드 받는 법"), screens = listOf("오픈소스 라이선스", "처음 안내 다시 보기")),
     )
+    /**
+     * 줄 누르기(실제 터치): 화면까지 굴린 뒤, 줄이 아래 내비게이션에 가려 있으면 손가락으로 조금 더 밀어 올리고 누른다.
+     * 설정이 내비게이션 밑까지 이어진 뒤(대표님 2026-10-26) performScrollTo 는 줄을 화면 맨 아래 가장자리까지만 굴려
+     * 그대로 누르면 내비게이션('독서 기록')이 눌렸다(PR #51 CI). 목록 끝에는 내비게이션 높이만큼 여백이 있어 끝 줄도 위로 올라온다.
+     */
+    private fun tapRow(name: String) {
+        val node = compose.onAllNodesWithText(name)[0].performScrollTo()
+        // 태블릿 가로는 내비게이션이 위(제목 줄)에 있어 가릴 일이 없다 — 화면 아래쪽 절반에 있을 때만 본다
+        val rootH = runCatching { compose.onAllNodes(isRoot())[0].fetchSemanticsNode().size.height.toFloat() }.getOrDefault(0f)
+        val navTop = runCatching { compose.onAllNodesWithText("독서 기록")[0].fetchSemanticsNode().boundsInRoot.top }.getOrNull()?.takeIf { it > rootH / 2 }
+        repeat(3) {
+            val b = node.fetchSemanticsNode().boundsInRoot
+            if (navTop == null || b.bottom <= navTop - 8f) return@repeat
+            val lift = b.bottom - navTop + b.height
+            compose.onAllNodes(hasScrollAction() and hasAnyDescendant(hasText(name)))[0].performTouchInput {
+                swipeUp(startY = centerY + lift / 2, endY = centerY - lift / 2, durationMillis = 400)
+            }
+            compose.waitForIdle()
+        }
+        node.performClick()
+    }
+
     private fun count(text: String) = runCatching { compose.onAllNodesWithText(text).fetchSemanticsNodes().size }.getOrDefault(0)
     private fun backCount() = runCatching { compose.onAllNodesWithContentDescription("뒤로").fetchSemanticsNodes().size }.getOrDefault(0)
 
@@ -78,7 +106,7 @@ class F06SettingsTest : E2eTest() {
     private fun openPage(name: String) {
         if (backCount() > 0 && count(name) > 0) return // 이미 그 하위 화면
         if (backCount() > 0) closePage()
-        compose.onAllNodesWithText(name)[0].performScrollTo().performClick()
+        tapRow(name)
         compose.waitForIdle()
         SystemClock.sleep(400)
     }
@@ -91,7 +119,7 @@ class F06SettingsTest : E2eTest() {
     /** 줄이 없으면(기기에서 숨김 등) 건너뛰고 false. */
     private fun row(name: String): Boolean {
         if (count(name) == 0) { android.util.Log.w(TAG, "설정 줄 없음(건너뜀): $name"); missing += name; return false }
-        compose.onAllNodesWithText(name)[0].performScrollTo().performClick()
+        tapRow(name)
         compose.waitForIdle()
         SystemClock.sleep(500)
         return true

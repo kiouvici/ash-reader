@@ -83,4 +83,16 @@ class MetaRulesTest {
         assertEquals("9788937460449", MetaRules.isbn("978-89-374-6044-9"))
         assertEquals("", MetaRules.isbn("abc"))
     }
+
+    @Test
+    fun nlAuthorDropsRoles() {
+        assertEquals("생텍쥐페리", MetaRules.nlAuthor("저자 : 생텍쥐페리;역자 : 양태철;"))
+        assertEquals("앙투안 드 생텍쥐페리(Antoine de Saint-Exupéry)", MetaRules.nlAuthor("저자 : 앙투안 드 생텍쥐페리(Antoine de Saint-Exupéry)"))
+        assertEquals("헤르만 헤세", MetaRules.nlAuthor("헤르만 헤세"))
+        assertEquals("김영하, 이기호", MetaRules.nlAuthor("지은이: 김영하, 이기호 ; 그림: 홍길동"))
+        assertEquals("양태철", MetaRules.nlAuthor("역자 : 양태철"))   // 지은 사람 칸이 없으면 있는 것을 쓴다
+        assertEquals("", MetaRules.nlAuthor(null))
+        assertEquals("최준삼", MetaRules.nlAuthor("최준삼 지음"))
+        assertEquals("한강", MetaRules.nlAuthor("한강 지음 ; 홍길동 옮김"))
+    }
 }

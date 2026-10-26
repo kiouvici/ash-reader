@@ -148,14 +148,14 @@ class E05ComicTest : E2eTest() {
         assertAlive()
     }
 
-    /** 작업 04: PDF 보기 시트 맨 위 AI 칸 → [전후 비교] 화면이 열린다(이 기기에서 AI 를 쓸 수 있을 때). */
+    /** PDF: 테마 및 설정의 AI 줄 → [전후 비교] 화면이 열린다(이 기기에서 AI 를 쓸 수 있을 때). AI 칸은 이 한 자리뿐(대표님 2026-10-25). */
     @Test
     fun pdfAiCard_opensCompare() {
         launchApp()
         openFromLibrary("e2e-pdf 그림", "PDF")
         waitPage()
         dismissTapGuide()
-        menuItem("보기")
+        menuItem("테마")
         val end = SystemClock.uptimeMillis() + 60_000
         var state = ""
         while (SystemClock.uptimeMillis() < end && state.isEmpty()) {
@@ -177,7 +177,7 @@ class E05ComicTest : E2eTest() {
             device.findObject(By.desc("비교 끝내기"))?.click()
             SystemClock.sleep(800)
             if (!wasOn) {
-                menuItem("보기")
+                menuItem("테마")
                 switchNear("AI 화질 향상")?.let { if (it.isChecked) it.click() }
                 SystemClock.sleep(400)
             }
@@ -192,17 +192,19 @@ class E05ComicTest : E2eTest() {
         openFromLibrary("e2e-pdf 그림", "PDF")
         waitPage()
         dismissTapGuide()
-        assertTrue("그림 PDF 인데 '만화로 보기' 제안이 없음", has(By.text("그림으로 된 PDF예요"), 15_000))
+        // 작업 07: 위쪽 '만화로 보기' 안내 띠는 없앴다(대표님) — 테마 및 설정 맨 윗줄의 보기 전환 칸(PDF ⇄ 만화)
+        stackItem("테마 및 설정")
+        val toComic = find(By.desc(Pattern.compile("보기 전환, 지금 PDF.*")), 15_000)
+        assertTrue("그림 PDF 인데 '만화로 보기' 제안이 없음", toComic != null)
         shot("image-pdf-offer")
-        clickText("만화로 보기")
+        toComic!!.click()
         waitPage()
         SystemClock.sleep(1_000)
         shot("image-pdf-comic")
         tap(0.95f, 0.5f)
         assertAlive()
-        openMenu()
-        val back = obj(By.desc("PDF 쪽 보기로"))
-        back.click()
+        stackItem("테마 및 설정")
+        obj(By.desc(Pattern.compile("보기 전환, 지금 만화.*")), 8_000).click()
         waitPage()
         shot("image-pdf-back")
         assertAlive()

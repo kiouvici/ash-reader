@@ -53,6 +53,12 @@ object ViewDefaults {
     @Volatile var suggestWebtoon: Boolean = true
 }
 
+/**
+ * 넘김 화면에서 시작한 두 손가락 확대를 확대 덧화면으로 이어 주는 한 걸음(대표님 01:55: 첫 확대가 1.5배로 툭 커지던 것).
+ * [centroid] 두 손가락 가운데, [pan] 옮김, [zoom] 이번 배율 변화. [end] = 손을 뗌.
+ */
+class PinchStep(val centroid: Offset, val pan: Offset, val zoom: Float, val end: Boolean = false)
+
 /** 쪽 그림 하나: [nativeW] = 원본 화소 폭(원본 맞춤 배율). */
 class ZoomImage(val bmp: Bitmap, val nativeW: Int)
 
@@ -91,9 +97,13 @@ fun ZoomPager(
     initialZoom: Float = 1f,
     initialFocus: Offset? = null,
     onExit: (() -> Unit)? = null,
+    /** 넘김 화면에서 이어지는 두 손가락 확대(손을 뗄 때까지). */
+    livePinch: kotlinx.coroutines.channels.ReceiveChannel<PinchStep>? = null,
 ) {
     val scope = rememberCoroutineScope()
-    BoxWithConstraints(Modifier.fillMaxSize().background(colors.bgC)) {
+    var loaded by remember { mutableStateOf(false) }
+    // 덧화면은 쪽 그림이 올 때까지 투명(밑의 넘김 화면이 그대로 보이게 — 흰 화면·도는 표시로 번쩍이지 않게)
+    BoxWithConstraints(Modifier.fillMaxSize().then(if (onExit == null || loaded) Modifier.background(colors.bgC) else Modifier)) {
         val wPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
         val hPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
         // 확대해도 흐리지 않게 화면 폭의 2배까지 그린다(화소 상한은 공급자가 둔다)
@@ -144,12 +154,21 @@ fun ZoomPager(
         // 쪽 그림 읽기(앞 쪽 그림은 새 그림이 올 때까지 둔다)
         LaunchedEffect(index, reloadKey, renderW) {
             val i = index
-            val z = withContext(Dispatchers.IO) { runCatching { load(i, renderW) }.getOrNull() } ?: return@LaunchedEffect
+            // 처음 열 때는 화면 크기로 먼저 빨리 그려 보이고, 이어서 선명한 그림으로 바꾼다
+            val widths = if (shown == null && onExit != null) listOf(wPx.toInt(), renderW) else listOf(renderW)
+            for (w in widths) {
+            val z = withContext(Dispatchers.IO) { runCatching { load(i, w) }.getOrNull() } ?: return@LaunchedEffect
             val samePage = shown?.first == i
             shown = i to z
             image = z.bmp.asImageBitmap()
             if (!samePage) {
-                if (!firstPlaced && initialFocus != null && initialZoom > 1f) {
+                if (!firstPlaced && uz > 1f) {
+                    // 그림이 오기 전에 손가락으로 이미 확대함: 화면 기준으로 쌓인 확대·옮김을 쪽 자리에 옮겨 놓는다
+                    val px = ox; val py = oy; val k = uz
+                    uz = 1f; place(false)
+                    ox = px + ox * k; oy = py + oy * k; uz = k
+                    clamp()
+                } else if (!firstPlaced && initialFocus != null && initialZoom > 1f) {
                     uz = 1f; place(false)
                     // 누른 곳을 그대로 두고 확대
                     val f = initialFocus
@@ -162,7 +181,24 @@ fun ZoomPager(
                 }
                 firstPlaced = true
             } else clamp()
+            loaded = true
+            }
             if (prefetch != null) launch(Dispatchers.IO) { runCatching { prefetch(i, lastForward, renderW) } }
+        }
+        // 넘김 화면에서 이어지는 두 손가락 확대: 1배에서 손가락 따라 자연스럽게 커진다. 손을 뗄 때 맞춤 배율이면 닫는다
+        LaunchedEffect(livePinch) {
+            val ch = livePinch ?: return@LaunchedEffect
+            for (st in ch) {
+                if (st.end) { if (uz <= 1.01f) onExit?.invoke() else clamp(); break }
+                if (st.zoom != 1f) {
+                    val nz = (uz * st.zoom).coerceIn(1f, 4f)
+                    val k = nz / uz
+                    ox = st.centroid.x - (st.centroid.x - ox) * k; oy = st.centroid.y - (st.centroid.y - oy) * k
+                    uz = nz; zoomTick++
+                }
+                ox += st.pan.x; oy += st.pan.y
+                if (shown != null) clamp()
+            }
         }
         LaunchedEffect(jumpRequest) {
             val j = jumpRequest ?: return@LaunchedEffect
@@ -263,7 +299,7 @@ fun ZoomPager(
                         filterQuality = FilterQuality.Medium,
                     )
                 }
-            } else CircularProgressIndicator(color = colors.accentC, modifier = Modifier.align(Alignment.Center))
+            } else if (onExit == null) CircularProgressIndicator(color = colors.accentC, modifier = Modifier.align(Alignment.Center))
         }
         if (zoomTick > 0) Text(
             "${(uz * 100).toInt()}%", fontSize = 12.sp, color = colors.fgC,

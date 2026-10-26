@@ -56,12 +56,10 @@ class D04ReadingTest : E2eTest() {
         clickText("알겠어요")
         val p0 = page()
         // 오른쪽 = 다음, 왼쪽 = 이전(좌우 배치 기본)
-        tap(0.9f, 0.5f)
-        val p1 = waitPageChange(p0, forward = true)!!
+        val p1 = tapTurn(0.9f, p0, forward = true)!!
         shot("tap-next")
         assertTrue("오른쪽 탭으로 넘어가지 않음 ($p0 → $p1)", p1 > p0)
-        tap(0.1f, 0.5f)
-        val p2 = waitPageChange(p1, forward = false)!!
+        val p2 = tapTurn(0.1f, p1, forward = false)!!
         shot("tap-prev")
         assertTrue("왼쪽 탭으로 돌아오지 않음 ($p1 → $p2)", p2 < p1)
         // 밀어서 넘기기
@@ -140,7 +138,7 @@ class D04ReadingTest : E2eTest() {
         stale { device.findObject(By.textStartsWith("ASH 바탕"))?.click() }; SystemClock.sleep(400)
         shot("aa-font")
         clickText("테마")
-        for (t in listOf("세피아", "야간", "내 테마", "주간")) { clickText(t); SystemClock.sleep(300) }
+        for (t in listOf("고요", "집중", "내 테마", "원본")) { clickText(t); SystemClock.sleep(300) }
         shot("aa-theme")
         clickText("문단")
         for (step in listOf("줄 간격", "문단 간격", "좌우 여백", "위아래 여백")) {
@@ -210,8 +208,7 @@ class D04ReadingTest : E2eTest() {
     @Test
     fun search_toc_jump() {
         openBook()
-        openMenu()
-        obj(By.desc("검색")).click()
+        menuItem("검색")
         // 검색어가 실제로 들어갔는지 보고 검색 키(Enter)도 누른다. 결과가 안 나오면 다시 넣는다(흔들림 — PR #50·#49 CI)
         var found = false
         for (k in 0 until 3) {
@@ -220,28 +217,22 @@ class D04ReadingTest : E2eTest() {
             SystemClock.sleep(400)
             if (runCatching { field.text }.getOrNull() != "반딧불이") continue
             device.pressEnter()
-            // 결과가 화면에 떠도 글자판이 열린 동안 시험이 글자를 읽지 못한 적이 있다(PR #49 CI: '1곳을 찾았어요.'·'13쪽'이 보이는데 못 찾음).
-            // 글자판을 닫고(검색 화면은 남음), 진행 글자나 결과 줄('N쪽') 중 하나만 보여도 찾은 것으로 본다
-            SystemClock.sleep(1_500)
-            if (imeShown()) { device.pressBack(); SystemClock.sleep(600) }
-            val end = SystemClock.uptimeMillis() + 30_000
-            while (SystemClock.uptimeMillis() < end) {
-                if (device.hasObject(By.textEndsWith("곳을 찾았어요.")) || device.hasObject(By.text(Pattern.compile("\\d+쪽")))) { found = true; break }
-                SystemClock.sleep(300)
-            }
-            if (found) break
+            // 작업 07 검색 시트는 "이 책에서 N곳"(07 CI 통과). 못 찾으면 화면 구조를 기록에 남긴다
+            if (has(By.textStartsWith("이 책에서"), 30_000)) { found = true; break }
             shot("search-retry-$k")
             dumpTree("search-retry-$k")
         }
         assertTrue("검색 결과가 나오지 않음", found)
         shot("search-results")
         // 결과 줄("N쪽" + 글 조각)을 누르면 그 쪽으로
+        // "이 책에서 N곳"이 먼저 뜨고 결과 줄은 조금 늦게 잡힐 때가 있다(CI phone-36-b: 화면엔 '13쪽'이 있는데 못 찾음) — 기다린다
+        assertTrue("검색 결과 줄('N쪽')이 없음", has(By.text(Pattern.compile("\\d+쪽")), 10_000))
         val hit = device.findObjects(By.text(Pattern.compile("\\d+쪽"))).firstOrNull()
-        assertNotNull(hit)
+        assertNotNull("검색 결과 줄('N쪽')을 읽지 못함", hit)
         val target = hit!!.text.removeSuffix("쪽").toInt()
         hit.click()
         SystemClock.sleep(1_200)
-        assertTrue("검색 표시 띠가 없음", has(By.text("검색 결과로"), 5_000))
+        assertTrue("검색 표시 띠가 없음", has(By.desc("검색 표시 지우기"), 5_000))
         shot("search-hit")
         val now = page()
         assertTrue("검색 결과 쪽으로 가지 않음 (기대 $target, 지금 $now)", kotlin.math.abs(now - target) <= 1)
@@ -268,16 +259,16 @@ class D04ReadingTest : E2eTest() {
     fun bookmark_memo_highlight() {
         openBook()
         tap(0.9f, 0.5f)
-        val page = page()
+        val page = settledPage() // 넘김이 끝난 뒤의 쪽(두 쪽 펼침은 1 → 3 처럼 늦게 바뀜)
         // 책갈피
-        openMenu()
-        obj(By.desc("책갈피")).click()
+        menuItem("책갈피")
         SystemClock.sleep(800)
         val bid = runBlocking { app.db.books().allBooks().first { it.title == book }.id }
         assertTrue("책갈피가 저장되지 않음", runBlocking { app.db.books().bookmarks(bid).first().isNotEmpty() })
         shot("bookmarked")
         // 쪽 메모
-        clickText("메모")
+        closeMenu()
+        menuItem("메모")
         obj(By.text("${page}쪽 메모"), 5_000)
         obj(By.clazz("android.widget.EditText")).text = "e2e 쪽 메모"
         clickText("저장")

@@ -60,6 +60,17 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("comicPrefs", ComicPrefsStore(context).exportAll())
             // 작업 06: 고른 표지(인터넷·사진·첫 쪽·파일 속 그림) — 책 id → WebP(base64)
             .put("covers", JSONObject().apply { books.filter { it.coverSource != Book.COVER_AUTO }.forEach { b -> kr.vici.ashreader.doc.Covers.chosenBytes(context, b.id)?.let { put(b.id, android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP)) } } })
+            // 작업 07: 새 모음(이름·순서·든 책)과 '직접 정렬' 순서
+            .put("collections", JSONArray().apply {
+                val members = dao.allCollectionBooks().groupBy { it.collectionId }
+                dao.allCollections().forEach { c ->
+                    put(JSONObject().put("id", c.id).put("name", c.name).put("ord", c.ord).put("createdAt", c.createdAt)
+                        .put("books", JSONArray().apply { members[c.id].orEmpty().sortedBy { it.ord }.forEach { put(it.bookId) } }))
+                }
+            })
+            .put("orders", JSONArray().apply {
+                dao.allOrders().groupBy { it.groupKey }.forEach { (k, l) -> put(JSONObject().put("key", k).put("books", JSONArray().apply { l.sortedBy { it.ord }.forEach { put(it.bookId) } })) }
+            })
         val out = context.contentResolver.openOutputStream(uri, "wt") ?: throw BadBackup("파일을 만들 수 없어요.")
         out.use { it.write(root.toString(1).toByteArray(Charsets.UTF_8)) }
         ExportResult(shown, bms.size, notes.size, hls.size, ses.size)
@@ -137,6 +148,21 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
         root.optJSONObject("covers")?.let { cv ->
             val ids = dao.allBooks().filter { it.coverSource != Book.COVER_AUTO }.map { it.id }.toHashSet()
             for (id in cv.keys()) if (id in ids) runCatching { kr.vici.ashreader.doc.Covers.saveChosenBytes(context, id, android.util.Base64.decode(cv.getString(id), android.util.Base64.NO_WRAP)) }
+        }
+        // 새 모음·직접 정렬(작업 07): 같은 id 모음은 합치고(이름은 백업 것), 이 기기 서재에 있는 책만 넣는다
+        val known = dao.allBooks().map { it.id }.toHashSet()
+        db.withTransaction {
+            for (o in root.optJSONArray("collections").objects()) {
+                val id = o.optString("id").takeIf { it.isNotEmpty() } ?: continue
+                dao.upsertCollection(ShelfCollection(id, o.optString("name", "모음").take(60), o.optInt("ord"), o.optLong("createdAt", System.currentTimeMillis())))
+                val ids = o.optJSONArray("books")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty().filter { it in known }
+                dao.addToCollection(ids.mapIndexed { i, b -> CollectionBook(id, b, i) })
+            }
+            for (o in root.optJSONArray("orders").objects()) {
+                val key = o.optString("key").takeIf { it.isNotEmpty() } ?: continue
+                val ids = o.optJSONArray("books")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty().filter { it in known }
+                dao.clearOrder(key); dao.insertOrder(ids.mapIndexed { i, b -> BookOrder(key, b, i) })
+            }
         }
         // 서점 바로가기(F-36): 백업에 있으면 그 목록으로 바꾼다
         root.optJSONArray("storeApps")?.let { arr ->
@@ -239,7 +265,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
             .put("txtTocMask", txtTocMask).put("txtTocCustom", txtTocCustom).put("libSort", libSort).put("libSortDesc", libSortDesc).put("metaNet", metaNet).put("metaAuto", metaAuto)
             .put("seriesAuto", seriesAuto).put("libList", libList).put("appTheme", appTheme).put("pinchFont", pinchFont)
             .put("menuLabels", menuLabels).put("docDefaultView", docDefaultView).put("cropDefault", cropDefault).put("doubleTapZoom", doubleTapZoom.toDouble())
-            .put("dictPkg", dictPkg).put("webtoonSuggest", webtoonSuggest)
+            .put("dictPkg", dictPkg).put("webtoonSuggest", webtoonSuggest).put("libColls", libColls).put("libViews", libViews)
 
         private fun settingsOf(o: JSONObject, base: Settings) = base.copy(
             font = BodyFont.entries.firstOrNull { it.name == o.optString("font") } ?: base.font,
@@ -302,6 +328,7 @@ class Backup(private val context: Context, private val db: AshDb, private val pr
         docDefaultView = o.optInt("docDefaultView", base.docDefaultView).coerceIn(0, 1), cropDefault = o.optBoolean("cropDefault", base.cropDefault),
         doubleTapZoom = o.optDouble("doubleTapZoom", base.doubleTapZoom.toDouble()).toFloat().let { if (it.isNaN()) 2f else it.coerceIn(1.5f, 3f) },
         dictPkg = o.optString("dictPkg", base.dictPkg), webtoonSuggest = o.optBoolean("webtoonSuggest", base.webtoonSuggest),
+        libColls = o.optString("libColls", base.libColls).take(4000), libViews = o.optString("libViews", base.libViews).take(8000),
         )
     }
 }

@@ -128,7 +128,7 @@ fun StorageIntroScreen(onGranted: () -> Unit, onFolders: () -> Unit) {
             Text(
                 if (Build.VERSION.SDK_INT >= 30) "아직 허용되지 않았어요. 폴더를 직접 골라도 돼요."
                 else "허용되지 않았어요. 다시 묻지 않게 했다면 설정 > 앱 > 권한에서 켤 수 있어요.",
-                fontSize = 14.sp, color = Color(0xFFB3261E), modifier = Modifier.padding(top = 12.dp),
+                fontSize = 14.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp),
             )
         }
         Spacer(Modifier.height(28.dp))
@@ -305,6 +305,7 @@ fun BookMenuSheet(b: Book, onDismiss: () -> Unit, onOpen: () -> Unit, onRemove: 
     var status by remember(b.id) { mutableStateOf(b.status) }
     var fav by remember(b.id) { mutableStateOf(b.favorite) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        SheetBars()
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Cover(b, Modifier.width(48.dp))
@@ -336,54 +337,64 @@ fun BookMenuSheet(b: Book, onDismiss: () -> Unit, onOpen: () -> Unit, onRemove: 
             MenuLine("시리즈로 묶기…") { grouping = true }
             MenuLine("형광펜·메모 내보내기", onClick = onExport)
             MenuLine("문서 정보") { info = true }
-            MenuLine("서재에서 빼기", color = Color(0xFFB3261E)) { confirmRemove = true }
+            MenuLine("서재에서 빼기", color = MaterialTheme.colorScheme.error) { confirmRemove = true }
         }
     }
-    if (grouping) {
-        val names by produceState(emptyList<String>(), b.id) {
-            value = withContext(Dispatchers.IO) { SeriesGroups.groups(app.db.books().visibleBooks()).keys.map { SeriesGroups.nameOf(it) }.distinct().sorted() }
-        }
-        GroupIntoSeriesDialog(b, names, onDismiss = { grouping = false }) { name ->
-            grouping = false
-            app.appScope.launch {
-                // 같은 이름의 자동 묶음이 있으면 그 권들도 직접 묶음으로 옮겨 한 묶음이 되게
-                val all = app.db.books().visibleBooks()
-                all.filter { it.id != b.id && it.seriesManual == Book.SERIES_AUTO && it.seriesKey == name && SeriesGroups.keyOf(it)?.let { k -> SeriesGroups.groups(all).containsKey(k) } == true }
-                    .forEach { app.db.books().setSeries(it.id, name, Book.SERIES_MANUAL) }
-                app.db.books().setSeries(b.id, name, Book.SERIES_MANUAL)
-            }
-            onDismiss()
-        }
-    }
-    if (info) {
-        val time by produceState<Long?>(null, b.id) { value = withContext(Dispatchers.IO) { app.db.books().allSessions().filter { it.bookId == b.id }.sumOf { it.durationMs } } }
-        val hl by produceState<Int?>(null, b.id) { value = withContext(Dispatchers.IO) { app.db.books().allHighlights().count { it.bookId == b.id } } }
-        AlertDialog(
-            onDismissRequest = { info = false },
-            title = { Text("문서 정보") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    InfoRow("위치", when (b.origin) {
-                        Book.ORIGIN_FILE -> b.path
-                        Book.ORIGIN_SAF -> b.folder.ifEmpty { "직접 고른 폴더" }
-                        else -> "앱 안 사본 (외부에서 가져옴)"
-                    })
-                    InfoRow("크기", sizeLabel(b.sizeBytes))
-                    InfoRow("실제 형식", f.badge)
-                    InfoRow("쪽 수", if (b.pageCount > 0) "${b.pageCount}쪽 (보기 설정에 따라 달라짐)" else "아직 모름")
-                    InfoRow("추가한 날", java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.KOREA).format(java.util.Date(b.addedAt)))
-                    InfoRow("읽은 시간", time?.let { formatDuration(it) } ?: "…")
-                    InfoRow("형광펜", hl?.let { "${it}개" } ?: "…")
-                }
-            },
-            confirmButton = { TextButton(onClick = { info = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("닫기") } },
-        )
-    }
+    if (grouping) GroupIntoSeries(b) { grouping = false; onDismiss() }
+    if (info) BookWhereDialog(b) { info = false }
     if (confirmRemove) AlertDialog(
         onDismissRequest = { confirmRemove = false },
         text = { Text("서재에서만 뺍니다. 기기의 파일은 지우지 않아요.") },
         confirmButton = { TextButton(onClick = { confirmRemove = false; onRemove() }, modifier = Modifier.heightIn(min = 48.dp)) { Text("빼기") } },
         dismissButton = { TextButton(onClick = { confirmRemove = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("취소") } },
+    )
+}
+
+/** 시리즈로 묶기(F-62): 묶음 이름 고르기·넣기 → 같은 이름의 자동 묶음 권들도 직접 묶음으로. [onDone] = 닫힘(묶었든 취소했든). */
+@Composable
+fun GroupIntoSeries(b: Book, onDone: () -> Unit) {
+    val app = LocalContext.current.ash
+    val names by produceState(emptyList<String>(), b.id) {
+        value = withContext(Dispatchers.IO) { SeriesGroups.groups(app.db.books().visibleBooks()).keys.map { SeriesGroups.nameOf(it) }.distinct().sorted() }
+    }
+    GroupIntoSeriesDialog(b, names, onDismiss = onDone) { name ->
+        app.appScope.launch {
+            // 같은 이름의 자동 묶음이 있으면 그 권들도 직접 묶음으로 옮겨 한 묶음이 되게
+            val all = app.db.books().visibleBooks()
+            all.filter { it.id != b.id && it.seriesManual == Book.SERIES_AUTO && it.seriesKey == name && SeriesGroups.keyOf(it)?.let { k -> SeriesGroups.groups(all).containsKey(k) } == true }
+                .forEach { app.db.books().setSeries(it.id, name, Book.SERIES_MANUAL) }
+            app.db.books().setSeries(b.id, name, Book.SERIES_MANUAL)
+        }
+        onDone()
+    }
+}
+
+/** 파일 위치·문서 정보(위치·크기·실제 형식·쪽 수·추가한 날·읽은 시간·형광펜). */
+@Composable
+fun BookWhereDialog(b: Book, onDismiss: () -> Unit) {
+    val app = LocalContext.current.ash
+    val f = DocFormat.of(b.format)
+    val time by produceState<Long?>(null, b.id) { value = withContext(Dispatchers.IO) { app.db.books().allSessions().filter { it.bookId == b.id }.sumOf { it.durationMs } } }
+    val hl by produceState<Int?>(null, b.id) { value = withContext(Dispatchers.IO) { app.db.books().allHighlights().count { it.bookId == b.id } } }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("파일 위치·문서 정보") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                InfoRow("위치", when (b.origin) {
+                    Book.ORIGIN_FILE -> b.path
+                    Book.ORIGIN_SAF -> b.folder.ifEmpty { "직접 고른 폴더" }
+                    else -> "앱 안 사본 (외부에서 가져옴)"
+                })
+                InfoRow("크기", sizeLabel(b.sizeBytes))
+                InfoRow("실제 형식", f.badge)
+                InfoRow("쪽 수", if (b.pageCount > 0) "${b.pageCount}쪽 (보기 설정에 따라 달라짐)" else "아직 모름")
+                InfoRow("추가한 날", java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.KOREA).format(java.util.Date(b.addedAt)))
+                InfoRow("읽은 시간", time?.let { formatDuration(it) } ?: "…")
+                InfoRow("형광펜", hl?.let { "${it}개" } ?: "…")
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("닫기") } },
     )
 }
 
@@ -439,6 +450,7 @@ fun ExportSheet(bookId: String?, onDismiss: () -> Unit) {
     val saveMd = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(NotesExport.Fmt.MD.mime)) { u -> u?.let { save(context, it, text()) { m -> msg = m } } }
     val cs = MaterialTheme.colorScheme
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        SheetBars()
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Text("형광펜·메모 내보내기", fontFamily = Myeongjo, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = cs.primary)
             Text("형식", fontSize = 13.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 16.dp))
@@ -497,6 +509,7 @@ private fun save(context: android.content.Context, uri: Uri, text: String?, done
 fun ZipPickSheet(title: String, entries: List<kr.vici.ashreader.data.LibraryRepo.ZipItem>, onPick: (kr.vici.ashreader.data.LibraryRepo.ZipItem) -> Unit, onDismiss: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        SheetBars()
         Column(Modifier.padding(bottom = 24.dp)) {
             Text(title, fontSize = 13.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 20.dp))
             Text("압축 파일 안에 읽을 수 있는 파일이 ${entries.size}개 있어요", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))

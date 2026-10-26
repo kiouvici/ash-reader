@@ -214,6 +214,22 @@ abstract class E2eTest {
         return currentPage()
     }
 
+    /**
+     * 쪽 넘김 탭. 느린 CI 에뮬레이터에서 누름이 길게 누름(글자 선택)으로 잡혀 쪽이 그대로일 때가 있다
+     * (CI tablet-35-port '왼쪽 탭으로 돌아오지 않음 2 → 2', 실패 화면에 선택 막대). 그러면 가운데를 눌러
+     * 선택을 지우고 한 번 더 누른다.
+     */
+    protected fun tapTurn(fx: Float, from: Int, forward: Boolean): Int? {
+        var p: Int? = null
+        for (k in 0 until 2) {
+            tap(fx, 0.5f)
+            p = waitPageChange(from, forward)
+            if (p != null && (if (forward) p > from else p < from)) return p
+            if (has(By.text("형광펜"), 500)) { tap(0.5f, 0.5f); SystemClock.sleep(400) }
+        }
+        return p
+    }
+
     /** 화면 비율 좌표로 누르기. */
     protected fun tap(fx: Float, fy: Float) {
         device.click((device.displayWidth * fx).toInt(), (device.displayHeight * fy).toInt())
@@ -232,16 +248,50 @@ abstract class E2eTest {
         SystemClock.sleep(800)
     }
 
-    /** 읽기 메뉴(위·아래 막대)를 연다. */
+    /** 읽기 메뉴가 열려 있나(작업 07: 바깥 틀 — 위 오른쪽 '책 닫기' 단추). */
+    protected fun menuShown(): Boolean = device.hasObject(By.desc("책 닫기"))
+
+    /** 읽기 메뉴(작업 07 바깥 틀: 챕터 남은 쪽·✕ / 쪽수·안내선·메뉴)를 연다. */
     protected fun openMenu() {
-        if (device.hasObject(By.desc("쪽 이동"))) return
+        if (menuShown()) return
         // 가운데 → 맨 위 순으로(첫 탭이 쪽 준비 중에 묻힐 수 있어 몇 번 시도)
         for (y in listOf(0.5f, 0.07f, 0.5f, 0.07f)) {
             tap(0.5f, y)
-            if (has(By.desc("쪽 이동"), 2_500)) return
+            if (has(By.desc("책 닫기"), 2_500)) return
         }
         shot("menu-not-open")
         fail("읽기 메뉴가 열리지 않음")
+    }
+
+    /** 떠 있는 메뉴 쌓기(오른쪽 아래 '메뉴')를 열고 그 줄([row] 로 시작하는 이름)을 누른다. */
+    protected fun stackItem(row: String) {
+        repeat(3) {
+            openMenu()
+            // 떠 있는 메뉴는 따로 창(작업 07): 이미 열려 있으면('메뉴 닫기') 다시 누르지 않는다(누르면 닫힌다)
+            if (!device.hasObject(By.desc("메뉴 닫기")) && !device.hasObject(By.desc(Pattern.compile("테마 및 설정.*")))) {
+                runCatching { find(By.desc("메뉴"), 2_500)?.click() }
+            }
+            val ok = runCatching { find(By.desc(Pattern.compile(Pattern.quote(row) + ".*")), 5_000)?.click() != null }.getOrDefault(false)
+            if (ok) { SystemClock.sleep(600); return }
+            SystemClock.sleep(500)
+        }
+        shot("stack-$row"); fail("떠 있는 메뉴에 '$row' 이 없음")
+    }
+
+    /** 테마 및 설정 › 사용자화 › [item]. */
+    protected fun customItem(item: String) {
+        repeat(3) {
+            stackItem("테마 및 설정")
+            val c = find(By.textStartsWith("사용자화"), 5_000) ?: scrollFind(By.textStartsWith("사용자화"))
+            if (c != null && runCatching { c.click(); true }.getOrDefault(false)) {
+                // 만화는 '글꼴·줄 간격·여백' 자리에 '만화 보기'(작업 07 사용자화)
+                val sel = if (item == "글꼴·줄 간격·여백") By.text(Pattern.compile("글꼴·줄 간격·여백|만화 보기")) else By.text(item)
+                val ok = runCatching { find(sel, 4_000)?.click() != null }.getOrDefault(false)
+                if (ok) { SystemClock.sleep(600); return }
+            }
+            backToPage()
+        }
+        shot("custom-$item"); fail("사용자화에 '$item' 이 없음")
     }
 
     /** UiObject2 를 바로 찾아 쓰는 짧은 동작: 화면이 다시 그려져 낡았으면 몇 번 다시 한다. */
@@ -250,19 +300,37 @@ abstract class E2eTest {
         return null
     }
 
-    /** 읽기 메뉴의 단추(목차·보기·넘김·듣기·밝기·메모·쪽 목록)를 누른다. 메뉴가 그새 닫혔으면 다시 연다. */
+    /**
+     * 예전 읽기 메뉴 단추 이름으로 새 자리를 찾아 누른다(작업 07): 목차·검색·책갈피·테마 = 떠 있는 메뉴,
+     * 보기·넘김·밝기·듣기·메모·쪽 목록·만화 보기 = 테마 및 설정 › 사용자화.
+     */
     protected fun menuItem(label: String) {
-        repeat(3) {
-            openMenu()
-            // 누르기 전에 메뉴가 닫히면(칸 보기 등) 요소가 사라져 낡은 것이 된다 → 메뉴를 다시 열고 다시
-            val ok = runCatching { find(By.text(label), 2_500)?.click() != null }.getOrDefault(false)
-            if (ok) { SystemClock.sleep(500); return }
+        when (label) {
+            "목차" -> stackItem("목차")
+            "검색" -> stackItem("책 검색")
+            "테마" -> stackItem("테마 및 설정")
+            "책갈피" -> {
+                repeat(3) {
+                    openMenu()
+                    if (!device.hasObject(By.desc("메뉴 닫기")) && !device.hasObject(By.desc(Pattern.compile("테마 및 설정.*")))) runCatching { find(By.desc("메뉴"), 2_500)?.click() }
+                    val ok = runCatching { find(By.desc(Pattern.compile("책갈피( 빼기)?")), 5_000)?.click() != null }.getOrDefault(false)
+                    if (ok) { SystemClock.sleep(600); return }
+                }
+                shot("bookmark-btn"); fail("책갈피 단추가 없음")
+            }
+            else -> customItem(
+                when (label) {
+                    "보기" -> "글꼴·줄 간격·여백"; "넘김" -> "넘김 효과·자동 넘김"; "밝기" -> "밝기·따뜻한 색"
+                    "메모" -> "이 쪽에 메모"; else -> label
+                },
+            )
         }
-        shot("menu-item-$label"); fail("읽기 메뉴에 '$label' 이 없음")
     }
 
+    /** 읽기 메뉴를 닫는다(떠 있는 메뉴 → 바깥 틀 순으로 '뒤로'). */
     protected fun closeMenu() {
-        if (device.hasObject(By.desc("쪽 이동"))) { device.pressBack(); SystemClock.sleep(500) }
+        // 메뉴가 사라지는 동안 또 '뒤로'를 누르면 책을 나가 버린다 — 실제로 사라질 때까지 기다린 뒤 다시 본다
+        repeat(3) { if (menuShown()) { device.pressBack(); device.wait(Until.gone(By.desc("책 닫기")), 2_000); SystemClock.sleep(300) } }
     }
 
     /** 시트·창을 닫아 쪽 화면이 다시 보일 때까지 '뒤로'(최대 3번). 쪽이 이미 보이면 아무것도 안 한다. */
@@ -329,6 +397,22 @@ abstract class E2eTest {
         val end = SystemClock.uptimeMillis() + 6_000
         while (SystemClock.uptimeMillis() < end) { runCatching { currentPage() }.getOrNull()?.let { return it }; SystemClock.sleep(250) }
         shot("no-page"); fail("쪽 번호를 읽을 수 없음"); throw IllegalStateException()
+    }
+
+    /**
+     * 넘김(애니메이션)이 끝나 쪽 번호가 멈춘 뒤의 쪽. 두 쪽 펼침은 2쪽씩 넘어가 1 → 3 처럼 늦게 바뀐다
+     * (CI land-b: H08 '복원 뒤 쪽이 달라짐 5 → 7', D04 '1쪽 메모'를 찾는데 3쪽 메모가 열림).
+     */
+    protected fun settledPage(): Int {
+        var p = page()
+        val end = SystemClock.uptimeMillis() + 5_000
+        while (SystemClock.uptimeMillis() < end) {
+            SystemClock.sleep(700)
+            val now = page()
+            if (now == p) break
+            p = now
+        }
+        return p
     }
 
     protected fun has(sel: BySelector, timeoutMs: Long = 5_000): Boolean = find(sel, timeoutMs) != null
