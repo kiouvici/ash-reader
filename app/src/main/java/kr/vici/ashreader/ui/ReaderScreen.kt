@@ -209,6 +209,11 @@ private class GuardedSource(
     }
 }
 
+/** 작업 11: 배치(문서)마다 읽어 둔 쪽 글 — 자리 표시 잡기와 다시 나눌 때 찾기가 같이 쓴다. 문서가 사라지면 같이 사라짐. */
+private val relayoutTextStore = java.util.Collections.synchronizedMap(java.util.WeakHashMap<ReaderDoc, java.util.concurrent.ConcurrentHashMap<Int, String>>())
+private fun relayoutTexts(doc: ReaderDoc): java.util.concurrent.ConcurrentHashMap<Int, String> =
+    synchronized(relayoutTextStore) { relayoutTextStore.getOrPut(doc) { java.util.concurrent.ConcurrentHashMap() } }
+
 /** 닫혔을 수 있는 문서에 대한 엔진 호출(백그라운드). 닫혔거나 실패하면 [fallback]. */
 private fun <T> guarded(doc: ReaderDoc, fallback: T, f: () -> T): T = synchronized(GuardedSource.guard) {
     if (GuardedSource.closed.contains(doc)) fallback else runCatching(f).getOrDefault(fallback)
@@ -721,20 +726,19 @@ fun ReaderScreen(
                         relocateTo = -1
                         // 자리 표시가 있으면 찾은 뒤 한 번만 옮긴다(짐작한 쪽으로 먼저 가면 그 쪽 글로 자리 표시가 덮일 수 있음)
                         val radius = maxOf(8, n / 15)
-                        val found = if (a != null && reflow) withContext(Dispatchers.IO) {
-                            PageAnchor.find(a, est, n, radius) { i -> guarded(doc, null) { doc.pageText(i)?.text } }
-                        } else null
-                        // 진단 로그(작업 11, 숫자만): 옛 쪽·옛 쪽 수 → 새 쪽 수, 짐작·찾은 쪽, 자리 표시 쪽·길이, 후보(쪽@위치)
-                        if (reflow) {
-                            val cands = if (a != null) withContext(Dispatchers.IO) {
-                                PageAnchor.matches(a, est, n, radius) { i -> guarded(doc, null) { doc.pageText(i)?.text } }
-                            }.joinToString(" ") { "${it.first}@${it.second}" } else "-"
-                            android.util.Log.i("AshAnchor", "relayout old=$oldPage/$oldN new n=$n est=$est found=$found anchorPage=$anchorPage anchorLen=${a?.length ?: 0} spread=$spreadNow cands=[$cands]")
-                        }
+                        // 쪽 글은 이 배치에서 한 번만 읽는다(자리 표시 잡기와 같은 저장소) — 짐작 쪽부터 가까운 순서라 보통 몇 쪽만 읽고 끝
+                        val textOf: (Int) -> String? = { i -> relayoutTexts(doc).getOrPut(i) { guarded(doc, null) { doc.pageText(i)?.text }.orEmpty() } }
+                        val found = if (a != null && reflow) withContext(Dispatchers.IO) { PageAnchor.find(a, est, n, radius, textOf) } else null
                         heldPage = found ?: est
                         if (found != null) anchorPage = found
                         relocateTo = found ?: est
                         jumpReq = found ?: est
+                        // 진단 로그(작업 11, 숫자만) — 옮긴 뒤에(후보를 다 읽느라 옮기기가 늦어지지 않게)
+                        if (reflow) {
+                            val cands = if (a != null) withContext(Dispatchers.IO) { PageAnchor.matches(a, est, n, radius, textOf) }
+                                .joinToString(" ") { "${it.first}@${it.second}" } else "-"
+                            android.util.Log.i("AshAnchor", "relayout old=$oldPage/$oldN new n=$n est=$est found=$found anchorLen=${a?.length ?: 0} spread=$spreadNow cands=[$cands]")
+                        }
                         relocFromPage = -1
                     }
                     if (n > 0) pageCountSeen = n
@@ -761,8 +765,8 @@ fun ReaderScreen(
                 // 높이는 보지 않는다 — 메뉴를 닫으며 시스템 막대가 숨어 높이만 바뀌어도 방금 고른 글자가 닫히지 않게.
                 LaunchedEffect(pxW) { sel = null }
                 val count = doc.pageCount
-                // 자리 표시용 쪽 글(이 배치에서 한 번 읽은 쪽은 다시 읽지 않는다)
-                val anchorTexts = remember(doc) { java.util.concurrent.ConcurrentHashMap<Int, String>() }
+                // 자리 표시용 쪽 글(이 배치에서 한 번 읽은 쪽은 다시 읽지 않는다 — 다시 나눌 때 찾기와 같이 씀)
+                val anchorTexts = relayoutTexts(doc)
                 if (reflow) LaunchedEffect(page, count, spreadNow) { android.util.Log.i("AshAnchor", "page=$page count=$count spread=$spreadNow held=$heldPage relocate=$relocateTo anchorPage=$anchorPage") }
                 // 작업 11: 읽던 쪽이 바뀌면(넘김·이동) 그 쪽 첫 글자를 자리 표시로. 다시 나눈 뒤 옮겨 온 쪽([heldPage])은 그대로 둔다.
                 if (reflow) LaunchedEffect(doc, page, relocateTo) {
