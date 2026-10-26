@@ -45,6 +45,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -1695,7 +1696,7 @@ private fun PasswordDialog(wrong: Boolean, pdf: Boolean, onSubmit: (String) -> U
             Column {
                 Text(
                     if (wrong) "암호가 맞지 않아요. 다시 입력해 주세요." else "이 ${if (pdf) "PDF" else "Word"} 문서를 열려면 암호를 입력하세요. 암호는 저장하지 않아요.",
-                    fontSize = 14.sp, color = if (wrong) Color(0xFFB3261E) else Color.Unspecified,
+                    fontSize = 14.sp, color = if (wrong) MaterialTheme.colorScheme.error else Color.Unspecified,
                     modifier = Modifier.padding(bottom = 12.dp),
                 )
                 OutlinedTextField(

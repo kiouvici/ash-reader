@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -211,7 +212,7 @@ internal fun FlatShelf(
                 deleting = false
                 context.ash.appScope.launch { dao.clearCollection(collection.id); dao.deleteCollectionRow(collection.id); dao.clearOrder(ShelfColls.userKey(collection.id)) }
                 onBack()
-            }, modifier = Modifier.heightIn(min = 48.dp)) { Text("지우기", color = Color(0xFFB3261E)) }
+            }, modifier = Modifier.heightIn(min = 48.dp)) { Text("지우기", color = MaterialTheme.colorScheme.error) }
         },
         dismissButton = { TextButton(onClick = { deleting = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("취소") } },
     )
@@ -252,7 +253,7 @@ private fun SelectBar(h: ShelfHost, picked: List<Book>, hiddenShelf: Boolean, co
         onDismissRequest = { confirm = false },
         title = { Text("${picked.size}권을 서재에서 뺄까요?") },
         text = { Text("서재 목록에서만 뺍니다. 기기의 파일은 지우지 않아요.") },
-        confirmButton = { TextButton(onClick = { confirm = false; h.removeBooks(picked); onDone() }, modifier = Modifier.heightIn(min = 48.dp)) { Text("빼기", color = Color(0xFFB3261E)) } },
+        confirmButton = { TextButton(onClick = { confirm = false; h.removeBooks(picked); onDone() }, modifier = Modifier.heightIn(min = 48.dp)) { Text("빼기", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { confirm = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("취소") } },
     )
 }

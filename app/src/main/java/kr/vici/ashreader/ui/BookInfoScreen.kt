@@ -252,7 +252,7 @@ private fun CoverChoice(label: String, on: Boolean, c: InfoColors, plus: Boolean
     ) {
         Box(
             Modifier.size(64.dp, 94.dp).then(if (on) Modifier.border(2.dp, Color(0xFF0A84FF), RoundedCornerShape(4.dp)).padding(4.dp) else Modifier.padding(4.dp))
-                .clip(RoundedCornerShape(2.dp)).background(if (plus) c.card else Color(0xFFD9D9DE)),
+                .clip(RoundedCornerShape(2.dp)).background(if (plus) c.card else if (LocalAshDark.current) Color(0xFF3A3A3C) else Color(0xFFD9D9DE)),
             contentAlignment = Alignment.Center,
         ) { if (plus) Text("+", fontSize = 22.sp, color = c.sub) }
         Text(label, fontSize = 11.sp, color = c.sub, modifier = Modifier.padding(top = 7.dp))
@@ -323,7 +323,7 @@ private fun ResultRow(cand: MetaRules.Candidate, m: MetaRules.Match, top: Boolea
             .semantics(mergeDescendants = true) {},
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(46.dp, 68.dp).clip(RoundedCornerShape(topStart = 1.dp, bottomStart = 1.dp, topEnd = 2.dp, bottomEnd = 2.dp)).background(Color(0xFFD9D9DE))) {
+        Box(Modifier.size(46.dp, 68.dp).clip(RoundedCornerShape(topStart = 1.dp, bottomStart = 1.dp, topEnd = 2.dp, bottomEnd = 2.dp)).background(if (LocalAshDark.current) Color(0xFF3A3A3C) else Color(0xFFD9D9DE))) {
             thumb?.let { Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
         }
         Column(Modifier.weight(1f)) {

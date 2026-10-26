@@ -128,7 +128,7 @@ fun StorageIntroScreen(onGranted: () -> Unit, onFolders: () -> Unit) {
             Text(
                 if (Build.VERSION.SDK_INT >= 30) "아직 허용되지 않았어요. 폴더를 직접 골라도 돼요."
                 else "허용되지 않았어요. 다시 묻지 않게 했다면 설정 > 앱 > 권한에서 켤 수 있어요.",
-                fontSize = 14.sp, color = Color(0xFFB3261E), modifier = Modifier.padding(top = 12.dp),
+                fontSize = 14.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp),
             )
         }
         Spacer(Modifier.height(28.dp))
@@ -337,7 +337,7 @@ fun BookMenuSheet(b: Book, onDismiss: () -> Unit, onOpen: () -> Unit, onRemove: 
             MenuLine("시리즈로 묶기…") { grouping = true }
             MenuLine("형광펜·메모 내보내기", onClick = onExport)
             MenuLine("문서 정보") { info = true }
-            MenuLine("서재에서 빼기", color = Color(0xFFB3261E)) { confirmRemove = true }
+            MenuLine("서재에서 빼기", color = MaterialTheme.colorScheme.error) { confirmRemove = true }
         }
     }
     if (grouping) GroupIntoSeries(b) { grouping = false; onDismiss() }

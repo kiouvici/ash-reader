@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -306,7 +307,7 @@ fun CollectionNameDialog(title: String, initial: String, taken: (String) -> Bool
         text = {
             Column {
                 OutlinedTextField(name, { name = it.take(40) }, singleLine = true, placeholder = { Text("모음 이름") }, isError = bad, modifier = Modifier.fillMaxWidth())
-                if (bad) Text("같은 이름의 모음이 있어요.", fontSize = 12.sp, color = Color(0xFFB3261E), modifier = Modifier.padding(top = 4.dp))
+                if (bad) Text("같은 이름의 모음이 있어요.", fontSize = 12.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))
             }
         },
         confirmButton = { TextButton(onClick = { onDone(n) }, enabled = n.isNotEmpty() && !bad, modifier = Modifier.heightIn(min = 48.dp)) { Text("확인") } },
@@ -432,7 +433,7 @@ fun BookMoreMenu(
         onDismissRequest = { confirmRemove = false; onDismiss() },
         title = { Text("서재에서 뺄까요?") },
         text = { Text("‘${b.shownTitle}’을(를) 서재 목록에서만 뺍니다. 기기의 파일은 지우지 않아요.") },
-        confirmButton = { TextButton(onClick = { confirmRemove = false; onDismiss(); onRemove() }, modifier = Modifier.heightIn(min = 48.dp)) { Text("빼기", color = Color(0xFFB3261E)) } },
+        confirmButton = { TextButton(onClick = { confirmRemove = false; onDismiss(); onRemove() }, modifier = Modifier.heightIn(min = 48.dp)) { Text("빼기", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { confirmRemove = false; onDismiss() }, modifier = Modifier.heightIn(min = 48.dp)) { Text("취소") } },
     )
 }
