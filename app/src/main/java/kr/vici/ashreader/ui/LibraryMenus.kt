@@ -125,8 +125,8 @@ fun menuGlass(): Color = (if (LocalAshDark.current) Color(0xFF1C1C1E) else Color
  * 바탕에 뒤 화면의 같은 자리를 흐려 그린다(내용은 흐리지 않음). 흐린 그림은 따로 층에 담아 그 층에만 흐림을 건다.
  * 모서리는 앞의 clip 을 따른다 — `.clip(shape).backdropBlur().background(유리색)` 순서로 쓴다.
  */
-// 대표님 2026-10-26: 투명도는 그대로, 살짝만 흐리게(8dp)
-fun Modifier.backdropBlur(radius: Dp = 8.dp): Modifier = composed {
+// 대표님 2026-10-26: 투명도는 그대로, 살짝만 흐리게(8 → 6dp)
+fun Modifier.backdropBlur(radius: Dp = 6.dp): Modifier = composed {
     val b = LocalBackdrop.current
     if (b == null || !canBlur) return@composed this
     val blurred = rememberGraphicsLayer()
