@@ -905,15 +905,14 @@ fun ReaderScreen(
                             colors = colors, startPage = page,
                             onPinchFont = if (reflow && s.pinchFont) ({ scale -> onSettings { cur -> cur.copy(fontSize = Math.round(cur.fontSize * scale).coerceIn(kr.vici.ashreader.data.Prefs.MIN_SIZE, kr.vici.ashreader.data.Prefs.MAX_SIZE)) } }) else null,
                             onPage = { if (it != page) { page = it; pagesTurned++ } },
-                            onTap = { xf, yf ->
+                            onTap = { _, _ ->
                                 touchTick++
                                 when {
                                     sel != null -> sel = null
                                     menu -> menu = false
                                     foot != null -> foot = null
                                     autoOn && !autoPaused -> autoPaused = true
-                                    yf < 0.3f -> { turnFwd = false; turnReq++ }
-                                    yf > 0.7f -> { turnFwd = true; turnReq++ }
+                                    // 대표님 2026-10-26: 문서 스크롤 보기는 위·아래 탭으로 넘기지 않고 밀어서만 넘긴다. 탭은 메뉴.
                                     else -> menu = true
                                 }
                             },
