@@ -383,6 +383,22 @@ abstract class E2eTest {
         shot("no-page"); fail("쪽 번호를 읽을 수 없음"); throw IllegalStateException()
     }
 
+    /**
+     * 넘김(애니메이션)이 끝나 쪽 번호가 멈춘 뒤의 쪽. 두 쪽 펼침은 2쪽씩 넘어가 1 → 3 처럼 늦게 바뀐다
+     * (CI land-b: H08 '복원 뒤 쪽이 달라짐 5 → 7', D04 '1쪽 메모'를 찾는데 3쪽 메모가 열림).
+     */
+    protected fun settledPage(): Int {
+        var p = page()
+        val end = SystemClock.uptimeMillis() + 5_000
+        while (SystemClock.uptimeMillis() < end) {
+            SystemClock.sleep(700)
+            val now = page()
+            if (now == p) break
+            p = now
+        }
+        return p
+    }
+
     protected fun has(sel: BySelector, timeoutMs: Long = 5_000): Boolean = find(sel, timeoutMs) != null
 
     /**

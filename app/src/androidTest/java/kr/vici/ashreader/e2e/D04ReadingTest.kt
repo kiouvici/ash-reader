@@ -259,7 +259,7 @@ class D04ReadingTest : E2eTest() {
     fun bookmark_memo_highlight() {
         openBook()
         tap(0.9f, 0.5f)
-        val page = page()
+        val page = settledPage() // 넘김이 끝난 뒤의 쪽(두 쪽 펼침은 1 → 3 처럼 늦게 바뀜)
         // 책갈피
         menuItem("책갈피")
         SystemClock.sleep(800)
