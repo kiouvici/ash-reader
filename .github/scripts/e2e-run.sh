@@ -164,20 +164,9 @@ process_death() {
   adb exec-out screencap -p > "$OUT/shots/process-death-2-after.png"
   local n2; n2=$(docn)
   echo "프로세스 종료 복원: 전=[$before] 후=[$after] 전체 쪽 수 $n1→$n2 (kill 뒤 pid='$alive')" | tee "$OUT/process-death.txt"
-  # 판정(작업 11): 같은 배치면 같은 쪽. 배치가 달라졌으면(쪽 수 흔들림 = 작업 12) 비율로 옮긴 쪽 ±1 안
-  local ok=0 p1 p2
-  p1=$(printf '%s' "$before" | grep -oE '[0-9]+쪽' | grep -oE '[0-9]+')
-  p2=$(printf '%s' "$after" | grep -oE '[0-9]+쪽' | grep -oE '[0-9]+')
-  if [ -n "$p1" ] && [ -n "$p2" ]; then
-    if [ -z "$n1" ] || [ -z "$n2" ] || [ "$n1" = "$n2" ]; then
-      [ "$p1" = "$p2" ] && ok=1
-    else
-      local est=$(( (p1 * n2 + n1 / 2) / n1 )) d
-      d=$(( p2 - est )); [ "$d" -lt 0 ] && d=$(( -d ))
-      [ "$d" -le 1 ] && ok=1
-      echo "  배치가 달라짐 → 비율 짐작 ${est}쪽, 차이 $d (±1 안이면 통과)" | tee -a "$OUT/process-death.txt"
-    fi
-  fi
+  # 판정(작업 12): 같은 화면이면 배치(전체 쪽 수)도 같고 같은 쪽이어야 한다
+  local ok=0
+  [ -n "$before" ] && [ "$before" = "$after" ] && { [ -z "$n1" ] || [ "$n1" = "$n2" ]; } && ok=1
   if [ "$ok" = 1 ]; then
     summary "| ✅ | \`process-death (am kill → 런처)\` | 1 | 0 | $(( $(date +%s) - start ))s |"
   else
@@ -195,7 +184,7 @@ case "$SUITE" in
     ;;
   b)
     grant
-    run D04ReadingTest 1200
+    run D04ReadingTest 1800
     run E05ComicTest 900
     run F06SettingsTest 600
     run G07IntentTest 600
@@ -204,7 +193,7 @@ case "$SUITE" in
     ;;
   portrait)
     grant
-    run D04ReadingTest 1200
+    run D04ReadingTest 1800
     run E05ComicTest 900
     run G07IntentTest 600
     ;;

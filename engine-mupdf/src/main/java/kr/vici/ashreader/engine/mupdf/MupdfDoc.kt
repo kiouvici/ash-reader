@@ -447,6 +447,10 @@ class MupdfDoc private constructor(private val doc: Document) : Closeable {
                         if (!d.authenticatePassword(password)) throw PasswordException(wrong = true)
                     }
                     if (spec != null && d.isReflowable) d.layout(spec.widthPt, spec.heightPt, spec.emPt)
+                    // 작업 12: MuPDF 는 layout() 때 크기만 적어 두고, 스타일(이때의 전역 사용자 CSS)과 쪽 나누기는 처음
+                    // 쪽 수를 셀 때 한다. 잠금 밖에서 세면 그사이 다른 문서가 바꾼 CSS(회전 중 다른 여백·다른 책)로
+                    // 나뉘어 같은 화면에서도 쪽 수가 달라졌다(EPUB 26↔25, HWP 67↔62). 잠금 안에서 세어 이 문서의 CSS 로 고정한다.
+                    if (userCss != null) d.countPages()
                 } catch (e: Throwable) {
                     d.destroy(); throw e
                 }
