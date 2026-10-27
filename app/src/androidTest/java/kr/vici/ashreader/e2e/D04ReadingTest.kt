@@ -135,22 +135,24 @@ class D04ReadingTest : E2eTest() {
         return Regex("\\d+ ?/ ?(\\d+)쪽").find(t)?.groupValues?.get(1)?.toIntOrNull()
     }
 
+    /** 한글 원본 보기 → eBook 보기(책마다 저장되므로 이미 eBook 이면 그대로). [mustSwitch] = 단추가 꼭 있어야 함. */
+    private fun toEbookView(title: String, mustSwitch: Boolean = true) {
+        stackItem("테마 및 설정")
+        val toggle = device.wait(Until.findObject(By.desc(Pattern.compile("보기 전환.*지금 원본.*"))), 4_000)
+        if (mustSwitch) assertNotNull("'$title' 원본 → eBook 보기 전환 단추가 없음", toggle)
+        if (toggle != null) { toggle.click(); SystemClock.sleep(800) }
+        // 시트가 아직 열려 있으면 닫는다(없을 때 뒤로 가기를 누르면 책이 닫힘)
+        if (has(By.text("테마 및 설정"), 1_000)) { device.pressBack(); SystemClock.sleep(500) }
+        waitPage(120_000)
+        closeMenu()
+    }
+
     private fun rotationKeepsSpot(title: String, badge: String, hwpEbook: Boolean = false) {
         launchApp()
         openFromLibrary(title, badge)
         waitPage(120_000)
         dismissTapGuide()
-        if (hwpEbook) {
-            stackItem("테마 및 설정")
-            val toggle = device.wait(Until.findObject(By.desc(Pattern.compile("보기 전환.*지금 원본.*"))), 4_000)
-            assertNotNull("'$title' 원본 → eBook 보기 전환 단추가 없음", toggle)
-            toggle!!.click()
-            SystemClock.sleep(800)
-            // 시트가 아직 열려 있으면 닫는다(없을 때 뒤로 가기를 누르면 책이 닫힘)
-            if (has(By.text("테마 및 설정"), 1_000)) { device.pressBack(); SystemClock.sleep(500) }
-            waitPage(120_000)
-            closeMenu()
-        }
+        if (hwpEbook) toEbookView(title)
         var p = page()
         repeat(3) { p = tapTurn(0.9f, p, forward = true) ?: p }
         val before = settledPage()
@@ -170,29 +172,51 @@ class D04ReadingTest : E2eTest() {
                 SystemClock.sleep(2_500); waitPage(120_000)
                 // 다시 나눈 뒤 자리를 찾아 옮기기까지 에뮬레이터에서 2~3초 걸린다(새 배치의 쪽 글 읽기) — 최종 자리를 본다(최대 10초)
                 val total = pageTotal()
-                val target = if (total == null || total0 == null || total == total0) before
-                    else ((before - 1 + 0.5f) / total0 * total).toInt() + 1
                 var now = page()
                 val until = SystemClock.uptimeMillis() + 10_000
-                while (kotlin.math.abs(now - target) > (if (target == before) 0 else 1) && SystemClock.uptimeMillis() < until) {
+                while (now != before && SystemClock.uptimeMillis() < until) {
                     SystemClock.sleep(500); now = page()
                 }
                 android.util.Log.i("AshAnchor", "TEST $badge rot$i back page=$now total=$total (기대 $before/$total0)")
                 shot("$badge-rot$i-back")
-                // 지시 기준 = 같은 문장이 화면에 있는가. 같은 배치(전체 쪽 수 같음)로 돌아오면 정확히 같은 쪽.
-                // 같은 화면이어도 배치가 달라지면(전체 쪽 수가 다름 — CI: HWP 67 ↔ 62쪽) 읽던 글은 비율 근처 쪽 안에 있다(±1)
-                if (total == null || total0 == null || total == total0) {
-                    assertEquals("'$title' 회전 ${i + 1}번 왕복 뒤 읽던 쪽이 아님", before, now)
-                } else {
-                    val expect = ((before - 1 + 0.5f) / total0 * total).toInt() + 1
-                    assertTrue("'$title' 회전 ${i + 1}번 왕복 뒤 읽던 자리에서 멂(배치 $total0 → $total 쪽, 기대 약 $expect, 지금 $now)", kotlin.math.abs(now - expect) <= 1)
-                }
+                // 지시 기준 = 같은 문장이 화면에 있는가. 작업 12: 같은 화면이면 배치(전체 쪽 수)도 같아야 하고, 그러면 정확히 같은 쪽
+                assertEquals("'$title' 회전 ${i + 1}번 왕복 뒤 전체 쪽 수가 달라짐(같은 화면인데 배치가 흔들림)", total0, total)
+                assertEquals("'$title' 회전 ${i + 1}번 왕복 뒤 읽던 쪽이 아님", before, now)
             }
         } finally {
             if (rot0 == 0) device.setOrientationNatural() else shell("settings put system user_rotation $rot0")
         }
         assertAlive()
     }
+
+    /**
+     * 작업 12: 같은 책을 5번 닫았다 다시 열어도 전체 쪽 수가 같다(결정적 배치 — 글꼴·CSS 가 다른 문서 것으로 섞이지 않음).
+     */
+    private fun reopenSameTotal(title: String, badge: String, hwpEbook: Boolean = false) {
+        launchApp()
+        val totals = ArrayList<Int?>()
+        repeat(5) { i ->
+            openFromLibrary(title, badge)
+            waitPage(120_000)
+            dismissTapGuide()
+            if (hwpEbook && i == 0) toEbookView(title, mustSwitch = false)
+            var t = pageTotal()
+            val until = SystemClock.uptimeMillis() + 10_000
+            while (t == null && SystemClock.uptimeMillis() < until) { SystemClock.sleep(500); t = pageTotal() }
+            android.util.Log.i("AshAnchor", "TEST $badge reopen$i total=$t")
+            totals += t
+            device.pressBack(); SystemClock.sleep(600)
+            if (!onTabs()) { device.pressBack(); SystemClock.sleep(600) }
+            assertTrue("서재로 돌아오지 않음", device.wait(Until.hasObject(By.text("독서 기록")), 10_000))
+        }
+        assertNotNull("'$title' 전체 쪽 수를 읽지 못함", totals.first())
+        assertTrue("'$title' 다시 열 때마다 전체 쪽 수가 다름: $totals", totals.all { it == totals.first() })
+        assertAlive()
+    }
+
+    @Test fun reopen_sameTotal_epub() = reopenSameTotal(book, "EPUB")
+    @Test fun reopen_sameTotal_txt() = reopenSameTotal("e2e-txt utf8", "TXT")
+    @Test fun reopen_sameTotal_hwpEbook() = reopenSameTotal("gov-03-한글맞춤법-고시2017-12", "HWP", hwpEbook = true)
 
     @Test fun rotation_sameSpot_epub() = rotationKeepsSpot(book, "EPUB")
     @Test fun rotation_sameSpot_txt() = rotationKeepsSpot("e2e-txt utf8", "TXT")

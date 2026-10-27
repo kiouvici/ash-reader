@@ -108,7 +108,8 @@ object PagedComposer {
         val doc = synchronized(MupdfLock) {
             Context.setUserCSS(fontCss)
             val d = Document.openDocument(file.absolutePath)
-            try { d.layout(width, GALLEY_H, 11f) } catch (e: Throwable) { d.destroy(); throw e }
+            // 쪽 수 세기(= 스타일·쪽 나누기)까지 잠금 안에서 — 밖에서 세면 다른 문서가 바꾼 전역 CSS 로 나뉜다(작업 12, MupdfDoc.open)
+            try { d.layout(width, GALLEY_H, 11f); d.countPages() } catch (e: Throwable) { d.destroy(); throw e }
             d
         }
         val out = ArrayList<GPage>()
