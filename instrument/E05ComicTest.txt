@@ -1,0 +1,278 @@
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+kr.vici.ashreader.e2e.E05ComicTest:
+INSTRUMENTATION_STATUS: test=pageView_grid
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.pageView_grid(E05ComicTest.kt:45)
+
+INSTRUMENTATION_STATUS: stream=
+Error in pageView_grid(kr.vici.ashreader.e2e.E05ComicTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.pageView_grid(E05ComicTest.kt:45)
+
+INSTRUMENTATION_STATUS: test=pageView_grid
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=imagePdf_offersComic_toggleBack
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.imagePdf_offersComic_toggleBack(E05ComicTest.kt:192)
+
+INSTRUMENTATION_STATUS: stream=
+Error in imagePdf_offersComic_toggleBack(kr.vici.ashreader.e2e.E05ComicTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.imagePdf_offersComic_toggleBack(E05ComicTest.kt:192)
+
+INSTRUMENTATION_STATUS: test=imagePdf_offersComic_toggleBack
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=pdfAiCard_opensCompare
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.pdfAiCard_opensCompare(E05ComicTest.kt:155)
+
+INSTRUMENTATION_STATUS: stream=
+Error in pdfAiCard_opensCompare(kr.vici.ashreader.e2e.E05ComicTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.pdfAiCard_opensCompare(E05ComicTest.kt:155)
+
+INSTRUMENTATION_STATUS: test=pdfAiCard_opensCompare
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=comicPageMenu_longPress
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.comicPageMenu_longPress(E05ComicTest.kt:215)
+
+INSTRUMENTATION_STATUS: stream=
+Error in comicPageMenu_longPress(kr.vici.ashreader.e2e.E05ComicTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.comicPageMenu_longPress(E05ComicTest.kt:215)
+
+INSTRUMENTATION_STATUS: test=comicPageMenu_longPress
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=aiQuality_toggle_noCrash
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.aiQuality_toggle_noCrash(E05ComicTest.kt:114)
+
+INSTRUMENTATION_STATUS: stream=
+Error in aiQuality_toggle_noCrash(kr.vici.ashreader.e2e.E05ComicTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.aiQuality_toggle_noCrash(E05ComicTest.kt:114)
+
+INSTRUMENTATION_STATUS: test=aiQuality_toggle_noCrash
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=viewTab_filters_noCrash
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.viewTab_filters_noCrash(E05ComicTest.kt:89)
+
+INSTRUMENTATION_STATUS: stream=
+Error in viewTab_filters_noCrash(kr.vici.ashreader.e2e.E05ComicTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.viewTab_filters_noCrash(E05ComicTest.kt:89)
+
+INSTRUMENTATION_STATUS: test=viewTab_filters_noCrash
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=webtoon_view_and_back
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.E05ComicTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=7
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.webtoon_view_and_back(E05ComicTest.kt:67)
+
+INSTRUMENTATION_STATUS: stream=
+Error in webtoon_view_and_back(kr.vici.ashreader.e2e.E05ComicTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.webtoon_view_and_back(E05ComicTest.kt:67)
+
+INSTRUMENTATION_STATUS: test=webtoon_view_and_back
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_RESULT: stream=
+
+Time: 165.355
+There were 7 failures:
+1) pageView_grid(kr.vici.ashreader.e2e.E05ComicTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.pageView_grid(E05ComicTest.kt:45)
+2) imagePdf_offersComic_toggleBack(kr.vici.ashreader.e2e.E05ComicTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.imagePdf_offersComic_toggleBack(E05ComicTest.kt:192)
+3) pdfAiCard_opensCompare(kr.vici.ashreader.e2e.E05ComicTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.pdfAiCard_opensCompare(E05ComicTest.kt:155)
+4) comicPageMenu_longPress(kr.vici.ashreader.e2e.E05ComicTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.comicPageMenu_longPress(E05ComicTest.kt:215)
+5) aiQuality_toggle_noCrash(kr.vici.ashreader.e2e.E05ComicTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.aiQuality_toggle_noCrash(E05ComicTest.kt:114)
+6) viewTab_filters_noCrash(kr.vici.ashreader.e2e.E05ComicTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.viewTab_filters_noCrash(E05ComicTest.kt:89)
+7) webtoon_view_and_back(kr.vici.ashreader.e2e.E05ComicTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.E05ComicTest.openComic(E05ComicTest.kt:23)
+	at kr.vici.ashreader.e2e.E05ComicTest.webtoon_view_and_back(E05ComicTest.kt:67)
+
+FAILURES!!!
+Tests run: 7,  Failures: 7
+
+
+INSTRUMENTATION_CODE: -1

@@ -1,0 +1,141 @@
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.G07IntentTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=5
+INSTRUMENTATION_STATUS: stream=
+kr.vici.ashreader.e2e.G07IntentTest:
+INSTRUMENTATION_STATUS: test=sameFileTwice_whileReading
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.G07IntentTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=5
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=sameFileTwice_whileReading
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.G07IntentTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=5
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=differentFiles_inARow
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.G07IntentTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=5
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=differentFiles_inARow
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.G07IntentTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=5
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=sameFileTwice_afterBackToLibrary
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.G07IntentTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=5
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError
+	at org.junit.Assert.fail(Assert.java:87)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at org.junit.Assert.assertTrue(Assert.java:53)
+	at kr.vici.ashreader.e2e.G07IntentTest.sameFileTwice_afterBackToLibrary(G07IntentTest.kt:65)
+
+INSTRUMENTATION_STATUS: stream=
+Error in sameFileTwice_afterBackToLibrary(kr.vici.ashreader.e2e.G07IntentTest):
+java.lang.AssertionError
+	at org.junit.Assert.fail(Assert.java:87)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at org.junit.Assert.assertTrue(Assert.java:53)
+	at kr.vici.ashreader.e2e.G07IntentTest.sameFileTwice_afterBackToLibrary(G07IntentTest.kt:65)
+
+INSTRUMENTATION_STATUS: test=sameFileTwice_afterBackToLibrary
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.G07IntentTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=5
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=coldStart_viewIntent
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.G07IntentTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=5
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 서재에 추가했는데 한 번만 보기 띠가 남음
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at kr.vici.ashreader.e2e.G07IntentTest.coldStart_viewIntent(G07IntentTest.kt:108)
+
+INSTRUMENTATION_STATUS: stream=
+Error in coldStart_viewIntent(kr.vici.ashreader.e2e.G07IntentTest):
+java.lang.AssertionError: 서재에 추가했는데 한 번만 보기 띠가 남음
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at kr.vici.ashreader.e2e.G07IntentTest.coldStart_viewIntent(G07IntentTest.kt:108)
+
+INSTRUMENTATION_STATUS: test=coldStart_viewIntent
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.G07IntentTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=5
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=viaHomeScreen_twice
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.G07IntentTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=5
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 앱이 앞에 없음: null
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.assertAlive(E2e.kt:494)
+	at kr.vici.ashreader.e2e.E2eTest.assertAlive$default(E2e.kt:482)
+	at kr.vici.ashreader.e2e.E2eTest.waitOpened(E2e.kt:176)
+	at kr.vici.ashreader.e2e.G07IntentTest.assertReading(G07IntentTest.kt:39)
+	at kr.vici.ashreader.e2e.G07IntentTest.viaHomeScreen_twice(G07IntentTest.kt:91)
+
+INSTRUMENTATION_STATUS: stream=
+Error in viaHomeScreen_twice(kr.vici.ashreader.e2e.G07IntentTest):
+java.lang.AssertionError: 앱이 앞에 없음: null
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.assertAlive(E2e.kt:494)
+	at kr.vici.ashreader.e2e.E2eTest.assertAlive$default(E2e.kt:482)
+	at kr.vici.ashreader.e2e.E2eTest.waitOpened(E2e.kt:176)
+	at kr.vici.ashreader.e2e.G07IntentTest.assertReading(G07IntentTest.kt:39)
+	at kr.vici.ashreader.e2e.G07IntentTest.viaHomeScreen_twice(G07IntentTest.kt:91)
+
+INSTRUMENTATION_STATUS: test=viaHomeScreen_twice
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_RESULT: stream=
+
+Time: 144.468
+There were 3 failures:
+1) sameFileTwice_afterBackToLibrary(kr.vici.ashreader.e2e.G07IntentTest)
+java.lang.AssertionError
+	at org.junit.Assert.fail(Assert.java:87)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at org.junit.Assert.assertTrue(Assert.java:53)
+	at kr.vici.ashreader.e2e.G07IntentTest.sameFileTwice_afterBackToLibrary(G07IntentTest.kt:65)
+2) coldStart_viewIntent(kr.vici.ashreader.e2e.G07IntentTest)
+java.lang.AssertionError: 서재에 추가했는데 한 번만 보기 띠가 남음
+	at org.junit.Assert.fail(Assert.java:89)
+	at org.junit.Assert.assertTrue(Assert.java:42)
+	at kr.vici.ashreader.e2e.G07IntentTest.coldStart_viewIntent(G07IntentTest.kt:108)
+3) viaHomeScreen_twice(kr.vici.ashreader.e2e.G07IntentTest)
+java.lang.AssertionError: 앱이 앞에 없음: null
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.assertAlive(E2e.kt:494)
+	at kr.vici.ashreader.e2e.E2eTest.assertAlive$default(E2e.kt:482)
+	at kr.vici.ashreader.e2e.E2eTest.waitOpened(E2e.kt:176)
+	at kr.vici.ashreader.e2e.G07IntentTest.assertReading(G07IntentTest.kt:39)
+	at kr.vici.ashreader.e2e.G07IntentTest.viaHomeScreen_twice(G07IntentTest.kt:91)
+
+FAILURES!!!
+Tests run: 5,  Failures: 3
+
+
+INSTRUMENTATION_CODE: -1

@@ -1,0 +1,541 @@
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+kr.vici.ashreader.e2e.D04ReadingTest:
+INSTRUMENTATION_STATUS: test=viewSettingsSheet_allTabs
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=viewSettingsSheet_allTabs
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=reopen_sameTotal_hwpEbook
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal(D04ReadingTest.kt:199)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopen_sameTotal_hwpEbook(D04ReadingTest.kt:219)
+
+INSTRUMENTATION_STATUS: stream=
+Error in reopen_sameTotal_hwpEbook(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal(D04ReadingTest.kt:199)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopen_sameTotal_hwpEbook(D04ReadingTest.kt:219)
+
+INSTRUMENTATION_STATUS: test=reopen_sameTotal_hwpEbook
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=tapGuide_tapZones_swipe_curl
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.tapGuide_tapZones_swipe_curl(D04ReadingTest.kt:52)
+
+INSTRUMENTATION_STATUS: stream=
+Error in tapGuide_tapZones_swipe_curl(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.tapGuide_tapZones_swipe_curl(D04ReadingTest.kt:52)
+
+INSTRUMENTATION_STATUS: test=tapGuide_tapZones_swipe_curl
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=rotation_sameSpot_epub
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot(D04ReadingTest.kt:152)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot$default(D04ReadingTest.kt:150)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_sameSpot_epub(D04ReadingTest.kt:221)
+
+INSTRUMENTATION_STATUS: stream=
+Error in rotation_sameSpot_epub(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot(D04ReadingTest.kt:152)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot$default(D04ReadingTest.kt:150)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_sameSpot_epub(D04ReadingTest.kt:221)
+
+INSTRUMENTATION_STATUS: test=rotation_sameSpot_epub
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=search_toc_jump
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.search_toc_jump(D04ReadingTest.kt:307)
+
+INSTRUMENTATION_STATUS: stream=
+Error in search_toc_jump(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.search_toc_jump(D04ReadingTest.kt:307)
+
+INSTRUMENTATION_STATUS: test=search_toc_jump
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=rotation_keepsReaderAndPosition
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_keepsReaderAndPosition(D04ReadingTest.kt:101)
+
+INSTRUMENTATION_STATUS: stream=
+Error in rotation_keepsReaderAndPosition(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_keepsReaderAndPosition(D04ReadingTest.kt:101)
+
+INSTRUMENTATION_STATUS: test=rotation_keepsReaderAndPosition
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=listen_tts_opens
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.listen_tts_opens(D04ReadingTest.kt:272)
+
+INSTRUMENTATION_STATUS: stream=
+Error in listen_tts_opens(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.listen_tts_opens(D04ReadingTest.kt:272)
+
+INSTRUMENTATION_STATUS: test=listen_tts_opens
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=8
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=rotation_sameSpot_hwpEbook
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=8
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot(D04ReadingTest.kt:152)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_sameSpot_hwpEbook(D04ReadingTest.kt:223)
+
+INSTRUMENTATION_STATUS: stream=
+Error in rotation_sameSpot_hwpEbook(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot(D04ReadingTest.kt:152)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_sameSpot_hwpEbook(D04ReadingTest.kt:223)
+
+INSTRUMENTATION_STATUS: test=rotation_sameSpot_hwpEbook
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=9
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=infoLine_clearOfText_firstSpread
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=9
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.infoLine_clearOfText_firstSpread(D04ReadingTest.kt:438)
+
+INSTRUMENTATION_STATUS: stream=
+Error in infoLine_clearOfText_firstSpread(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.infoLine_clearOfText_firstSpread(D04ReadingTest.kt:438)
+
+INSTRUMENTATION_STATUS: test=infoLine_clearOfText_firstSpread
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=10
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=autoTurn_starts_and_stops
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=10
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.autoTurn_starts_and_stops(D04ReadingTest.kt:417)
+
+INSTRUMENTATION_STATUS: stream=
+Error in autoTurn_starts_and_stops(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.autoTurn_starts_and_stops(D04ReadingTest.kt:417)
+
+INSTRUMENTATION_STATUS: test=autoTurn_starts_and_stops
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=11
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=bookmark_memo_highlight
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=11
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.bookmark_memo_highlight(D04ReadingTest.kt:357)
+
+INSTRUMENTATION_STATUS: stream=
+Error in bookmark_memo_highlight(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.bookmark_memo_highlight(D04ReadingTest.kt:357)
+
+INSTRUMENTATION_STATUS: test=bookmark_memo_highlight
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=12
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=rotation_sameSpot_txt
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=12
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot(D04ReadingTest.kt:152)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot$default(D04ReadingTest.kt:150)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_sameSpot_txt(D04ReadingTest.kt:222)
+
+INSTRUMENTATION_STATUS: stream=
+Error in rotation_sameSpot_txt(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot(D04ReadingTest.kt:152)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot$default(D04ReadingTest.kt:150)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_sameSpot_txt(D04ReadingTest.kt:222)
+
+INSTRUMENTATION_STATUS: test=rotation_sameSpot_txt
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=13
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=reopen_sameTotal_txt
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=13
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal(D04ReadingTest.kt:199)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal$default(D04ReadingTest.kt:195)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopen_sameTotal_txt(D04ReadingTest.kt:218)
+
+INSTRUMENTATION_STATUS: stream=
+Error in reopen_sameTotal_txt(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal(D04ReadingTest.kt:199)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal$default(D04ReadingTest.kt:195)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopen_sameTotal_txt(D04ReadingTest.kt:218)
+
+INSTRUMENTATION_STATUS: test=reopen_sameTotal_txt
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=14
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=reopen_sameTotal_epub
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.vici.ashreader.e2e.D04ReadingTest
+INSTRUMENTATION_STATUS: current=14
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=14
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal(D04ReadingTest.kt:199)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal$default(D04ReadingTest.kt:195)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopen_sameTotal_epub(D04ReadingTest.kt:217)
+
+INSTRUMENTATION_STATUS: stream=
+Error in reopen_sameTotal_epub(kr.vici.ashreader.e2e.D04ReadingTest):
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal(D04ReadingTest.kt:199)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal$default(D04ReadingTest.kt:195)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopen_sameTotal_epub(D04ReadingTest.kt:217)
+
+INSTRUMENTATION_STATUS: test=reopen_sameTotal_epub
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_RESULT: stream=
+
+Time: 411.788
+There were 13 failures:
+1) reopen_sameTotal_hwpEbook(kr.vici.ashreader.e2e.D04ReadingTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal(D04ReadingTest.kt:199)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopen_sameTotal_hwpEbook(D04ReadingTest.kt:219)
+2) tapGuide_tapZones_swipe_curl(kr.vici.ashreader.e2e.D04ReadingTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.tapGuide_tapZones_swipe_curl(D04ReadingTest.kt:52)
+3) rotation_sameSpot_epub(kr.vici.ashreader.e2e.D04ReadingTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot(D04ReadingTest.kt:152)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot$default(D04ReadingTest.kt:150)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_sameSpot_epub(D04ReadingTest.kt:221)
+4) search_toc_jump(kr.vici.ashreader.e2e.D04ReadingTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.search_toc_jump(D04ReadingTest.kt:307)
+5) rotation_keepsReaderAndPosition(kr.vici.ashreader.e2e.D04ReadingTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_keepsReaderAndPosition(D04ReadingTest.kt:101)
+6) listen_tts_opens(kr.vici.ashreader.e2e.D04ReadingTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.listen_tts_opens(D04ReadingTest.kt:272)
+7) rotation_sameSpot_hwpEbook(kr.vici.ashreader.e2e.D04ReadingTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot(D04ReadingTest.kt:152)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_sameSpot_hwpEbook(D04ReadingTest.kt:223)
+8) infoLine_clearOfText_firstSpread(kr.vici.ashreader.e2e.D04ReadingTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.infoLine_clearOfText_firstSpread(D04ReadingTest.kt:438)
+9) autoTurn_starts_and_stops(kr.vici.ashreader.e2e.D04ReadingTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.autoTurn_starts_and_stops(D04ReadingTest.kt:417)
+10) bookmark_memo_highlight(kr.vici.ashreader.e2e.D04ReadingTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.openBook(D04ReadingTest.kt:42)
+	at kr.vici.ashreader.e2e.D04ReadingTest.bookmark_memo_highlight(D04ReadingTest.kt:357)
+11) rotation_sameSpot_txt(kr.vici.ashreader.e2e.D04ReadingTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot(D04ReadingTest.kt:152)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotationKeepsSpot$default(D04ReadingTest.kt:150)
+	at kr.vici.ashreader.e2e.D04ReadingTest.rotation_sameSpot_txt(D04ReadingTest.kt:222)
+12) reopen_sameTotal_txt(kr.vici.ashreader.e2e.D04ReadingTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal(D04ReadingTest.kt:199)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal$default(D04ReadingTest.kt:195)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopen_sameTotal_txt(D04ReadingTest.kt:218)
+13) reopen_sameTotal_epub(kr.vici.ashreader.e2e.D04ReadingTest)
+java.lang.AssertionError: 화면에서 찾지 못함: BySelector [CLASS='\Qandroid.widget.EditText\E']
+	at org.junit.Assert.fail(Assert.java:89)
+	at kr.vici.ashreader.e2e.E2eTest.obj(E2e.kt:398)
+	at kr.vici.ashreader.e2e.E2eTest.obj$default(E2e.kt:395)
+	at kr.vici.ashreader.e2e.E2eTest.openFromLibrary(E2e.kt:147)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal(D04ReadingTest.kt:199)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopenSameTotal$default(D04ReadingTest.kt:195)
+	at kr.vici.ashreader.e2e.D04ReadingTest.reopen_sameTotal_epub(D04ReadingTest.kt:217)
+
+FAILURES!!!
+Tests run: 14,  Failures: 13
+
+
+INSTRUMENTATION_CODE: -1
