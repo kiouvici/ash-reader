@@ -1,0 +1,31 @@
+/sdcard/Documents/ash-e2e-view:
+total 24
+-rw-rw---- 1 u0_a204 media_rw 2886 2026-10-27 08:15 e2e-intent 둘.epub
+-rw-rw---- 1 u0_a204 media_rw 1659 2026-10-27 08:15 e2e-intent 셋.pdf
+-rw-rw---- 1 u0_a204 media_rw 2893 2026-10-27 08:15 e2e-intent 하나.epub
+
+/sdcard/Download/ash-e2e:
+total 12308
+-rw-rw---- 1 u0_a204 media_rw     5395 2026-10-27 08:15 chm-sample-cp949.chm
+-rw-rw---- 1 u0_a204 media_rw    63854 2026-10-27 08:15 djvu-sample.djvu
+-rw-rw---- 1 u0_a204 media_rw   127847 2026-10-27 08:15 e2e-cbz 만화.cbz
+-rw-rw---- 1 u0_a204 media_rw     4973 2026-10-27 08:15 e2e-epub 소설.epub
+-rw-rw---- 1 u0_a204 media_rw    12822 2026-10-27 08:15 e2e-fb2.fb2
+-rw-rw---- 1 u0_a204 media_rw    10117 2026-10-27 08:15 e2e-html.html
+-rw-rw---- 1 u0_a204 media_rw     8000 2026-10-27 08:15 e2e-mobi.mobi
+-rw-rw---- 1 u0_a204 media_rw    34409 2026-10-27 08:15 e2e-pdf 그림.pdf
+-rw-rw---- 1 u0_a204 media_rw     3015 2026-10-27 08:15 e2e-pdf 글자.pdf
+-rw-rw---- 1 u0_a204 media_rw    24701 2026-10-27 08:15 e2e-txt utf8.txt
+-rw-rw---- 1 u0_a204 media_rw     3185 2026-10-27 08:15 e2e-zip 묶음.zip
+-rw-rw---- 1 u0_a204 media_rw 10797446 2026-10-27 08:15 gov-02-가족관계규칙-별표1.hwpx
+-rw-rw---- 1 u0_a204 media_rw    98816 2026-10-27 08:15 gov-03-한글맞춤법-고시2017-12.hwp
+-rw-rw---- 1 u0_a204 media_rw  1064960 2026-10-27 08:15 gov-04-가족관계규칙-별표2.hwp
+-rw-rw---- 1 u0_a204 media_rw       92 2026-10-27 08:15 rtf-named-as.doc
+-rw-rw---- 1 u0_a204 media_rw      114 2026-10-27 08:15 txt-cp949.txt
+-rw-rw---- 1 u0_a204 media_rw      138 2026-10-27 08:15 txt-utf16le-bom.txt
+-rw-rw---- 1 u0_a204 media_rw    20000 2026-10-27 08:15 word-corrupt.docx
+-rw-rw---- 1 u0_a204 media_rw    48128 2026-10-27 08:15 word-encrypted-agile.docx
+-rw-rw---- 1 u0_a204 media_rw    42509 2026-10-27 08:15 word-structure.docx
+-rw-rw---- 1 u0_a204 media_rw    53973 2026-10-27 08:15 word-structure.ref.pdf
+-rw-rw---- 1 u0_a204 media_rw      797 2026-10-27 08:15 word-structure.ref.txt
+-rw-rw---- 1 u0_a204 media_rw    26624 2026-10-27 08:15 word97-structure.doc

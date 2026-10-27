@@ -1,0 +1,376 @@
+08:18:13.782 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:18:13.783 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:18:14.251 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:18:15.186 capture page=0 count=20 len=32 held=-1 spread=true
+08:18:29.185 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:18:47.534 doc n=25 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:18:47.534 page=0 count=25 spread=true held=0 relocate=-1 anchorPage=0
+08:18:47.993 arrive to=0 page=0 anchorPage=0
+08:18:48.847 relayout old=0/20 new n=25 est=0 found=0 anchorLen=32 spread=true cands=[0@0]
+08:18:52.903 doc n=25 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:18:59.861 page=2 count=25 spread=true held=0 relocate=-2 anchorPage=0
+08:19:02.844 capture page=2 count=25 len=64 held=-1 spread=true
+08:19:32.839 page=0 count=40 spread=true held=-1 relocate=-2 anchorPage=-1
+08:19:34.030 doc n=62 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:19:34.031 page=0 count=62 spread=true held=-1 relocate=-2 anchorPage=-1
+08:19:34.081 page=0 count=62 spread=false held=-1 relocate=-2 anchorPage=-1
+08:19:34.329 page=0 count=62 spread=true held=-1 relocate=-2 anchorPage=-1
+08:19:35.254 TEST HWP reopen0 total=62
+08:19:41.802 doc n=62 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:19:41.804 page=0 count=62 spread=false held=-1 relocate=-2 anchorPage=-1
+08:19:41.854 page=0 count=62 spread=true held=-1 relocate=-2 anchorPage=-1
+08:19:42.632 TEST HWP reopen1 total=62
+08:19:47.437 doc n=62 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:19:47.475 page=0 count=62 spread=false held=-1 relocate=-2 anchorPage=-1
+08:19:47.695 page=0 count=62 spread=true held=-1 relocate=-2 anchorPage=-1
+08:19:48.729 TEST HWP reopen2 total=62
+08:19:53.337 doc n=62 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:19:53.337 page=0 count=62 spread=false held=-1 relocate=-2 anchorPage=-1
+08:19:53.532 page=0 count=62 spread=true held=-1 relocate=-2 anchorPage=-1
+08:19:54.785 TEST HWP reopen3 total=62
+08:19:58.798 doc n=62 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:19:58.803 page=0 count=62 spread=false held=-1 relocate=-2 anchorPage=-1
+08:19:59.038 page=0 count=62 spread=true held=-1 relocate=-2 anchorPage=-1
+08:19:59.293 capture page=0 count=62 len=32 held=-1 spread=true
+08:19:59.979 TEST HWP reopen4 total=62
+08:20:09.347 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:20:09.347 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:20:09.696 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:20:12.480 page=2 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:20:13.615 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:20:15.496 capture page=0 count=20 len=32 held=-1 spread=true
+08:20:16.015 page=2 count=20 spread=true held=-1 relocate=-2 anchorPage=0
+08:20:16.376 capture page=2 count=20 len=128 held=-1 spread=true
+08:20:17.873 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=2
+08:20:18.202 capture page=0 count=20 len=32 held=-1 spread=true
+08:20:25.381 page=2 count=20 spread=true held=-1 relocate=-2 anchorPage=0
+08:20:25.701 capture page=2 count=20 len=128 held=-1 spread=true
+08:20:44.004 page=4 count=20 spread=true held=-1 relocate=-2 anchorPage=2
+08:20:44.541 capture page=4 count=20 len=32 held=-1 spread=true
+08:20:59.284 page=6 count=20 spread=true held=-1 relocate=-2 anchorPage=4
+08:20:59.917 capture page=6 count=20 len=128 held=-1 spread=true
+08:21:16.298 page=8 count=20 spread=true held=-1 relocate=-2 anchorPage=6
+08:21:16.866 capture page=8 count=20 len=32 held=-1 spread=true
+08:21:17.990 page=10 count=20 spread=true held=-1 relocate=-2 anchorPage=8
+08:21:18.768 capture page=10 count=20 len=128 held=-1 spread=true
+08:21:28.252 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:21:28.252 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:21:28.470 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:21:30.859 page=2 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:21:31.392 capture page=2 count=20 len=128 held=-1 spread=true
+08:21:33.494 page=4 count=20 spread=true held=-1 relocate=-2 anchorPage=2
+08:21:35.185 page=6 count=20 spread=true held=-1 relocate=-2 anchorPage=2
+08:21:36.018 capture page=6 count=20 len=128 held=-1 spread=true
+08:21:39.467 TEST EPUB start before=7 total=20 rot=0
+08:21:41.889 doc n=10 w=800 h=1280 spread=false frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:21:41.900 page=6 count=10 spread=false held=6 relocate=-1 anchorPage=6
+08:21:44.622 TEST EPUB rot0 away page=7
+08:21:44.660 page=2 count=10 spread=false held=2 relocate=2 anchorPage=2
+08:21:44.660 arrive to=2 page=2 anchorPage=2
+08:21:44.826 relayout old=6/20 new n=10 est=3 found=2 anchorLen=128 spread=false cands=[2@994]
+08:21:47.866 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:21:47.873 page=2 count=20 spread=false held=2 relocate=-1 anchorPage=2
+08:21:48.085 page=2 count=20 spread=true held=2 relocate=-1 anchorPage=2
+08:21:49.251 page=6 count=20 spread=true held=6 relocate=6 anchorPage=6
+08:21:49.251 arrive to=6 page=6 anchorPage=6
+08:21:49.739 TEST EPUB rot0 back page=7 total=20 (기대 7/20)
+08:21:49.883 relayout old=2/10 new n=20 est=5 found=6 anchorLen=128 spread=true cands=[6@0]
+08:21:51.888 doc n=10 w=800 h=1280 spread=false frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:21:51.891 page=6 count=10 spread=false held=6 relocate=-1 anchorPage=6
+08:21:53.412 TEST EPUB rot1 away page=7
+08:21:54.209 relayout old=6/20 new n=10 est=3 found=2 anchorLen=128 spread=false cands=[2@994]
+08:21:54.210 page=2 count=10 spread=false held=2 relocate=2 anchorPage=2
+08:21:54.210 arrive to=2 page=2 anchorPage=2
+08:21:56.981 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:21:56.991 page=2 count=20 spread=false held=2 relocate=-1 anchorPage=2
+08:21:57.300 page=2 count=20 spread=true held=2 relocate=-1 anchorPage=2
+08:21:57.436 page=6 count=20 spread=true held=6 relocate=6 anchorPage=6
+08:21:57.436 arrive to=6 page=6 anchorPage=6
+08:21:58.194 TEST EPUB rot1 back page=7 total=20 (기대 7/20)
+08:22:00.998 doc n=10 w=800 h=1280 spread=false frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:22:00.998 page=6 count=10 spread=false held=6 relocate=-1 anchorPage=6
+08:22:01.885 TEST EPUB rot2 away page=7
+08:22:04.477 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:22:04.482 page=6 count=20 spread=false held=6 relocate=-1 anchorPage=6
+08:22:04.796 page=6 count=20 spread=true held=6 relocate=-1 anchorPage=6
+08:22:04.980 arrive to=6 page=6 anchorPage=6
+08:22:05.949 TEST EPUB rot2 back page=7 total=20 (기대 7/20)
+08:22:16.075 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:22:16.075 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:22:16.465 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:22:17.890 capture page=0 count=20 len=32 held=-1 spread=true
+08:22:31.043 page=8 count=20 spread=true held=-1 relocate=-2 anchorPage=0
+08:22:32.080 capture page=8 count=20 len=32 held=-1 spread=true
+08:22:37.336 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=8
+08:22:37.641 capture page=0 count=20 len=32 held=-1 spread=true
+08:22:44.238 page=8 count=20 spread=true held=-1 relocate=-2 anchorPage=0
+08:22:44.553 capture page=8 count=20 len=32 held=-1 spread=true
+08:22:52.276 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:22:52.278 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:22:52.481 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:22:52.991 capture page=0 count=20 len=32 held=-1 spread=true
+08:22:54.818 page=2 count=20 spread=true held=-1 relocate=-2 anchorPage=0
+08:22:55.213 capture page=2 count=20 len=128 held=-1 spread=true
+08:22:55.943 page=4 count=20 spread=true held=-1 relocate=-2 anchorPage=2
+08:22:56.393 capture page=4 count=20 len=32 held=-1 spread=true
+08:22:57.121 page=6 count=20 spread=true held=-1 relocate=-2 anchorPage=4
+08:22:57.634 capture page=6 count=20 len=128 held=-1 spread=true
+08:22:59.174 doc n=10 w=800 h=1280 spread=false frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:22:59.174 page=6 count=10 spread=false held=6 relocate=-1 anchorPage=6
+08:23:00.294 relayout old=6/20 new n=10 est=3 found=2 anchorLen=128 spread=false cands=[2@994]
+08:23:00.304 page=2 count=10 spread=false held=2 relocate=2 anchorPage=2
+08:23:00.304 arrive to=2 page=2 anchorPage=2
+08:23:02.741 page=3 count=10 spread=false held=2 relocate=-2 anchorPage=2
+08:23:03.056 capture page=3 count=10 len=32 held=-1 spread=false
+08:23:06.635 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:23:06.635 page=3 count=20 spread=false held=3 relocate=-1 anchorPage=3
+08:23:06.855 page=2 count=20 spread=true held=3 relocate=-1 anchorPage=3
+08:23:07.505 relayout old=3/10 new n=20 est=7 found=6 anchorLen=32 spread=true cands=[6@68]
+08:23:07.538 page=6 count=20 spread=true held=6 relocate=6 anchorPage=6
+08:23:07.538 arrive to=6 page=6 anchorPage=6
+08:23:15.003 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:23:15.053 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:23:15.161 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:23:16.230 capture page=0 count=20 len=32 held=-1 spread=true
+08:23:41.363 page=0 count=40 spread=true held=-1 relocate=-2 anchorPage=-1
+08:23:41.931 doc n=62 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:23:41.932 page=0 count=62 spread=true held=-1 relocate=-2 anchorPage=-1
+08:23:41.970 page=0 count=62 spread=false held=-1 relocate=-2 anchorPage=-1
+08:23:42.066 page=0 count=62 spread=true held=-1 relocate=-2 anchorPage=-1
+08:23:42.709 capture page=0 count=62 len=32 held=-1 spread=true
+08:23:44.143 page=2 count=62 spread=true held=-1 relocate=-2 anchorPage=0
+08:23:44.492 capture page=2 count=62 len=32 held=-1 spread=true
+08:23:45.395 page=4 count=62 spread=true held=-1 relocate=-2 anchorPage=2
+08:23:45.864 capture page=4 count=62 len=32 held=-1 spread=true
+08:23:46.738 page=6 count=62 spread=true held=-1 relocate=-2 anchorPage=4
+08:23:47.115 capture page=6 count=62 len=32 held=-1 spread=true
+08:23:50.914 TEST HWP start before=7 total=62 rot=0
+08:23:52.246 doc n=34 w=800 h=1280 spread=false frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:23:52.253 page=6 count=34 spread=false held=6 relocate=-1 anchorPage=6
+08:23:53.539 relayout old=6/62 new n=34 est=3 found=3 anchorLen=32 spread=false cands=[3@211]
+08:23:53.581 page=3 count=34 spread=false held=3 relocate=3 anchorPage=3
+08:23:53.582 arrive to=3 page=3 anchorPage=3
+08:23:55.339 TEST HWP rot0 away page=4
+08:23:56.809 doc n=62 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:23:56.810 page=3 count=62 spread=false held=3 relocate=-1 anchorPage=3
+08:23:56.909 page=2 count=62 spread=true held=6 relocate=6 anchorPage=6
+08:23:57.110 page=6 count=62 spread=true held=6 relocate=6 anchorPage=6
+08:23:57.110 arrive to=6 page=6 anchorPage=6
+08:23:57.601 relayout old=3/34 new n=62 est=6 found=6 anchorLen=32 spread=true cands=[6@0]
+08:23:58.364 TEST HWP rot0 back page=7 total=62 (기대 7/62)
+08:23:59.756 doc n=34 w=800 h=1280 spread=false frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:23:59.756 page=6 count=34 spread=false held=6 relocate=-1 anchorPage=6
+08:24:00.900 relayout old=6/62 new n=34 est=3 found=3 anchorLen=32 spread=false cands=[3@211]
+08:24:00.933 page=3 count=34 spread=false held=3 relocate=3 anchorPage=3
+08:24:00.934 arrive to=3 page=3 anchorPage=3
+08:24:03.213 TEST HWP rot1 away page=4
+08:24:04.599 doc n=62 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:24:04.599 page=3 count=62 spread=false held=3 relocate=-1 anchorPage=3
+08:24:04.735 page=6 count=62 spread=false held=6 relocate=6 anchorPage=6
+08:24:04.735 arrive to=6 page=6 anchorPage=6
+08:24:04.790 page=2 count=62 spread=true held=6 relocate=-2 anchorPage=6
+08:24:04.857 page=6 count=62 spread=true held=-1 relocate=-2 anchorPage=6
+08:24:05.020 relayout old=3/34 new n=62 est=6 found=6 anchorLen=32 spread=true cands=[6@0]
+08:24:07.938 TEST HWP rot1 back page=7 total=62 (기대 7/62)
+08:24:09.275 doc n=34 w=800 h=1280 spread=false frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:24:09.275 page=6 count=34 spread=false held=6 relocate=-1 anchorPage=6
+08:24:10.286 relayout old=6/62 new n=34 est=3 found=3 anchorLen=32 spread=false cands=[3@211]
+08:24:10.287 page=3 count=34 spread=false held=3 relocate=3 anchorPage=3
+08:24:10.287 arrive to=3 page=3 anchorPage=3
+08:24:10.872 TEST HWP rot2 away page=4
+08:24:12.553 doc n=62 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:24:12.554 page=3 count=62 spread=false held=3 relocate=-1 anchorPage=3
+08:24:12.690 page=2 count=62 spread=true held=6 relocate=6 anchorPage=6
+08:24:12.755 page=6 count=62 spread=true held=6 relocate=6 anchorPage=6
+08:24:12.755 arrive to=6 page=6 anchorPage=6
+08:24:13.469 relayout old=3/34 new n=62 est=6 found=6 anchorLen=32 spread=true cands=[6@0]
+08:24:14.185 TEST HWP rot2 back page=7 total=62 (기대 7/62)
+08:24:21.097 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:24:21.097 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:24:21.245 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:24:22.374 capture page=0 count=20 len=32 held=-1 spread=true
+08:24:25.546 page=2 count=20 spread=true held=-1 relocate=-2 anchorPage=0
+08:24:25.906 capture page=2 count=20 len=128 held=-1 spread=true
+08:24:27.929 page=4 count=20 spread=true held=-1 relocate=-2 anchorPage=2
+08:24:28.301 capture page=4 count=20 len=32 held=-1 spread=true
+08:24:30.065 page=6 count=20 spread=true held=-1 relocate=-2 anchorPage=4
+08:24:30.561 capture page=6 count=20 len=128 held=-1 spread=true
+08:24:32.235 page=8 count=20 spread=true held=-1 relocate=-2 anchorPage=6
+08:24:32.589 capture page=8 count=20 len=32 held=-1 spread=true
+08:24:39.177 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:24:39.181 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:24:39.310 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:24:40.245 capture page=0 count=20 len=32 held=-1 spread=true
+08:24:57.743 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:24:57.743 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:24:57.953 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:24:58.890 capture page=0 count=20 len=32 held=-1 spread=true
+08:25:00.321 page=2 count=20 spread=true held=-1 relocate=-2 anchorPage=0
+08:25:00.749 capture page=2 count=20 len=128 held=-1 spread=true
+08:25:34.794 doc n=18 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:25:34.794 page=0 count=18 spread=false held=-1 relocate=-2 anchorPage=-1
+08:25:34.884 page=0 count=18 spread=true held=-1 relocate=-2 anchorPage=-1
+08:25:36.114 capture page=0 count=18 len=32 held=-1 spread=true
+08:25:37.043 page=2 count=18 spread=true held=-1 relocate=-2 anchorPage=0
+08:25:37.671 capture page=2 count=18 len=256 held=-1 spread=true
+08:25:37.973 page=4 count=18 spread=true held=-1 relocate=-2 anchorPage=2
+08:25:38.331 capture page=4 count=18 len=256 held=-1 spread=true
+08:25:39.305 page=6 count=18 spread=true held=-1 relocate=-2 anchorPage=4
+08:25:39.659 capture page=6 count=18 len=256 held=-1 spread=true
+08:25:43.506 TEST TXT start before=7 total=18 rot=0
+08:25:44.901 doc n=9 w=800 h=1280 spread=false frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:25:44.902 page=6 count=9 spread=false held=6 relocate=-1 anchorPage=6
+08:25:45.107 page=3 count=9 spread=false held=3 relocate=3 anchorPage=3
+08:25:45.107 arrive to=3 page=3 anchorPage=3
+08:25:45.858 relayout old=6/18 new n=9 est=3 found=3 anchorLen=256 spread=false cands=[0@5 1@0 2@261 3@0 4@0 5@131 6@0 7@0 8@0]
+08:25:48.155 TEST TXT rot0 away page=4
+08:25:49.266 doc n=18 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:25:49.267 page=3 count=18 spread=false held=3 relocate=-1 anchorPage=3
+08:25:49.495 page=6 count=18 spread=true held=6 relocate=6 anchorPage=6
+08:25:49.498 arrive to=6 page=6 anchorPage=6
+08:25:50.252 relayout old=3/9 new n=18 est=7 found=6 anchorLen=256 spread=true cands=[0@5 1@64 2@4 3@257 4@325 5@4 6@0 7@69 8@4 9@0 10@321 11@8 12@0 13@64 14@135 15@0]
+08:25:51.258 TEST TXT rot0 back page=7 total=18 (기대 7/18)
+08:25:52.469 doc n=9 w=800 h=1280 spread=false frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:25:52.470 page=6 count=9 spread=false held=6 relocate=-1 anchorPage=6
+08:25:52.622 page=3 count=9 spread=false held=3 relocate=3 anchorPage=3
+08:25:52.626 arrive to=3 page=3 anchorPage=3
+08:25:53.370 relayout old=6/18 new n=9 est=3 found=3 anchorLen=256 spread=false cands=[0@5 1@0 2@261 3@0 4@0 5@131 6@0 7@0 8@0]
+08:25:54.277 TEST TXT rot1 away page=4
+08:25:55.503 doc n=18 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:25:55.509 page=3 count=18 spread=false held=3 relocate=-1 anchorPage=3
+08:25:55.693 page=6 count=18 spread=false held=6 relocate=6 anchorPage=6
+08:25:55.697 arrive to=6 page=6 anchorPage=6
+08:25:55.917 page=6 count=18 spread=true held=6 relocate=-2 anchorPage=6
+08:25:56.489 relayout old=3/9 new n=18 est=7 found=6 anchorLen=256 spread=true cands=[0@5 1@64 2@4 3@257 4@325 5@4 6@0 7@69 8@4 9@0 10@321 11@8 12@0 13@64 14@135 15@0]
+08:25:57.375 TEST TXT rot1 back page=7 total=18 (기대 7/18)
+08:25:58.772 doc n=9 w=800 h=1280 spread=false frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:25:58.772 page=6 count=9 spread=false held=6 relocate=-1 anchorPage=6
+08:25:58.969 page=3 count=9 spread=false held=3 relocate=3 anchorPage=3
+08:25:58.969 arrive to=3 page=3 anchorPage=3
+08:25:59.825 relayout old=6/18 new n=9 est=3 found=3 anchorLen=256 spread=false cands=[0@5 1@0 2@261 3@0 4@0 5@131 6@0 7@0 8@0]
+08:26:00.646 TEST TXT rot2 away page=4
+08:26:02.040 doc n=18 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:26:02.041 page=3 count=18 spread=false held=3 relocate=-1 anchorPage=3
+08:26:02.124 page=2 count=18 spread=true held=3 relocate=-1 anchorPage=3
+08:26:02.325 page=6 count=18 spread=true held=6 relocate=6 anchorPage=6
+08:26:02.326 arrive to=6 page=6 anchorPage=6
+08:26:02.862 relayout old=3/9 new n=18 est=7 found=6 anchorLen=256 spread=true cands=[0@5 1@64 2@4 3@257 4@325 5@4 6@0 7@69 8@4 9@0 10@321 11@8 12@0 13@64 14@135 15@0]
+08:26:03.783 TEST TXT rot2 back page=7 total=18 (기대 7/18)
+08:26:09.472 doc n=18 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:26:09.472 page=0 count=18 spread=false held=-1 relocate=-2 anchorPage=-1
+08:26:09.753 page=0 count=18 spread=true held=-1 relocate=-2 anchorPage=-1
+08:26:10.891 TEST TXT reopen0 total=18
+08:26:10.926 capture page=0 count=18 len=32 held=-1 spread=true
+08:26:13.807 doc n=18 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:26:13.814 page=0 count=18 spread=false held=-1 relocate=-2 anchorPage=-1
+08:26:14.051 page=0 count=18 spread=true held=-1 relocate=-2 anchorPage=-1
+08:26:14.903 capture page=0 count=18 len=32 held=-1 spread=true
+08:26:15.071 TEST TXT reopen1 total=18
+08:26:18.102 doc n=18 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:26:18.104 page=0 count=18 spread=false held=-1 relocate=-2 anchorPage=-1
+08:26:18.189 page=0 count=18 spread=true held=-1 relocate=-2 anchorPage=-1
+08:26:19.233 capture page=0 count=18 len=32 held=-1 spread=true
+08:26:19.393 TEST TXT reopen2 total=18
+08:26:22.476 doc n=18 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:26:22.482 page=0 count=18 spread=false held=-1 relocate=-2 anchorPage=-1
+08:26:22.614 page=0 count=18 spread=true held=-1 relocate=-2 anchorPage=-1
+08:26:23.486 capture page=0 count=18 len=32 held=-1 spread=true
+08:26:23.789 TEST TXT reopen3 total=18
+08:26:26.749 doc n=18 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:26:26.750 page=0 count=18 spread=false held=-1 relocate=-2 anchorPage=-1
+08:26:26.905 page=0 count=18 spread=true held=-1 relocate=-2 anchorPage=-1
+08:26:28.070 capture page=0 count=18 len=32 held=-1 spread=true
+08:26:28.087 TEST TXT reopen4 total=18
+08:26:34.394 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:26:34.394 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:26:34.598 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:26:35.351 capture page=0 count=20 len=32 held=-1 spread=true
+08:26:35.504 TEST EPUB reopen0 total=20
+08:26:38.573 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:26:38.574 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:26:38.781 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:26:39.217 capture page=0 count=20 len=32 held=-1 spread=true
+08:26:39.900 TEST EPUB reopen1 total=20
+08:26:42.868 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:26:42.869 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:26:43.062 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:26:43.717 capture page=0 count=20 len=32 held=-1 spread=true
+08:26:44.128 TEST EPUB reopen2 total=20
+08:26:47.502 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:26:47.505 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:26:47.757 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:26:48.783 TEST EPUB reopen3 total=20
+08:26:48.783 capture page=0 count=20 len=32 held=-1 spread=true
+08:26:51.839 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:26:51.840 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:26:52.161 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:26:52.882 capture page=0 count=20 len=32 held=-1 spread=true
+08:26:53.183 TEST EPUB reopen4 total=20
+08:34:06.189 doc n=8 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:34:06.190 page=0 count=8 spread=false held=-1 relocate=-2 anchorPage=-1
+08:34:06.484 page=0 count=8 spread=true held=-1 relocate=-2 anchorPage=-1
+08:34:07.523 capture page=0 count=8 len=32 held=-1 spread=true
+08:34:14.558 doc n=8 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:34:14.559 page=0 count=8 spread=false held=-1 relocate=-2 anchorPage=-1
+08:34:14.704 page=0 count=8 spread=true held=-1 relocate=-2 anchorPage=-1
+08:34:16.010 capture page=0 count=8 len=32 held=-1 spread=true
+08:34:16.196 doc n=8 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:34:16.196 page=0 count=8 spread=false held=-1 relocate=-2 anchorPage=-1
+08:34:16.350 page=0 count=8 spread=true held=-1 relocate=-2 anchorPage=-1
+08:34:17.570 capture page=0 count=8 len=32 held=-1 spread=true
+08:34:19.285 doc n=8 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:34:19.287 page=0 count=8 spread=false held=-1 relocate=-2 anchorPage=-1
+08:34:19.350 page=0 count=8 spread=true held=-1 relocate=-2 anchorPage=-1
+08:34:20.727 capture page=0 count=8 len=32 held=-1 spread=true
+08:34:24.911 doc n=8 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:34:24.912 page=0 count=8 spread=false held=-1 relocate=-2 anchorPage=-1
+08:34:24.986 page=0 count=8 spread=true held=-1 relocate=-2 anchorPage=-1
+08:34:26.208 capture page=0 count=8 len=32 held=-1 spread=true
+08:34:27.430 doc n=8 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:34:27.431 page=0 count=8 spread=false held=-1 relocate=-2 anchorPage=-1
+08:34:27.578 page=0 count=8 spread=true held=-1 relocate=-2 anchorPage=-1
+08:34:27.910 capture page=0 count=8 len=32 held=-1 spread=true
+08:34:32.133 doc n=8 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:34:32.136 page=0 count=8 spread=false held=-1 relocate=-2 anchorPage=-1
+08:34:32.265 page=0 count=8 spread=true held=-1 relocate=-2 anchorPage=-1
+08:34:33.234 capture page=0 count=8 len=32 held=-1 spread=true
+08:34:33.971 doc n=8 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:34:33.976 page=0 count=8 spread=true held=-1 relocate=-2 anchorPage=0
+08:34:34.002 page=0 count=8 spread=false held=-1 relocate=-2 anchorPage=0
+08:34:34.081 page=0 count=8 spread=true held=-1 relocate=-2 anchorPage=0
+08:34:40.989 doc n=8 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:34:40.989 page=0 count=8 spread=false held=-1 relocate=-2 anchorPage=-1
+08:34:41.121 page=0 count=8 spread=true held=-1 relocate=-2 anchorPage=-1
+08:34:42.066 capture page=0 count=8 len=32 held=-1 spread=true
+08:34:44.774 doc n=8 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:34:44.777 page=0 count=8 spread=false held=-1 relocate=-2 anchorPage=-1
+08:34:44.915 page=0 count=8 spread=true held=-1 relocate=-2 anchorPage=-1
+08:34:45.284 capture page=0 count=8 len=32 held=-1 spread=true
+08:34:58.337 doc n=8 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:34:58.338 page=0 count=8 spread=false held=-1 relocate=-2 anchorPage=-1
+08:34:58.483 page=0 count=8 spread=true held=-1 relocate=-2 anchorPage=-1
+08:35:00.243 page=2 count=8 spread=true held=-1 relocate=-2 anchorPage=-1
+08:35:01.008 capture page=2 count=8 len=128 held=-1 spread=true
+08:35:12.845 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:35:12.848 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:35:13.015 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:35:13.642 capture page=0 count=20 len=32 held=-1 spread=true
+08:35:15.141 page=2 count=20 spread=true held=-1 relocate=-2 anchorPage=0
+08:35:15.680 capture page=2 count=20 len=128 held=-1 spread=true
+08:35:16.173 page=4 count=20 spread=true held=-1 relocate=-2 anchorPage=2
+08:35:16.754 capture page=4 count=20 len=32 held=-1 spread=true
+08:35:17.083 page=6 count=20 spread=true held=-1 relocate=-2 anchorPage=4
+08:35:17.466 capture page=6 count=20 len=128 held=-1 spread=true
+08:35:52.182 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:35:52.182 page=0 count=20 spread=false held=-1 relocate=-2 anchorPage=-1
+08:35:52.347 page=0 count=20 spread=true held=-1 relocate=-2 anchorPage=-1
+08:35:53.571 capture page=0 count=20 len=32 held=-1 spread=true
+08:36:01.301 page=2 count=20 spread=true held=-1 relocate=-2 anchorPage=0
+08:36:01.633 capture page=2 count=20 len=128 held=-1 spread=true
+08:36:02.927 page=4 count=20 spread=true held=-1 relocate=-2 anchorPage=2
+08:36:03.282 capture page=4 count=20 len=32 held=-1 spread=true
+08:36:04.440 page=6 count=20 spread=true held=-1 relocate=-2 anchorPage=4
+08:36:04.769 capture page=6 count=20 len=128 held=-1 spread=true
+08:36:14.789 doc n=20 w=640 h=800 spread=true frame=PageFrame(top=24.0, bottom=64.0, left=0.0, right=0.0)
+08:36:14.790 page=6 count=20 spread=false held=-1 relocate=-2 anchorPage=6
+08:36:15.152 page=6 count=20 spread=true held=-1 relocate=-2 anchorPage=6
