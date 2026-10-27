@@ -125,6 +125,79 @@ class D04ReadingTest : E2eTest() {
         assertAlive()
     }
 
+    /**
+     * 작업 11: 회전(세로↔가로, 태블릿은 두 쪽 펼침) 3번 왕복 뒤 처음 방향으로 돌아오면 같은 쪽(같은 배치 = 같은 문장).
+     * 다시 나눌 때 비율이 아니라 읽던 쪽 첫 글자로 찾으므로 앞쪽에서도 깎이지 않아야 한다. EPUB·TXT·HWP(eBook 보기).
+     */
+    /** 정보줄 "N/M쪽"의 M(전체 쪽 수). 못 읽으면 null. */
+    private fun pageTotal(): Int? {
+        val t = device.findObject(By.text(INFO))?.text ?: return null
+        return Regex("\\d+ ?/ ?(\\d+)쪽").find(t)?.groupValues?.get(1)?.toIntOrNull()
+    }
+
+    private fun rotationKeepsSpot(title: String, badge: String, hwpEbook: Boolean = false) {
+        launchApp()
+        openFromLibrary(title, badge)
+        waitPage(120_000)
+        dismissTapGuide()
+        if (hwpEbook) {
+            stackItem("테마 및 설정")
+            val toggle = device.wait(Until.findObject(By.desc(Pattern.compile("보기 전환.*지금 원본.*"))), 4_000)
+            assertNotNull("'$title' 원본 → eBook 보기 전환 단추가 없음", toggle)
+            toggle!!.click()
+            SystemClock.sleep(800)
+            // 시트가 아직 열려 있으면 닫는다(없을 때 뒤로 가기를 누르면 책이 닫힘)
+            if (has(By.text("테마 및 설정"), 1_000)) { device.pressBack(); SystemClock.sleep(500) }
+            waitPage(120_000)
+            closeMenu()
+        }
+        var p = page()
+        repeat(3) { p = tapTurn(0.9f, p, forward = true) ?: p }
+        val before = settledPage()
+        // 읽던 쪽 자리 표시가 잡히도록(쪽 글 읽기, 에뮬레이터 1~2초) — 넘기자마자 돌리면 자리 표시 없이 비율로만 옮긴다
+        SystemClock.sleep(3_000)
+        val total0 = pageTotal()
+        android.util.Log.i("AshAnchor", "TEST $badge start before=$before total=$total0 rot=${device.displayRotation}")
+        shot("$badge-before")
+        val rot0 = device.displayRotation
+        try {
+            repeat(3) { i ->
+                if (rot0 == 0 || rot0 == 2) device.setOrientationLeft() else device.setOrientationNatural()
+                SystemClock.sleep(2_500); waitPage(120_000)
+                android.util.Log.i("AshAnchor", "TEST $badge rot$i away page=${currentPage()}")
+                shot("$badge-rot$i-away")
+                if (rot0 == 0) device.setOrientationNatural() else shell("settings put system user_rotation $rot0")
+                SystemClock.sleep(2_500); waitPage(120_000)
+                // 다시 나눈 뒤 자리를 찾아 옮기기까지 에뮬레이터에서 2~3초 걸린다(새 배치의 쪽 글 읽기) — 최종 자리를 본다(최대 10초)
+                val total = pageTotal()
+                val target = if (total == null || total0 == null || total == total0) before
+                    else ((before - 1 + 0.5f) / total0 * total).toInt() + 1
+                var now = page()
+                val until = SystemClock.uptimeMillis() + 10_000
+                while (kotlin.math.abs(now - target) > (if (target == before) 0 else 1) && SystemClock.uptimeMillis() < until) {
+                    SystemClock.sleep(500); now = page()
+                }
+                android.util.Log.i("AshAnchor", "TEST $badge rot$i back page=$now total=$total (기대 $before/$total0)")
+                shot("$badge-rot$i-back")
+                // 지시 기준 = 같은 문장이 화면에 있는가. 같은 배치(전체 쪽 수 같음)로 돌아오면 정확히 같은 쪽.
+                // 같은 화면이어도 배치가 달라지면(전체 쪽 수가 다름 — CI: HWP 67 ↔ 62쪽) 읽던 글은 비율 근처 쪽 안에 있다(±1)
+                if (total == null || total0 == null || total == total0) {
+                    assertEquals("'$title' 회전 ${i + 1}번 왕복 뒤 읽던 쪽이 아님", before, now)
+                } else {
+                    val expect = ((before - 1 + 0.5f) / total0 * total).toInt() + 1
+                    assertTrue("'$title' 회전 ${i + 1}번 왕복 뒤 읽던 자리에서 멂(배치 $total0 → $total 쪽, 기대 약 $expect, 지금 $now)", kotlin.math.abs(now - expect) <= 1)
+                }
+            }
+        } finally {
+            if (rot0 == 0) device.setOrientationNatural() else shell("settings put system user_rotation $rot0")
+        }
+        assertAlive()
+    }
+
+    @Test fun rotation_sameSpot_epub() = rotationKeepsSpot(book, "EPUB")
+    @Test fun rotation_sameSpot_txt() = rotationKeepsSpot("e2e-txt utf8", "TXT")
+    @Test fun rotation_sameSpot_hwpEbook() = rotationKeepsSpot("gov-03-한글맞춤법-고시2017-12", "HWP", hwpEbook = true)
+
     @Test
     fun viewSettingsSheet_allTabs() {
         openBook()

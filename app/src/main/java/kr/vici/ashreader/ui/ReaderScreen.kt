@@ -116,6 +116,7 @@ import kr.vici.ashreader.data.locatorPage
 import kr.vici.ashreader.data.Highlight
 import kr.vici.ashreader.doc.TextGeo
 import kr.vici.ashreader.doc.TextPage
+import kr.vici.ashreader.doc.PageAnchor
 import kr.vici.ashreader.data.DocFormat
 import kr.vici.ashreader.data.FormatGroup
 import kr.vici.ashreader.data.Note
@@ -207,6 +208,11 @@ private class GuardedSource(
         }
     }
 }
+
+/** 작업 11: 배치(문서)마다 읽어 둔 쪽 글 — 자리 표시 잡기와 다시 나눌 때 찾기가 같이 쓴다. 문서가 사라지면 같이 사라짐. */
+private val relayoutTextStore = java.util.Collections.synchronizedMap(java.util.WeakHashMap<ReaderDoc, java.util.concurrent.ConcurrentHashMap<Int, String>>())
+private fun relayoutTexts(doc: ReaderDoc): java.util.concurrent.ConcurrentHashMap<Int, String> =
+    synchronized(relayoutTextStore) { relayoutTextStore.getOrPut(doc) { java.util.concurrent.ConcurrentHashMap() } }
 
 /** 닫혔을 수 있는 문서에 대한 엔진 호출(백그라운드). 닫혔거나 실패하면 [fallback]. */
 private fun <T> guarded(doc: ReaderDoc, fallback: T, f: () -> T): T = synchronized(GuardedSource.guard) {
@@ -443,6 +449,25 @@ fun ReaderScreen(
     var firstLoadDone by rememberSaveable(target.id) { mutableStateOf(false) }
     /** [page] 를 정할 때의 쪽 수. 회전 등으로 다시 배치돼 쪽 수가 바뀌면 비율로 옮긴다. */
     var pageCountSeen by rememberSaveable(target.id) { mutableIntStateOf(0) }
+    /**
+     * 작업 11: 읽던 자리 표시(읽던 쪽의 첫 글자 — [PageAnchor]). 다시 나눠 쪽 수가 바뀌면 비율로 짐작한 쪽 근처에서 이 글자가 든 쪽으로 간다.
+     * [heldPage] = 다시 나눈 뒤 옮겨 온 쪽 — 그 쪽에서는 자리 표시를 새로 잡지 않는다(가로의 큰 쪽 첫 글자로 바꾸면 세로로 돌아올 때마다 앞으로 밀림).
+     */
+    var anchor by rememberSaveable(target.id) { mutableStateOf<String?>(null) }
+    var heldPage by rememberSaveable(target.id) { mutableIntStateOf(-1) }
+    /** [anchor] 가 가리키는 쪽(지금 배치 기준). 지금 쪽과 다르면(넘기자마자 앱이 꺼져 새로 못 잡음) 그 자리 표시는 쓰지 않는다(CI process-death 4 → 3). */
+    var anchorPage by rememberSaveable(target.id) { mutableIntStateOf(-1) }
+    /**
+     * 다시 나눈 뒤 옮기는 중: -2 = 아님, -1 = 자리 찾는 중, 0 이상 = 그 쪽으로 옮기는 중. 이동 중에는 쪽 화면이 스스로 알리는 쪽(옛 번호·끝 쪽 맞춤 등)으로
+     * 자리 표시를 덮지 않는다(CI 태블릿: 가로 7쪽 → 세로 4쪽 → 가로 3쪽).
+     */
+    var relocateTo by remember(target.id) { mutableIntStateOf(-2) }
+    /**
+     * 옮기기 전 위치(쪽·쪽 수, 옛 배치 기준). 자리를 찾는 사이 새 배치가 또 열리면(회전 직후 두 쪽 펼침이 켜져 같은 쪽 수로 한 번 더 —
+     * CI 진단 로그) 찾기가 취소되는데, 그때도 이 위치에서 다시 찾는다. 다 옮기면 -1.
+     */
+    var relocFromPage by rememberSaveable(target.id) { mutableIntStateOf(-1) }
+    var relocFromCount by rememberSaveable(target.id) { mutableIntStateOf(0) }
     val reflow = if (isWord) hwpEbook else fmt.reflowable || (isHwp && hwpEbook)
     /** F-22 스크롤 보기(만화는 웹툰 보기로 대신). */
     val scrollView = s.scrollView && fmt.group != FormatGroup.COMIC && !pdfComic
@@ -676,6 +701,8 @@ fun ReaderScreen(
                     }
                 }
                 LaunchedEffect(doc) {
+                    // 진단(작업 11): 배치 크기 — 같은 기기인데 쪽 수가 달라지는 때(앱을 다시 연 뒤 26 → 25쪽) 원인 보기
+                    if (reflow) android.util.Log.i("AshAnchor", "doc n=${doc.pageCount} w=${pageWdp.toInt()} h=${hDp.toInt()} spread=$spread frame=$frame")
                     openDoc = doc; sel = null; hit = null
                     val first = !firstLoadDone
                     firstLoadDone = true
@@ -687,9 +714,35 @@ fun ReaderScreen(
                     } else if (first && target.startCount > 0 && n > 0 && n != target.startCount) {
                         // 저장할 때와 쪽 수가 다름(글꼴·크기·보기 방식) → 읽은 비율로 옮긴다
                         jumpReq = locatorPage(target.startPage, locatorFrac(target.startPage, target.startCount), n)
-                    } else if (!first && pageCountSeen > 0 && n > 0 && n != pageCountSeen) {
-                        // 회전·글꼴 변경으로 다시 배치돼 쪽 수가 바뀜 → 읽던 비율로 옮긴다
-                        jumpReq = locatorPage(page, locatorFrac(page, pageCountSeen), n)
+                    } else if (n > 0 && (relocFromPage >= 0 || (!first && pageCountSeen > 0 && n != pageCountSeen))) {
+                        // 회전·글꼴 변경으로 다시 배치돼 쪽 수가 바뀜 → 읽던 비율로 짐작한 뒤, 읽던 쪽 첫 글자가 든 쪽으로(작업 11).
+                        // 앞 배치에서 찾다 끊겼으면(relocFrom) 그 옛 위치에서 다시
+                        if (relocFromPage < 0) { relocFromPage = page; relocFromCount = pageCountSeen }
+                        val oldPage = relocFromPage; val oldN = relocFromCount
+                        val est = locatorPage(oldPage, locatorFrac(oldPage, oldN), n)
+                        // 자리 표시가 옮기기 전 쪽 것일 때만(옛 쪽 것이면 비율로만)
+                        val a = anchor.takeIf { anchorPage == oldPage }
+                        heldPage = page // 옮기기 전 옛 쪽 번호로 새 문서의 글을 읽어 자리 표시를 덮지 않게
+                        relocateTo = -1
+                        // 자리 표시가 있으면 찾은 뒤 한 번만 옮긴다(짐작한 쪽으로 먼저 가면 그 쪽 글로 자리 표시가 덮일 수 있음)
+                        val radius = maxOf(8, n / 15)
+                        // 쪽 글은 이 배치에서 한 번만 읽는다(자리 표시 잡기와 같은 저장소) — 짐작 쪽부터 가까운 순서라 보통 몇 쪽만 읽고 끝
+                        val textOf: (Int) -> String? = { i -> relayoutTexts(doc).getOrPut(i) { guarded(doc, null) { doc.pageText(i)?.text }.orEmpty() } }
+                        val found = if (a != null && reflow) withContext(Dispatchers.IO) { PageAnchor.find(a, est, n, radius, textOf) } else null
+                        heldPage = found ?: est
+                        if (found != null) anchorPage = found
+                        relocateTo = found ?: est
+                        jumpReq = found ?: est
+                        // 옮길 쪽이 정해졌으니 '옛 위치'는 여기서 지운다 — 아래 진단(쉬는 지점)에서 이 효과가 취소되면 낡은 옛 위치가
+                        // 남아 다음 회전이 그것을 쓰고, 자리 표시와 맞지 않아 비율로만 옮겼다(CI 태블릿 EPUB 7 → 5)
+                        relocFromPage = -1
+                        pageCountSeen = n // 같은 까닭(쪽 번호와 쪽 수가 서로 다른 배치 것이 되지 않게)
+                        // 진단 로그(작업 11, 숫자만) — 옮긴 뒤에(후보를 다 읽느라 옮기기가 늦어지지 않게)
+                        if (reflow) {
+                            val cands = if (a != null) withContext(Dispatchers.IO) { PageAnchor.matches(a, est, n, radius, textOf) }
+                                .joinToString(" ") { "${it.first}@${it.second}" } else "-"
+                            android.util.Log.i("AshAnchor", "relayout old=$oldPage/$oldN new n=$n est=$est found=$found anchorLen=${a?.length ?: 0} spread=$spreadNow cands=[$cands]")
+                        }
                     }
                     if (n > 0) pageCountSeen = n
                     // 그림만 든 PDF 인지 한 번 본다('만화로 보기' 제안)
@@ -715,6 +768,43 @@ fun ReaderScreen(
                 // 높이는 보지 않는다 — 메뉴를 닫으며 시스템 막대가 숨어 높이만 바뀌어도 방금 고른 글자가 닫히지 않게.
                 LaunchedEffect(pxW) { sel = null }
                 val count = doc.pageCount
+                // 자리 표시용 쪽 글(이 배치에서 한 번 읽은 쪽은 다시 읽지 않는다 — 다시 나눌 때 찾기와 같이 씀)
+                val anchorTexts = relayoutTexts(doc)
+                if (reflow) LaunchedEffect(page, count, spreadNow) { android.util.Log.i("AshAnchor", "page=$page count=$count spread=$spreadNow held=$heldPage relocate=$relocateTo anchorPage=$anchorPage") }
+                // 작업 11: 읽던 쪽이 바뀌면(넘김·이동) 그 쪽 첫 글자를 자리 표시로. 다시 나눈 뒤 옮겨 온 쪽([heldPage])은 그대로 둔다.
+                if (reflow) LaunchedEffect(doc, page, relocateTo) {
+                    val to = relocateTo
+                    if (to == -1) return@LaunchedEffect // 자리 찾는 중
+                    if (to >= 0) {
+                        // 옮기는 중: 도착하면(또는 1.5초 안에 다른 쪽으로 자리 잡으면 — 두 쪽 펼침 맞춤) 그 쪽을 '옮겨 온 쪽'으로
+                        if (page != to) delay(1_500)
+                        android.util.Log.i("AshAnchor", "arrive to=$to page=$page anchorPage=$anchorPage")
+                        if (anchorPage == to) anchorPage = page
+                        heldPage = page
+                        relocateTo = -2
+                        return@LaunchedEffect
+                    }
+                    if (page == heldPage) return@LaunchedEffect
+                    // 두 쪽 펼침: 옮겨 온 뒤 화면이 펼침 왼쪽 쪽으로 번호를 맞추면(±1) 같은 자리로 본다(CI 태블릿 세로 4 → 3)
+                    if (spreadNow && heldPage >= 0 && kotlin.math.abs(page - heldPage) <= 1) {
+                        android.util.Log.i("AshAnchor", "spread-adjust held=$heldPage page=$page anchorPage=$anchorPage")
+                        if (anchorPage == heldPage) anchorPage = page
+                        heldPage = page
+                        return@LaunchedEffect
+                    }
+                    // 자리 표시가 이미 이 쪽을 가리키면(옮겨 와 도착한 쪽 등) 새로 잡지 않는다 — CI 진단: 가로로 옮겨 도착한 직후
+                    // 같은 쪽에서 다시 잡혀(가로 쪽 첫머리) 세로로 돌아올 때 한 쪽 앞으로 갔다(HWP 4 → 3)
+                    if (anchorPage == page && anchor != null) return@LaunchedEffect
+                    heldPage = -1
+                    delay(300)
+                    val p = page
+                    withContext(Dispatchers.IO) {
+                        PageAnchor.capture(p, count, radius = 8) { i -> anchorTexts.getOrPut(i) { guarded(doc, null) { doc.pageText(i)?.text }.orEmpty() } }
+                    }.let { a2 ->
+                        android.util.Log.i("AshAnchor", "capture page=$p count=$count len=${a2?.length ?: 0} held=$heldPage spread=$spreadNow")
+                        if (a2 != null) { anchor = a2; anchorPage = p }
+                    }
+                }
                 LaunchedEffect(page, count) {
                     if (count > 0) {
                         delay(400)

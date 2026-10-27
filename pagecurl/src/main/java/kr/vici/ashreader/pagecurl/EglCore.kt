@@ -40,7 +40,13 @@ internal class EglCore {
             intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE), 0,
         )
         if (context == EGL14.EGL_NO_CONTEXT) return fail("eglCreateContext")
-        surface = EGL14.eglCreateWindowSurface(display, config, window, intArrayOf(EGL14.EGL_NONE), 0)
+        // 화면 바탕(Surface)이 GL 스레드에 닿기 전에 사라졌으면 IllegalArgumentException(API 26 CI: 회전·다시 배치 중 앱 죽음)
+        surface = try {
+            EGL14.eglCreateWindowSurface(display, config, window, intArrayOf(EGL14.EGL_NONE), 0)
+        } catch (e: IllegalArgumentException) {
+            Log.w(TAG, "eglCreateWindowSurface: 화면 바탕이 이미 사라짐", e)
+            EGL14.EGL_NO_SURFACE
+        }
         if (surface == EGL14.EGL_NO_SURFACE) return fail("eglCreateWindowSurface")
         if (!EGL14.eglMakeCurrent(display, surface, surface, context)) return fail("eglMakeCurrent")
         // vsync 에 맞춰 교체 (기본값이지만 명시)
