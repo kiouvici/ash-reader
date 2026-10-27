@@ -468,6 +468,8 @@ fun ReaderScreen(
      */
     var relocFromPage by rememberSaveable(target.id) { mutableIntStateOf(-1) }
     var relocFromCount by rememberSaveable(target.id) { mutableIntStateOf(0) }
+    /** 옮기기 전 배치가 두 쪽 펼침이었는지(그때 화면은 펼침 왼쪽 쪽 번호, 자리 표시는 오른쪽 쪽에 있을 수 있음). */
+    var relocFromSpread by rememberSaveable(target.id) { mutableStateOf(false) }
     val reflow = if (isWord) hwpEbook else fmt.reflowable || (isHwp && hwpEbook)
     /** F-22 스크롤 보기(만화는 웹툰 보기로 대신). */
     val scrollView = s.scrollView && fmt.group != FormatGroup.COMIC && !pdfComic
@@ -717,11 +719,14 @@ fun ReaderScreen(
                     } else if (n > 0 && (relocFromPage >= 0 || (!first && pageCountSeen > 0 && n != pageCountSeen))) {
                         // 회전·글꼴 변경으로 다시 배치돼 쪽 수가 바뀜 → 읽던 비율로 짐작한 뒤, 읽던 쪽 첫 글자가 든 쪽으로(작업 11).
                         // 앞 배치에서 찾다 끊겼으면(relocFrom) 그 옛 위치에서 다시
-                        if (relocFromPage < 0) { relocFromPage = page; relocFromCount = pageCountSeen }
+                        // spreadNow 는 아직 옛 쪽 화면이 알린 값(새 화면이 쪽을 알리기 전)
+                        if (relocFromPage < 0) { relocFromPage = page; relocFromCount = pageCountSeen; relocFromSpread = spreadNow }
                         val oldPage = relocFromPage; val oldN = relocFromCount
                         val est = locatorPage(oldPage, locatorFrac(oldPage, oldN), n)
-                        // 자리 표시가 옮기기 전 쪽 것일 때만(옛 쪽 것이면 비율로만)
-                        val a = anchor.takeIf { anchorPage == oldPage }
+                        // 자리 표시가 옮기기 전 쪽 것일 때만(옛 쪽 것이면 비율로만). 두 쪽 펼침이었으면 오른쪽 쪽 것도 같은 화면 —
+                        // 가로로 옮겨 오른쪽 쪽에서 찾았는데 화면이 펼침 왼쪽으로 맞춘 직후(도착 처리 1.5초 전) 다시 돌리면
+                        // 자리 표시를 버려 비율로만 옮겼다(CI 태블릿 세로 HWP 4 → 3)
+                        val a = anchor.takeIf { anchorPage == oldPage || (relocFromSpread && anchorPage == oldPage + 1) }
                         heldPage = page // 옮기기 전 옛 쪽 번호로 새 문서의 글을 읽어 자리 표시를 덮지 않게
                         relocateTo = -1
                         // 자리 표시가 있으면 찾은 뒤 한 번만 옮긴다(짐작한 쪽으로 먼저 가면 그 쪽 글로 자리 표시가 덮일 수 있음)
