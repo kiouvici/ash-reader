@@ -152,6 +152,9 @@ process_death() {
   for _ in 1 2 3; do adb shell input tap $((W * 9 / 10)) $((H / 2)); sleep 1.5; done
   local before; before=$(ui | grep -oE "content-desc=\"$title [0-9]+쪽\"" | head -1)
   adb exec-out screencap -p > "$OUT/shots/process-death-1-before.png"
+  # 진단 로그(AshAnchor)의 마지막 'doc n=' = 그때 배치의 전체 쪽 수
+  docn() { adb logcat -d -s AshAnchor:I 2>/dev/null | grep -oE 'doc n=[0-9]+' | tail -1 | grep -oE '[0-9]+'; }
+  local n1; n1=$(docn)
   adb shell input keyevent 3; sleep 2
   adb shell am kill "$PKG"; sleep 2
   local alive; alive=$(adb shell pidof "$PKG" | tr -d '\r')
@@ -159,13 +162,28 @@ process_death() {
   sleep 8
   local after; after=$(ui | grep -oE "content-desc=\"$title [0-9]+쪽\"" | head -1)
   adb exec-out screencap -p > "$OUT/shots/process-death-2-after.png"
-  echo "프로세스 종료 복원: 전=[$before] 후=[$after] (kill 뒤 pid='$alive')" | tee "$OUT/process-death.txt"
-  if [ -n "$before" ] && [ "$before" = "$after" ]; then
+  local n2; n2=$(docn)
+  echo "프로세스 종료 복원: 전=[$before] 후=[$after] 전체 쪽 수 $n1→$n2 (kill 뒤 pid='$alive')" | tee "$OUT/process-death.txt"
+  # 판정(작업 11): 같은 배치면 같은 쪽. 배치가 달라졌으면(쪽 수 흔들림 = 작업 12) 비율로 옮긴 쪽 ±1 안
+  local ok=0 p1 p2
+  p1=$(printf '%s' "$before" | grep -oE '[0-9]+쪽' | grep -oE '[0-9]+')
+  p2=$(printf '%s' "$after" | grep -oE '[0-9]+쪽' | grep -oE '[0-9]+')
+  if [ -n "$p1" ] && [ -n "$p2" ]; then
+    if [ -z "$n1" ] || [ -z "$n2" ] || [ "$n1" = "$n2" ]; then
+      [ "$p1" = "$p2" ] && ok=1
+    else
+      local est=$(( (p1 * n2 + n1 / 2) / n1 )) d
+      d=$(( p2 - est )); [ "$d" -lt 0 ] && d=$(( -d ))
+      [ "$d" -le 1 ] && ok=1
+      echo "  배치가 달라짐 → 비율 짐작 ${est}쪽, 차이 $d (±1 안이면 통과)" | tee -a "$OUT/process-death.txt"
+    fi
+  fi
+  if [ "$ok" = 1 ]; then
     summary "| ✅ | \`process-death (am kill → 런처)\` | 1 | 0 | $(( $(date +%s) - start ))s |"
   else
     summary "| ❌ | \`process-death (am kill → 런처)\` | 0 | 1 | $(( $(date +%s) - start ))s |"
     FAILED+=("process-death")
-    echo "::error title=e2e process-death::프로세스 종료 뒤 읽던 쪽으로 돌아오지 않음: 전=[$before] 후=[$after]"
+    echo "::error title=e2e process-death::프로세스 종료 뒤 읽던 쪽으로 돌아오지 않음: 전=[$before] 후=[$after] 쪽 수 $n1→$n2"
   fi
 }
 

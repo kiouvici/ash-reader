@@ -733,13 +733,16 @@ fun ReaderScreen(
                         if (found != null) anchorPage = found
                         relocateTo = found ?: est
                         jumpReq = found ?: est
+                        // 옮길 쪽이 정해졌으니 '옛 위치'는 여기서 지운다 — 아래 진단(쉬는 지점)에서 이 효과가 취소되면 낡은 옛 위치가
+                        // 남아 다음 회전이 그것을 쓰고, 자리 표시와 맞지 않아 비율로만 옮겼다(CI 태블릿 EPUB 7 → 5)
+                        relocFromPage = -1
+                        pageCountSeen = n // 같은 까닭(쪽 번호와 쪽 수가 서로 다른 배치 것이 되지 않게)
                         // 진단 로그(작업 11, 숫자만) — 옮긴 뒤에(후보를 다 읽느라 옮기기가 늦어지지 않게)
                         if (reflow) {
                             val cands = if (a != null) withContext(Dispatchers.IO) { PageAnchor.matches(a, est, n, radius, textOf) }
                                 .joinToString(" ") { "${it.first}@${it.second}" } else "-"
                             android.util.Log.i("AshAnchor", "relayout old=$oldPage/$oldN new n=$n est=$est found=$found anchorLen=${a?.length ?: 0} spread=$spreadNow cands=[$cands]")
                         }
-                        relocFromPage = -1
                     }
                     if (n > 0) pageCountSeen = n
                     // 그림만 든 PDF 인지 한 번 본다('만화로 보기' 제안)
