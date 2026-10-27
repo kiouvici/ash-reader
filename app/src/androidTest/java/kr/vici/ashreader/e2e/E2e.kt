@@ -151,6 +151,13 @@ abstract class E2eTest {
         val tile = find(By.desc(p), 20_000)
             ?: run { shot("no-tile-$title"); fail("서재에 '$title' 이(가) 없음"); throw IllegalStateException() }
         tile.click()
+        // 느린 에뮬레이터(CI phone-36)에서 누르기가 길게 누르기로 잡혀 책 메뉴가 열리면 닫고 한 번 더 누른다 —
+        // 앱 동작이 아니라 시험 입력 문제(D04 viewSettingsSheet 두 번, 실패 화면에 책 메뉴)
+        if (has(By.text("서재에서 숨기기"), 1_500)) {
+            android.util.Log.i("AshE2E", "책 메뉴가 열림(누르기가 길게 누르기로 잡힘) → 닫고 다시 누름: $title")
+            device.pressBack(); SystemClock.sleep(600)
+            (find(By.desc(p), 5_000) ?: tile).click()
+        }
     }
 
     // ───────────── 읽기 화면 ─────────────

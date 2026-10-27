@@ -1468,7 +1468,7 @@
    "version": "0.8.7",
    "license": "MIT",
    "copyright": "",
-   "note": "HWP·HWPX 파서·조판(v0.8.7, 1a76570)",
+   "note": "HWP·HWPX 파서·조판(v0.8.7, 1a76570). 칸 안 종이 기준 표 배치 패치를 더해 빌드(engine-hwp/patches)",
    "texts": [
     "texts/dc502f912ad0.txt"
    ]

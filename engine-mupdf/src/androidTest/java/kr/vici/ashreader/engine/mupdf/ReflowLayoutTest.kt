@@ -54,10 +54,11 @@ class ReflowLayoutTest {
         // 한글 공문 아래 결재·연락처 표 모양: 칸 6개, 긴 전화번호·URL·메일
         val row = { a: String -> "<td>$a</td>" }
         val cells = listOf(
-            listOf("담당", "안성훈", "사무국장", "강숙진", "원장", "박민옥"),
-            listOf("시행", "제영 2026-133 (2025. 4. 30.)", "접수", "", "우편", "27141"),
-            listOf("주소", "충북 제천시 탑안로 424(고암동 253-3)", "홈페이지", "http://blog.naver.com/hlog_c00430", "", ""),
-            listOf("전화", "043)645-1614", "전송", "(043)646-7615", "E-mail", "hlog_c00430@naver.com"),
+            // 값은 모두 지어낸 것(공개 저장소 — 실제 기관·사람·연락처를 쓰지 않는다). 글자 길이만 실제 공문과 비슷하게.
+            listOf("담당", "홍길동", "사무국장", "김철수", "원장", "이영희"),
+            listOf("시행", "가나 2026-123 (2026. 1. 2.)", "접수", "", "우편", "00000"),
+            listOf("주소", "○○도 ○○시 가나다로 123(라마동 456-7)", "홈페이지", "http://blog.example.com/sample_c00000", "", ""),
+            listOf("전화", "000)000-0000", "전송", "(000)000-0000", "E-mail", "sample_c00000@example.com"),
         )
         val html = "<p>위 표</p><table>" + cells.joinToString("") { r -> "<tr>" + r.joinToString("") { row(it) } + "</tr>" } + "</table><p>아래</p>"
         val f = write("wide.xhtml", html)
