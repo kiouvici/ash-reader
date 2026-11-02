@@ -1,0 +1,1 @@
+프로세스 종료 복원: 전=[content-desc="e2e-epub 소설 4쪽"] 후=[content-desc="e2e-epub 소설 4쪽"] 전체 쪽 수 26→26 (kill 뒤 pid='')
