@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>서재 첫 화면 가로</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&amp;display=swap">
+<style>body{margin:0} button{font-family:inherit;cursor:pointer}</style>
+</helmet>
+<div style="width: 1280px; height: 1400px; background: #FFFFFF; font-family: 'Noto Sans KR', sans-serif; color: #111316">
+<sc-for list="{{frames}}" as="f" hint-placeholder-count="2">
+<div style="padding-bottom: 40px">
+<div style="height: 48px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">{{f.label}}</div>
+<div style="width: {{f.w}}; height: {{f.h}}; position: relative; overflow: hidden; background: #FFFFFF; box-shadow: 0 0 0 1px #E5E5EA">
+<div style="position: absolute; inset: 0; overflow: hidden; display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; padding: {{f.headPad}}">
+<div style="flex-grow: 1; font-size: {{f.title}}; font-weight: 900; letter-spacing: -0.02em">서재</div>
+<div style="display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: rgba(255,255,255,0.9); box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.07); margin-right: {{f.navGap}}">
+<div style="padding: 0 16px; height: {{f.navH}}; border-radius: 8px; background: rgba(0,0,0,0.07); display: flex; align-items: center; font-size: 14px; font-weight: 700">서재</div>
+<div style="padding: 0 16px; height: {{f.navH}}; display: flex; align-items: center; font-size: 14px; color: #6C6C70">독서 기록</div>
+<div style="padding: 0 16px; height: {{f.navH}}; display: flex; align-items: center; font-size: 14px; color: #6C6C70">설정</div>
+</div>
+<div style="width: {{f.navH}}; height: {{f.navH}}; border-radius: 11px; background: rgba(255,255,255,0.9); box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.07); display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111316" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: {{f.gap}}; padding: {{f.gridPad}}">
+<sc-for list="{{f.cards}}" as="g" hint-placeholder-count="4">
+<div style="position: relative; height: {{f.cardH}}; border-radius: 12px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 12px 28px -14px rgba(0,0,0,0.26); overflow: hidden; padding: {{f.cardPad}}; box-sizing: border-box">
+<div style="font-size: {{f.cardName}}; font-weight: 900">{{g.name}}</div>
+<div style="font-size: 12.5px; color: #6C6C70; margin-top: 2px">{{g.sub}}</div>
+<div style="position: absolute; right: 0; bottom: 0; width: {{f.fanW}}; height: {{f.fanH}}">
+<sc-for list="{{g.fan}}" as="c" hint-placeholder-count="3">
+<div style="position: absolute; left: {{c.x}}; bottom: 0; width: {{f.coverW}}; height: {{c.h}}; border-radius: 1px 2px 0 0; background: {{c.bg}}; box-shadow: -8px 0 14px -8px rgba(0,0,0,0.35); overflow: hidden">
+<div style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(90deg, rgba(255,255,255,0.35), rgba(0,0,0,0.12))"></div>
+<div style="display: {{c.frame}}; position: absolute; inset: 4px 4px 0 7px; border: 1px solid rgba(255,255,255,0.18); border-bottom: none"></div>
+<div style="display: {{c.band}}; position: absolute; left: 9px; right: 7px; top: 9px; height: 2px; background: {{c.bandC}}"></div>
+<div style="display: {{c.band}}; position: absolute; left: 9px; right: 9px; top: 30px; height: 40%; background-image: repeating-linear-gradient(#DADADF 0 1px, transparent 1px 5px)"></div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+<div style="flex-grow: 1; background: linear-gradient(180deg, #FFFFFF 0, #F0F0F2 100%); padding: {{f.shelfPad}}">
+<div style="display: flex; align-items: center; gap: 6px; font-size: {{f.shelfTitle}}; font-weight: 900">최근<svg width="9" height="15" viewBox="0 0 9 15" aria-hidden="true"><path d="M1.5 1.5L7.5 7.5 1.5 13.5" fill="none" stroke="#A1A1A6" stroke-width="2.2" stroke-linecap="round"></path></svg></div>
+<div style="display: flex; align-items: flex-end; gap: {{f.bookGap}}; margin-top: 14px; height: {{f.bookRow}}; overflow: hidden">
+<sc-for list="{{f.books}}" as="b" hint-placeholder-count="8">
+<div style="flex-shrink: 0; width: {{f.bookW}}">
+<div style="position: relative; width: 100%; aspect-ratio: {{b.ratio}}; border-radius: 1px 3px 3px 1px; background: {{b.bg}}; box-shadow: 0 1px 1px rgba(0,0,0,0.08), 0 12px 16px -10px rgba(0,0,0,0.45); overflow: hidden">
+<div style="position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: linear-gradient(90deg, rgba(255,255,255,0.35), rgba(255,255,255,0.05) 60%, rgba(0,0,0,0.18))"></div>
+<div style="display: {{b.frame}}; position: absolute; inset: 5px 5px 5px 9px; border: 1px solid rgba(255,255,255,0.16)"></div>
+<div style="display: {{b.band}}; position: absolute; left: 12px; right: 9px; top: 10px; height: 3px; background: {{b.bandC}}"></div>
+<div style="position: absolute; left: 12px; right: 9px; top: 20px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-align: {{b.align}}; font-size: {{b.ts}}; font-weight: {{b.tw}}; line-height: 1.25; color: {{b.ink}}; word-break: keep-all">{{b.title}}</div>
+<div style="display: {{b.band}}; position: absolute; left: 12px; right: 14px; top: 52px; height: 30%; background-image: repeating-linear-gradient(#DCDCE0 0 1px, transparent 1px 5px)"></div>
+<div style="display: {{b.bar}}; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(0,0,0,0.12)"><div style="width: {{b.pct}}; height: 3px; background: #0A84FF"></div></div>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1400}}'>
+class Component extends DCLogic {
+renderVals() {
+const G = (a, b) => 'linear-gradient(180deg, ' + a + ' 0%, ' + b + ' 100%)';
+const NOV = { '어린 왕자': G('#1E7BD6', '#0B2D63'), '데미안': G('#B21E1E', '#4A0B0B'), '동물농장': G('#1F8A3A', '#0B3A1A'), '등대지기': G('#B4560F', '#4A1D06'), '겨울의 정원': G('#6B6B6F', '#2A2A2D') };
+const COM = { '코트 위의 여름 1': ['#FF6A13', '#1C1C1C'], '코트 위의 여름 2': ['#F2C230', '#1C1C1C'] };
+const BAND = { HWP: '#2E6FA8', HWPX: '#2E6FA8', PDF: '#C2343F', DOCX: '#2B579A' };
+const bk = (title, fmt, pct) => { const n = NOV[title], c = COM[title], doc = !n && !c;
+return { title, bg: n || (c ? c[0] : '#FFFFFF'), ink: n ? '#FFFFFF' : c ? c[1] : '#26282B', frame: n ? 'block' : 'none', band: doc ? 'block' : 'none', bandC: BAND[fmt] || '#999',
+align: n ? 'center' : 'left', tw: n ? 500 : 900, ts: doc ? '7.5px' : n ? '11px' : '13px', ratio: doc ? '1 / 1.414' : '1 / 1.48', pct: (pct || 0) + '%', bar: pct && pct < 100 ? 'block' : 'none' }; };
+const recent = [bk('2025 행정업무운영 편람', 'HWP', 42), bk('어린 왕자', 'EPUB', 80), bk('코트 위의 여름 2', 'CBZ', 30), bk('인사 규정', 'PDF', 65), bk('데미안', 'EPUB'), bk('회의 자료', 'PDF'), bk('동물농장', 'EPUB'), bk('신청서 양식', 'DOCX'), bk('등대지기', 'EPUB', 100), bk('겨울의 정원', 'EPUB')];
+const cardsOf = (step, hs) => [
+{ name: '전체', sub: '312권', fan: [bk('데미안', 'EPUB'), bk('어린 왕자', 'EPUB'), bk('2025 행정업무운영 편람', 'HWP')] },
+{ name: '형식', sub: '6가지', fan: [bk('예산서', 'HWPX'), bk('동물농장', 'EPUB'), bk('회의 자료', 'PDF')] },
+{ name: '폴더', sub: '4개', fan: [bk('신청서 양식', 'DOCX'), bk('겨울의 정원', 'EPUB'), bk('인사 규정', 'PDF')] },
+{ name: '시리즈', sub: '3개', fan: [bk('코트 위의 여름 1', 'CBZ'), bk('코트 위의 여름 2', 'CBZ'), bk('등대지기', 'EPUB')] }
+].map(g => Object.assign({}, g, { fan: g.fan.map((b, k) => Object.assign({}, b, { x: (k * step) + 'px', h: hs[k] + 'px' })) }));
+return { frames: [
+{ label: '태블릿 가로 1280×800 — 네 칸 한 줄 + 최근 책장(큰 표지 10권)', w: '1280px', h: '800px', headPad: '22px 24px 8px 40px', title: '34px', navH: '44px', navGap: '10px',
+gap: '20px', gridPad: '16px 40px 30px', cardH: '210px', cardPad: '22px 0 0 24px', cardName: '22px', fanW: '200px', fanH: '150px', coverW: '96px',
+cards: cardsOf(52, [128, 146, 136]), shelfPad: '24px 40px 0', shelfTitle: '24px', bookGap: '28px', bookRow: '260px', bookW: '152px', books: recent },
+{ label: '휴대폰 가로 844×390 — 네 칸 한 줄(낮게) + 최근 책장', w: '844px', h: '390px', headPad: '10px 16px 4px 24px', title: '24px', navH: '36px', navGap: '8px',
+gap: '12px', gridPad: '6px 24px 14px', cardH: '96px', cardPad: '12px 0 0 14px', cardName: '16px', fanW: '110px', fanH: '76px', coverW: '52px',
+cards: cardsOf(28, [64, 74, 68]), shelfPad: '12px 24px 0', shelfTitle: '17px', bookGap: '16px', bookRow: '130px', bookW: '80px', books: recent }
+] };
+}
+}
+</script>
+</body>
+</html>

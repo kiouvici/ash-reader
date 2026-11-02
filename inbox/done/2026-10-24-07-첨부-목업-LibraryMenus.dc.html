@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>서재 모음·정렬·목록·검색</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1800px; height: 910px; display: flex; gap: 80px; background: #FFFFFF; font-family: 'Noto Sans KR', sans-serif; color: #111316">
+
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">① ≡ 모음 (오른쪽 위)</div>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF">
+<div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 12px 0">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: #E9E9EC; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111316" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 10h16M4 14h16M4 18h11"></path></svg></div>
+<div style="width: 44px; height: 44px; border-radius: 12px; background: #FFFFFF; box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; font-size: 18px">···</div>
+</div>
+<div style="padding: 10px 20px; font-size: 32px; font-weight: 900">서재</div>
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 0 20px; filter: blur(2px); opacity: 0.5">
+<sc-for list="{{bgCovers}}" as="c" hint-placeholder-count="6"><div style="aspect-ratio: 1 / 1.48; background: {{c}}; border-radius: 2px"></div></sc-for>
+</div>
+<div style="position: absolute; right: 12px; top: 62px; width: 300px; border-radius: 14px; background: rgba(255,255,255,0.92); backdrop-filter: blur(24px); box-shadow: 0 20px 50px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04); overflow: hidden">
+<div style="display: flex; align-items: center; justify-content: center; position: relative; height: 52px; font-size: 16px; font-weight: 700">모음<span style="position: absolute; right: 10px; height: 32px; padding: 0 12px; border-radius: 9px; background: #EFEFF2; font-size: 13px; font-weight: 500; line-height: 32px">편집</span></div>
+<div style="margin: 0 10px; border-radius: 12px; background: rgba(0,0,0,0.03)">
+<sc-for list="{{colls}}" as="c" hint-placeholder-count="8">
+<div style="display: flex; align-items: center; gap: 12px; height: 46px; padding: 0 12px; border-bottom: {{c.line}}">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111316" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{c.d}}"></path></svg>
+<span style="flex-grow: 1; font-size: 15px">{{c.k}}</span><span style="font-size: 13.5px; color: #8E8E93">{{c.n}}</span>
+<svg width="7" height="12" viewBox="0 0 9 15" aria-hidden="true"><path d="M1.5 1.5L7.5 7.5 1.5 13.5" fill="none" stroke="#C4C4C8" stroke-width="2" stroke-linecap="round"></path></svg>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; height: 48px; margin: 10px 10px 10px; padding: 0 12px; border-radius: 12px; background: rgba(0,0,0,0.03); font-size: 15px"><span style="font-size: 20px; color: #6C6C70">+</span>새 모음…</div>
+</div>
+</div>
+</div>
+
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">② ⋯ 보기·정렬</div>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF">
+<div style="padding: 66px 20px 10px; font-size: 32px; font-weight: 900">서재</div>
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 0 20px; filter: blur(2px); opacity: 0.5">
+<sc-for list="{{bgCovers}}" as="c" hint-placeholder-count="6"><div style="aspect-ratio: 1 / 1.48; background: {{c}}; border-radius: 2px"></div></sc-for>
+</div>
+<div style="position: absolute; right: 12px; top: 12px; width: 236px; border-radius: 14px; background: rgba(255,255,255,0.92); backdrop-filter: blur(24px); box-shadow: 0 20px 50px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04); padding: 6px 0">
+<sc-for list="{{sortMenu}}" as="m" hint-placeholder-count="10">
+<div style="display: flex; align-items: center; gap: 10px; height: {{m.h}}; padding: 0 16px; border-top: {{m.sep}}; font-size: {{m.fs}}; color: {{m.c}}">
+<span style="width: 14px; font-size: 14px">{{m.check}}</span>
+<svg style="display: {{m.iconShow}}" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="{{m.d}}"></path></svg>
+<span>{{m.k}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">③ 목록 보기 (모음 '읽는 중')</div>
+<div style="width: 390px; height: 844px; overflow: hidden; background: #FFFFFF">
+<div style="display: flex; align-items: center; padding: 12px 12px 0">
+<div style="width: 44px; height: 44px; border-radius: 12px; box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center"><svg width="11" height="18" viewBox="0 0 11 18" aria-hidden="true"><path d="M9 2L2 9l7 7" fill="none" stroke="#111316" stroke-width="2.2" stroke-linecap="round"></path></svg></div>
+<div style="flex-grow: 1; text-align: center; font-size: 17px; font-weight: 700; margin-right: 44px">읽는 중</div>
+</div>
+<sc-for list="{{listRows}}" as="r" hint-placeholder-count="3">
+<div style="display: flex; gap: 16px; padding: 22px 20px; border-bottom: 1px solid #E5E5EA">
+<div style="width: 92px; aspect-ratio: {{r.ratio}}; flex-shrink: 0; border-radius: 1px 3px 3px 1px; background: {{r.bg}}; box-shadow: 0 12px 18px -10px rgba(0,0,0,0.45); position: relative; overflow: hidden">
+<div style="position: absolute; left: 10px; right: 8px; top: 12px; font-size: 10px; font-weight: 900; line-height: 1.2; color: {{r.ink}}; text-align: {{r.align}}; word-break: keep-all">{{r.title}}</div>
+<div style="display: {{r.band}}; position: absolute; left: 10px; right: 8px; top: 7px; height: 2px; background: #2E6FA8"></div>
+<div style="display: {{r.band}}; position: absolute; left: 10px; right: 12px; top: 44px; height: 40px; background-image: repeating-linear-gradient(#DCDCE0 0 1px, transparent 1px 5px)"></div>
+</div>
+<div style="flex-grow: 1; min-width: 0">
+<div style="font-size: 17px; font-weight: 700; line-height: 1.3; word-break: keep-all">{{r.title}}</div>
+<div style="font-size: 13.5px; color: #3A3A3C; margin-top: 3px">{{r.by}}</div>
+<div style="font-size: 13px; color: #0A84FF; font-weight: 700; margin-top: 3px">{{r.state}}</div>
+<div style="font-size: 12.5px; line-height: 1.55; color: #8E8E93; margin-top: 8px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden">{{r.first}}</div>
+<div style="display: flex; align-items: center; gap: 12px; margin-top: 10px"><span style="height: 32px; padding: 0 18px; border-radius: 10px; background: #111316; color: #FFFFFF; font-size: 14px; font-weight: 700; line-height: 32px">이어 읽기</span><span style="color: #8E8E93; font-size: 18px">···</span></div>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">④ 서재 검색</div>
+<div style="width: 390px; height: 844px; overflow: hidden; background: #FFFFFF">
+<div style="padding: 14px 16px 10px"><div style="display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 14px; border-radius: 12px; background: #FFFFFF; box-shadow: 0 0 0 1px rgba(0,0,0,0.08), 0 6px 18px rgba(0,0,0,0.06)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111316" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg><span style="flex-grow: 1; font-size: 16px">규정</span><span style="width: 20px; height: 20px; border-radius: 10px; background: #8E8E93; color: #FFFFFF; font-size: 12px; line-height: 20px; text-align: center">✕</span></div></div>
+<div style="background: #F2F2F4; padding: 16px 20px 18px">
+<div style="font-size: 20px; font-weight: 900">제목 <span style="font-size: 14px; color: #8E8E93; font-weight: 500">3권</span></div>
+<div style="display: flex; gap: 14px; margin-top: 12px">
+<sc-for list="{{hits}}" as="h" hint-placeholder-count="3"><div style="width: 86px"><div style="aspect-ratio: 1 / 1.414; background: #FFFFFF; border-radius: 1px 3px 3px 1px; box-shadow: 0 10px 16px -8px rgba(0,0,0,0.4); position: relative; overflow: hidden"><div style="position: absolute; left: 8px; right: 6px; top: 6px; height: 2px; background: {{h.c}}"></div><div style="position: absolute; left: 8px; right: 6px; top: 13px; font-size: 7.5px; font-weight: 900; line-height: 1.25">{{h.t}}</div><div style="position: absolute; left: 8px; right: 10px; top: 38px; height: 34px; background-image: repeating-linear-gradient(#DCDCE0 0 1px, transparent 1px 5px)"></div></div><div style="font-size: 11.5px; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{h.t}}</div></div></sc-for>
+</div>
+</div>
+<div style="padding: 18px 20px 6px; font-size: 20px; font-weight: 900">본문 <span style="font-size: 14px; color: #8E8E93; font-weight: 500">2권에서 14곳</span></div>
+<sc-for list="{{inText}}" as="t" hint-placeholder-count="3">
+<div style="padding: 12px 20px; border-bottom: 1px solid #E5E5EA"><div style="font-size: 14.5px; font-weight: 700">{{t.book}}</div><div style="font-size: 13px; color: #3A3A3C; margin-top: 3px; line-height: 1.5">{{t.pre}}<b style="background: #FFE58A">규정</b>{{t.post}}</div><div style="font-size: 12px; color: #8E8E93; margin-top: 2px">{{t.page}}</div></div>
+</sc-for>
+<div style="padding: 10px 20px; font-size: 12px; color: #8E8E93">폴더 · 형식 · 시리즈 이름도 함께 찾아요</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1800,"height":910}}'>
+class Component extends DCLogic {
+renderVals() {
+const D = { all: 'M4 4.5h4v15H4zM10 4.5h4v15h-4zM15.6 5.6l3.8-1 3.6 13.9-3.8 1z', fmt: 'M6.5 3h7.5l4 4v14H6V3.5zM14 3v4h4', fold: 'M3 7.5A1.5 1.5 0 0 1 4.5 6h4.3l2 2.2h8.7A1.5 1.5 0 0 1 21 9.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z',
+ser: 'M3.5 20h17M5 20V7.5h3.2V20M9.8 20V5h3.6v15M14.6 19.6l2.7-11.4 3.1.7-2.7 11.4', read: 'M7 3.5h10v17L12 17l-5 3.5z', done: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8 12.3l2.7 2.7L16.2 9.5', hide: 'M3 3l18 18M9.9 5.1A9.8 9.8 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-2.2 3.1M6.6 6.6A17 17 0 0 0 2.5 12s3.5 7 9.5 7a9.7 9.7 0 0 0 5.4-1.6', once: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7.5V12l3 2' };
+const C = [['전체', '312', D.all], ['형식', '6', D.fmt], ['폴더', '4', D.fold], ['시리즈', '3', D.ser], ['읽는 중', '5', D.read], ['다 읽음', '41', D.done], ['최근 받은 파일', '9', D.once], ['숨긴 책', '2', D.hide]];
+const colls = C.map(([k, n, d], i) => ({ k, n, d, line: i < C.length - 1 ? '1px solid rgba(0,0,0,0.07)' : 'none' }));
+const S = [
+{ k: '선택', d: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8 12.3l2.7 2.7L16.2 9.5', check: '', icon: true },
+{ k: '격자', d: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', check: '✓', icon: true, sep: true },
+{ k: '목록', d: 'M8 6h12M8 12h12M8 18h12M4 6v.01M4 12v.01M4 18v.01', check: '', icon: true },
+{ k: '다음으로 정렬…', label: true, sep: true },
+{ k: '최근 읽은 순', check: '✓' }, { k: '제목' }, { k: '지은이' }, { k: '추가한 날' }, { k: '직접 정렬' }
+];
+const sortMenu = S.map(s => ({ k: s.k, d: s.d || '', check: s.check || '', iconShow: s.icon ? 'block' : 'none', sep: s.sep ? '1px solid #E5E5EA' : 'none',
+h: s.label ? '34px' : '44px', fs: s.label ? '12.5px' : '15px', c: s.label ? '#8E8E93' : '#111316' }));
+const G = (a, b) => 'linear-gradient(180deg,' + a + ',' + b + ')';
+return {
+colls, sortMenu,
+bgCovers: ['#FFFFFF', G('#1E7BD6', '#0B2D63'), '#F2C230', '#F4F4F6', G('#1F8A3A', '#0B3A1A'), '#FF6A13'],
+listRows: [
+{ title: '2025 행정업무운영 편람', by: 'HWP · 383쪽', state: '42% 읽음 · 어제', bg: '#FFFFFF', ink: '#26282B', align: 'left', band: 'block', ratio: '1 / 1.414', first: '제1장 총칙. 이 편람은 행정기관의 업무 운영에 관한 규정과 그 시행규칙의 내용을 알기 쉽게 풀어 쓴 것으로, 문서 관리와 업무 처리 절차를 담고 있다.' },
+{ title: '어린 왕자', by: '생텍쥐페리 · EPUB', state: '80% 읽음 · 3일 전', bg: G('#1E7BD6', '#0B2D63'), ink: '#FFFFFF', align: 'center', band: 'none', ratio: '1 / 1.5', first: '여섯 살 적에 나는 「체험한 이야기」라는 제목의, 원시림에 관한 책에서 기막힌 그림 하나를 본 적이 있다. 맹수를 집어삼키고 있는 보아 구렁이 그림이었다.' },
+{ title: '코트 위의 여름 2', by: '박하람 · 만화', state: '30% 읽음 · 지난주', bg: '#F2C230', ink: '#1C1C1C', align: 'left', band: 'none', ratio: '1 / 1.46', first: '만화는 첫 문단 대신 시리즈 이름과 권수를 보여 줘요.' }
+],
+hits: [{ t: '인사 규정', c: '#C2343F' }, { t: '취업규칙(복무 규정 포함)', c: '#2E6FA8' }, { t: '회계 규칙', c: '#C2343F' }],
+inText: [{ book: '2025 행정업무운영 편람', pre: '…문서 관리에 관한 ', post: ' 제12조에 따라…', page: '124쪽' }, { book: '2025 행정업무운영 편람', pre: '…위임전결 ', post: '을 정하는 경우…', page: '201쪽' }, { book: '운영 규정 개정안', pre: '…이 ', post: '은 2026년 5월 1일부터…', page: '18쪽' }]
+};
+}
+}
+</script>
+</body>
+</html>

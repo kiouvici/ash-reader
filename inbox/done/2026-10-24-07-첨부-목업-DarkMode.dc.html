@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>어두운 테마</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1330px; height: 910px; display: flex; gap: 80px; background: #FFFFFF; font-family: 'Noto Sans KR', sans-serif">
+
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">① 서재 첫 화면 — 어둡게</div>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #000000; color: #FFFFFF">
+<div style="display: flex; align-items: center; padding: 20px 12px 10px 20px">
+<div style="flex-grow: 1; font-size: 32px; font-weight: 900; letter-spacing: -0.02em">서재</div>
+<div style="width: 44px; height: 44px; border-radius: 12px; background: #1C1C1E; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg></div>
+</div>
+<div style="background: #161618; padding: 16px 16px 22px">
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{four}}" as="g" hint-placeholder-count="4">
+<div style="position: relative; height: 150px; border-radius: 12px; background: #2C2C2E; overflow: hidden; padding: 14px 0 0 16px; box-sizing: border-box">
+<div style="font-size: 18px; font-weight: 900">{{g.name}}</div>
+<div style="font-size: 12.5px; color: #98989F; margin-top: 2px">{{g.sub}}</div>
+<div style="position: absolute; right: 0; bottom: 0; width: 120px; height: 90px">
+<sc-for list="{{g.fan}}" as="c" hint-placeholder-count="2">
+<div style="position: absolute; left: {{c.x}}; bottom: 0; width: 58px; height: {{c.h}}; border-radius: 1px 2px 0 0; background: {{c.bg}}; box-shadow: -6px 0 12px -6px rgba(0,0,0,0.7); overflow: hidden">
+<div style="position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(90deg, rgba(255,255,255,0.3), rgba(0,0,0,0.2))"></div>
+<div style="display: {{c.band}}; position: absolute; left: 8px; right: 6px; top: 8px; height: 2px; background: {{c.bandC}}"></div>
+<div style="display: {{c.band}}; position: absolute; left: 8px; right: 7px; top: 24px; height: 36px; background-image: repeating-linear-gradient(#DADADF 0 1px, transparent 1px 4px)"></div>
+<div style="display: {{c.frame}}; position: absolute; inset: 3px 3px 0 6px; border: 1px solid rgba(255,255,255,0.18); border-bottom: none"></div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="background: linear-gradient(180deg, #000000 0, #121214 100%); padding: 20px 0 24px">
+<div style="display: flex; align-items: center; gap: 6px; padding-left: 20px; font-size: 20px; font-weight: 900">최근<svg width="9" height="15" viewBox="0 0 9 15" aria-hidden="true"><path d="M1.5 1.5L7.5 7.5 1.5 13.5" fill="none" stroke="#6E6E73" stroke-width="2.2" stroke-linecap="round"></path></svg></div>
+<div style="display: flex; align-items: flex-end; gap: 16px; padding: 14px 20px 4px; overflow: hidden; height: 150px">
+<sc-for list="{{recent}}" as="b" hint-placeholder-count="4">
+<div style="flex-shrink: 0; width: 100px; position: relative; aspect-ratio: {{b.ratio}}; border-radius: 1px 3px 3px 1px; background: {{b.bg}}; box-shadow: 0 14px 22px -12px {{b.glow}}; overflow: hidden">
+<div style="position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: linear-gradient(90deg, rgba(255,255,255,0.3), rgba(0,0,0,0.2))"></div>
+<div style="display: {{b.frame}}; position: absolute; inset: 5px 5px 5px 9px; border: 1px solid rgba(255,255,255,0.16)"></div>
+<div style="display: {{b.band}}; position: absolute; left: 12px; right: 9px; top: 10px; height: 3px; background: {{b.bandC}}"></div>
+<div style="position: absolute; left: 12px; right: 9px; top: 20px; text-align: {{b.align}}; font-size: {{b.ts}}; font-weight: {{b.tw}}; line-height: 1.25; color: {{b.ink}}; word-break: keep-all">{{b.title}}</div>
+<div style="display: {{b.band}}; position: absolute; left: 12px; right: 14px; top: 52px; height: 30%; background-image: repeating-linear-gradient(#DCDCE0 0 1px, transparent 1px 5px)"></div>
+<div style="display: {{b.bar}}; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(0,0,0,0.3)"><div style="width: {{b.pct}}; height: 3px; background: #0A84FF"></div></div>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; height: 66px; display: flex; justify-content: center; padding-top: 6px; box-sizing: border-box">
+<div style="display: flex; gap: 2px; height: 52px; padding: 3px; box-sizing: border-box; border-radius: 13px; background: rgba(28,28,30,0.92); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), 0 8px 24px rgba(0,0,0,0.6)">
+<div style="padding: 4px 18px; border-radius: 10px; background: #3A3A3C; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; font-weight: 700">서재</div>
+<div style="padding: 4px 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #98989F">독서 기록</div>
+<div style="padding: 4px 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #98989F">설정</div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">② 묶음 안 화면 — 어둡게</div>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #000000; color: #FFFFFF">
+<div style="height: 60px; padding: 10px 12px 0; box-sizing: border-box; display: flex; justify-content: space-between">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: #1C1C1E; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center"><svg width="11" height="18" viewBox="0 0 11 18" aria-hidden="true"><path d="M9 2L2 9l7 7" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"></path></svg></div>
+<div style="height: 44px; padding: 0 14px; border-radius: 12px; background: #1C1C1E; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); display: flex; align-items: center; font-size: 14px">최근 읽은 순</div>
+</div>
+<div style="padding: 10px 20px 0; font-size: 30px; font-weight: 900">업무</div>
+<div style="padding: 2px 20px 10px; font-size: 14px; color: #98989F">폴더 2개, 책 64권</div>
+<div style="background: linear-gradient(180deg, #000000 0, #161618 100%); padding: 18px 0 22px">
+<div style="padding-left: 20px; font-size: 20px; font-weight: 900">2025 <span style="font-size: 14px; font-weight: 500; color: #98989F">40권 ›</span></div>
+<div style="display: flex; align-items: flex-end; gap: 16px; padding: 14px 20px 4px; overflow: hidden; height: 150px">
+<sc-for list="{{shelf}}" as="b" hint-placeholder-count="4">
+<div style="flex-shrink: 0; width: 98px; position: relative; aspect-ratio: {{b.ratio}}; border-radius: 1px 3px 3px 1px; background: {{b.bg}}; box-shadow: 0 14px 22px -12px {{b.glow}}; overflow: hidden">
+<div style="position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: linear-gradient(90deg, rgba(255,255,255,0.3), rgba(0,0,0,0.2))"></div>
+<div style="display: {{b.band}}; position: absolute; left: 12px; right: 9px; top: 10px; height: 3px; background: {{b.bandC}}"></div>
+<div style="position: absolute; left: 12px; right: 9px; top: 20px; text-align: {{b.align}}; font-size: {{b.ts}}; font-weight: {{b.tw}}; line-height: 1.25; color: {{b.ink}}; word-break: keep-all">{{b.title}}</div>
+<div style="display: {{b.band}}; position: absolute; left: 12px; right: 14px; top: 52px; height: 30%; background-image: repeating-linear-gradient(#DCDCE0 0 1px, transparent 1px 5px)"></div>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="padding: 22px 20px 4px; font-size: 20px; font-weight: 900">모든 책 <span style="font-size: 14px; font-weight: 500; color: #98989F">64권</span></div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px 16px; padding: 14px 20px">
+<sc-for list="{{grid}}" as="b" hint-placeholder-count="3">
+<div>
+<div style="height: 140px; display: flex; align-items: flex-end"><div style="position: relative; width: 100%; aspect-ratio: {{b.ratio}}; border-radius: 1px 3px 3px 1px; background: {{b.bg}}; box-shadow: 0 14px 22px -12px {{b.glow}}; overflow: hidden">
+<div style="position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: linear-gradient(90deg, rgba(255,255,255,0.3), rgba(0,0,0,0.2))"></div>
+<div style="display: {{b.frame}}; position: absolute; inset: 5px 5px 5px 9px; border: 1px solid rgba(255,255,255,0.16)"></div>
+<div style="display: {{b.band}}; position: absolute; left: 12px; right: 9px; top: 10px; height: 3px; background: {{b.bandC}}"></div>
+<div style="position: absolute; left: 12px; right: 9px; top: 20px; text-align: {{b.align}}; font-size: {{b.ts}}; font-weight: {{b.tw}}; line-height: 1.25; color: {{b.ink}}; word-break: keep-all">{{b.title}}</div>
+<div style="display: {{b.band}}; position: absolute; left: 12px; right: 14px; top: 52px; height: 30%; background-image: repeating-linear-gradient(#DCDCE0 0 1px, transparent 1px 5px)"></div>
+</div></div>
+<div style="margin-top: 9px; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{b.title}}</div>
+<div style="font-size: 11.5px; color: #98989F">{{b.fmt}}</div>
+<div style="display: inline-flex; align-items: center; height: 20px; margin-top: 5px; padding: 0 7px; border: 1.5px solid {{b.pillC}}; border-radius: 6px; font-size: 11px; font-weight: 700; color: {{b.pillC}}">{{b.state}}</div>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+
+<div style="width: 390px">
+<div style="height: 56px; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #6C6C70">③ 설정 — 어둡게</div>
+<div style="width: 390px; height: 844px; overflow: hidden; background: #000000; color: #FFFFFF">
+<div style="padding: 22px 20px 6px; font-size: 32px; font-weight: 900">설정</div>
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+<div style="padding: 18px 20px 6px; font-size: 13px; font-weight: 700; color: #98989F">{{g.title}}</div>
+<div style="margin: 0 16px; border-radius: 12px; background: #1C1C1E; overflow: hidden">
+<sc-for list="{{g.items}}" as="it" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 12px; padding-left: 14px">
+<div style="width: 30px; height: 30px; border-radius: 8px; background: {{it.c}}; flex-shrink: 0"></div>
+<div style="flex-grow: 1; display: flex; align-items: center; min-height: 52px; padding-right: 14px; border-bottom: {{it.line}}">
+<div style="flex-grow: 1"><div style="font-size: 16px; font-weight: 500">{{it.name}}</div><div style="font-size: 12px; color: #8E8E93; margin-top: 1px">{{it.hint}}</div></div>
+<svg width="8" height="14" viewBox="0 0 9 15" aria-hidden="true"><path d="M1.5 1.5L7.5 7.5 1.5 13.5" fill="none" stroke="#5A5A5E" stroke-width="2" stroke-linecap="round"></path></svg>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-for>
+<div style="padding: 18px 20px 6px; font-size: 13px; font-weight: 700; color: #98989F">테마와 밝기 › 앱 화면</div>
+<div style="margin: 0 16px; border-radius: 12px; background: #1C1C1E">
+<div style="display: flex; gap: 6px; padding: 10px">
+<div style="flex: 1; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #98989F">시스템</div>
+<div style="flex: 1; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #98989F">밝게</div>
+<div style="flex: 1; height: 36px; border-radius: 8px; background: #3A3A3C; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700">어둡게</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1330,"height":910}}'>
+class Component extends DCLogic {
+renderVals() {
+const G = (a, b) => 'linear-gradient(180deg, ' + a + ' 0%, ' + b + ' 100%)';
+const NOV = { '어린 왕자': [G('#1E7BD6', '#0B2D63'), 'rgba(30,123,214,0.55)'], '데미안': [G('#B21E1E', '#4A0B0B'), 'rgba(178,30,30,0.55)'], '동물농장': [G('#1F8A3A', '#0B3A1A'), 'rgba(31,138,58,0.5)'], '등대지기': [G('#B4560F', '#4A1D06'), 'rgba(180,86,15,0.5)'] };
+const COM = { '코트 위의 여름 2': ['#F2C230', '#1C1C1C'], '코트 위의 여름 1': ['#FF6A13', '#1C1C1C'] };
+const BAND = { HWP: '#2E6FA8', HWPX: '#2E6FA8', PDF: '#C2343F', DOCX: '#2B579A' };
+const bk = (title, fmt, pct) => { const n = NOV[title], c = COM[title], doc = !n && !c, r = pct && pct < 100;
+return { title, fmt, bg: n ? n[0] : c ? c[0] : '#F4F4F6', glow: n ? n[1] : c ? 'rgba(242,194,48,0.4)' : 'rgba(255,255,255,0.18)', ink: n ? '#FFFFFF' : c ? c[1] : '#26282B',
+frame: n ? 'block' : 'none', band: doc ? 'block' : 'none', bandC: BAND[fmt] || '#999', align: n ? 'center' : 'left', tw: n ? 500 : 900, ts: doc ? '7.5px' : n ? '11px' : '13px',
+ratio: doc ? '1 / 1.414' : '1 / 1.48', pct: (pct || 0) + '%', bar: r ? 'block' : 'none',
+state: pct === 100 ? '다 읽음' : r ? pct + '%' : '새 책', pillC: r ? '#409CFF' : '#C7C7CC' }; };
+const fan = (l) => l.map((b, k) => Object.assign({}, b, { x: (k * 44) + 'px', h: [76, 86][k] + 'px' }));
+const recent = [bk('2025 행정업무운영 편람', 'HWP', 42), bk('어린 왕자', 'EPUB', 80), bk('코트 위의 여름 2', 'CBZ', 30), bk('데미안', 'EPUB')];
+return {
+four: [{ name: '전체', sub: '312권', fan: fan([bk('어린 왕자', 'EPUB'), bk('2025 행정업무운영 편람', 'HWP')]) },
+{ name: '형식', sub: '6가지', fan: fan([bk('동물농장', 'EPUB'), bk('예산서', 'HWPX')]) },
+{ name: '폴더', sub: '4개', fan: fan([bk('회의 자료', 'PDF'), bk('데미안', 'EPUB')]) },
+{ name: '시리즈', sub: '3개', fan: fan([bk('코트 위의 여름 1', 'CBZ'), bk('코트 위의 여름 2', 'CBZ')]) }],
+recent,
+shelf: [bk('2025 행정업무운영 편람', 'HWP', 42), bk('예산서', 'HWPX'), bk('결산 보고', 'PDF', 100), bk('시설 안전 점검표', 'HWPX')],
+grid: [bk('업무 편람', 'HWP', 10), bk('인사 규정', 'PDF', 65), bk('어린 왕자', 'EPUB', 80)],
+groups: [
+{ title: '서재', items: [{ name: '서재 폴더', hint: 'Download · 업무 문서 · 만화', c: '#0A84FF', line: '1px solid #2C2C2E' }, { name: '책 정보', hint: '인터넷에서 찾기 · 와이파이에서만', c: '#5E5CE6', line: '1px solid #2C2C2E' }, { name: '백업과 기록', hint: '백업 · 가져오기', c: '#30B0C7', line: 'none' }] },
+{ title: '읽기 화면', items: [{ name: '글자와 화면', hint: '나눔명조 · 18', c: '#FF9F0A', line: '1px solid #2C2C2E' }, { name: '테마와 밝기', hint: '앱 화면 어둡게', c: '#5856D6', line: 'none' }] }
+]
+};
+}
+}
+</script>
+</body>
+</html>

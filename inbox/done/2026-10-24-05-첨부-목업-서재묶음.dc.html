@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>서재 묶음</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&amp;display=swap">
+<style>body{margin:0} button{font-family:inherit;cursor:pointer} button:focus-visible{outline:2px solid #0A84FF;outline-offset:2px} @media (prefers-reduced-motion: reduce){*{transition:none !important}}</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: 'Noto Sans KR', sans-serif; color: #111316">
+
+<div style="position: absolute; inset: 0 0 66px 0; overflow-y: auto; background: linear-gradient(180deg, #FFFFFF 0, #F1F1F3 100%); transform: scale({{listScale}}); opacity: {{listOp}}; filter: blur({{listBlur}}); transform-origin: 50% {{originY}}; transition: transform .45s cubic-bezier(.2,.8,.2,1), opacity .45s, filter .45s">
+<div style="position: sticky; top: 0; z-index: 3; padding: 14px 0 6px; display: flex; justify-content: center">
+<div style="display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: rgba(255,255,255,0.8); box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 6px 20px rgba(0,0,0,0.07); backdrop-filter: blur(18px)">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="5">
+<button onClick="{{t.pick}}" style="height: 34px; padding: 0 13px; border: none; border-radius: 8px; background: {{t.bg}}; color: #111316; font-size: 14px; font-weight: {{t.weight}}; transition: background .2s">{{t.label}}</button>
+</sc-for>
+</div>
+</div>
+<div style="padding: 16px 20px 14px; font-size: 30px; font-weight: 900; letter-spacing: -0.02em">{{heading}}</div>
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 0 16px 28px">
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="5">
+<button onClick="{{g.go}}" aria-label="{{g.aria}}" style="position: relative; height: 116px; border: none; border-radius: 12px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 26px -14px rgba(0,0,0,0.22); overflow: hidden; text-align: left; padding: 0 0 0 20px; color: #111316; display: flex; align-items: center">
+<span style="position: relative; z-index: 1; max-width: 44%">
+<span style="display: block; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{g.name}}</span>
+<span style="display: block; font-size: 13px; color: #6C6C70; margin-top: 3px">{{g.sub}}</span>
+</span>
+<span style="position: absolute; right: 0; bottom: 0; width: 186px; height: 100px">
+<sc-for list="{{g.fan}}" as="c" hint-placeholder-count="3">
+<span style="position: absolute; left: {{c.x}}; bottom: 0; width: 70px; height: {{c.h}}; border-radius: 1px 2px 0 0; background: {{c.bg}}; box-shadow: -8px 0 14px -8px rgba(0,0,0,0.35); overflow: hidden">
+<span style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(90deg, rgba(255,255,255,0.35), rgba(0,0,0,0.12))"></span>
+<span style="display: {{c.frameShow}}; position: absolute; inset: 4px 4px 0 7px; border: 1px solid rgba(255,255,255,0.18); border-bottom: none"></span>
+<span style="position: absolute; left: 10px; right: 7px; top: {{c.top}}; display: -webkit-box; -webkit-line-clamp: {{c.clamp}}; -webkit-box-orient: vertical; overflow: hidden; text-align: {{c.align}}; font-size: {{c.ts}}; font-weight: {{c.tw}}; line-height: 1.25; color: {{c.ink}}; word-break: keep-all">{{c.title}}</span>
+<span style="display: {{c.bandShow}}; position: absolute; left: 10px; right: 7px; top: 7px; height: 2px; background: {{c.band}}"></span>
+<span style="display: {{c.docShow}}; position: absolute; left: 10px; right: 9px; top: 42px; height: 32px; background-image: repeating-linear-gradient(#DADADF 0 1px, transparent 1px 5px)"></span>
+</span>
+</sc-for>
+</span>
+</button>
+</sc-for>
+</div>
+</div>
+
+<div style="position: absolute; inset: 0 0 66px 0; overflow-y: auto; background: #FFFFFF; transform: scale({{detailScale}}); opacity: {{detailOp}}; clip-path: inset({{clipTop}} {{clipSide}} {{clipBottom}} {{clipSide}} round {{clipR}}); transform-origin: 50% {{originY}}; pointer-events: {{detailPE}}; transition: transform .45s cubic-bezier(.2,.8,.2,1), opacity .3s, clip-path .45s cubic-bezier(.2,.8,.2,1)">
+<div style="position: sticky; top: 0; z-index: 3; height: 60px; padding: 10px 12px 0; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between">
+<button onClick="{{back}}" aria-label="뒤로" style="width: 44px; height: 44px; border: none; border-radius: 12px; background: rgba(255,255,255,0.85); box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.08); backdrop-filter: blur(18px); display: flex; align-items: center; justify-content: center"><svg width="11" height="18" viewBox="0 0 11 18" aria-hidden="true"><path d="M9 2L2 9l7 7" fill="none" stroke="#111316" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+<div style="display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: rgba(255,255,255,0.85); box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.08)">
+<button aria-label="검색" style="width: 38px; height: 38px; border: none; border-radius: 8px; background: none; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111316" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg></button>
+<button style="height: 38px; padding: 0 12px; border: none; border-radius: 8px; background: none; font-size: 14px; font-weight: 500; color: #111316">최근 읽은 순</button>
+</div>
+</div>
+<div style="padding: 10px 20px 0; font-size: 30px; font-weight: 900; letter-spacing: -0.02em">{{dName}}</div>
+<div style="padding: 2px 20px 6px; font-size: 14px; color: #6C6C70">{{dSub}}</div>
+
+<sc-for list="{{shelves}}" as="sh" hint-placeholder-count="2">
+<div style="background: linear-gradient(180deg, #FFFFFF 0, #F0F0F2 100%); padding: 20px 0 24px">
+<button onClick="{{sh.go}}" style="display: flex; align-items: center; gap: 4px; margin-left: 20px; padding: 0; height: 32px; border: none; background: none; font-size: 20px; font-weight: 900; letter-spacing: -0.01em; color: #111316">{{sh.title}}<span style="font-size: 14px; font-weight: 500; color: #8E8E93; margin-left: 6px">{{sh.n}}</span><svg style="display: {{sh.chev}}; margin-left: 2px" width="9" height="15" viewBox="0 0 9 15" aria-hidden="true"><path d="M1.5 1.5L7.5 7.5 1.5 13.5" fill="none" stroke="#A1A1A6" stroke-width="2.2" stroke-linecap="round"></path></svg></button>
+<div style="display: flex; align-items: flex-end; gap: 16px; padding: 14px 20px 6px; overflow-x: auto; height: 150px; box-sizing: content-box">
+<sc-for list="{{sh.books}}" as="b" hint-placeholder-count="4">
+<div style="flex-shrink: 0; width: 98px; aspect-ratio: {{b.ratio}}; position: relative; border-radius: 1px 3px 3px 1px; background: {{b.bg}}; box-shadow: 0 1px 1px rgba(0,0,0,0.08), 0 12px 16px -10px rgba(0,0,0,0.45); overflow: hidden">
+<span style="position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: linear-gradient(90deg, rgba(255,255,255,0.35), rgba(255,255,255,0.05) 60%, rgba(0,0,0,0.18))"></span>
+<span style="display: {{b.frameShow}}; position: absolute; inset: 5px 5px 5px 9px; border: 1px solid rgba(255,255,255,0.16)"></span>
+<span style="position: absolute; left: 12px; right: 9px; top: {{b.tTop}}; display: -webkit-box; -webkit-line-clamp: {{b.clamp}}; -webkit-box-orient: vertical; overflow: hidden; text-align: {{b.align}}; font-size: {{b.tsS}}; font-weight: {{b.tw}}; line-height: 1.25; color: {{b.ink}}; word-break: keep-all">{{b.title}}</span>
+<span style="display: {{b.byShow}}; position: absolute; left: 10px; right: 7px; bottom: 12px; text-align: center; font-size: 8.5px; color: {{b.ink2}}">{{b.by}}</span>
+<span style="display: {{b.docShow}}; position: absolute; left: 12px; right: 9px; top: 10px; height: 3px; background: {{b.band}}"></span>
+<span style="display: {{b.docShow}}; position: absolute; left: 12px; right: 14px; top: 50px; height: 30px; background-image: repeating-linear-gradient(#DCDCE0 0 1px, transparent 1px 5px)"></span>
+<span style="display: {{b.tableShow}}; position: absolute; left: 12px; right: 9px; top: 88px; height: 28px; border: 1px solid #C9C9CE; background-image: linear-gradient(90deg, transparent 30%, #C9C9CE 30% calc(30% + 1px), transparent 0), repeating-linear-gradient(transparent 0 8px, #C9C9CE 8px 9px)"></span>
+<span style="display: {{b.barShow}}; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(0,0,0,0.12)"><span style="display: block; width: {{b.pct}}; height: 3px; background: #0A84FF"></span></span>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+
+<div style="padding: 24px 20px 4px; font-size: 20px; font-weight: 900; letter-spacing: -0.01em">모든 책 <span style="font-size: 14px; font-weight: 500; color: #8E8E93">{{allN}}</span></div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px 16px; padding: 16px 20px 36px">
+<sc-for list="{{books}}" as="b" hint-placeholder-count="6">
+<div>
+<div style="height: 152px; display: flex; align-items: flex-end">
+<div style="position: relative; width: 100%; aspect-ratio: {{b.ratio}}; border-radius: 1px 3px 3px 1px; background: {{b.bg}}; box-shadow: 0 1px 1px rgba(0,0,0,0.08), 0 12px 16px -10px rgba(0,0,0,0.45); overflow: hidden">
+<span style="position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: linear-gradient(90deg, rgba(255,255,255,0.35), rgba(255,255,255,0.05) 60%, rgba(0,0,0,0.18))"></span>
+<span style="display: {{b.frameShow}}; position: absolute; inset: 5px 5px 5px 9px; border: 1px solid rgba(255,255,255,0.16)"></span>
+<span style="position: absolute; left: 12px; right: 9px; top: {{b.tTop}}; display: -webkit-box; -webkit-line-clamp: {{b.clamp}}; -webkit-box-orient: vertical; overflow: hidden; text-align: {{b.align}}; font-size: {{b.tsS}}; font-weight: {{b.tw}}; line-height: 1.25; color: {{b.ink}}; word-break: keep-all">{{b.title}}</span>
+<span style="display: {{b.byShow}}; position: absolute; left: 10px; right: 7px; bottom: 12px; text-align: center; font-size: 8.5px; color: {{b.ink2}}">{{b.by}}</span>
+<span style="display: {{b.docShow}}; position: absolute; left: 12px; right: 9px; top: 10px; height: 3px; background: {{b.band}}"></span>
+<span style="display: {{b.docShow}}; position: absolute; left: 12px; right: 14px; top: 50px; height: 30px; background-image: repeating-linear-gradient(#DCDCE0 0 1px, transparent 1px 5px)"></span>
+<span style="display: {{b.tableShow}}; position: absolute; left: 12px; right: 9px; top: 88px; height: 28px; border: 1px solid #C9C9CE; background-image: linear-gradient(90deg, transparent 30%, #C9C9CE 30% calc(30% + 1px), transparent 0), repeating-linear-gradient(transparent 0 8px, #C9C9CE 8px 9px)"></span>
+</div>
+</div>
+<div style="margin-top: 10px; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{b.title}}</div>
+<div style="font-size: 11.5px; color: #8E8E93; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{b.meta}}</div>
+<div style="display: inline-flex; align-items: center; height: 20px; margin-top: 5px; padding: 0 7px; border: 1.5px solid {{b.pillC}}; border-radius: 6px; font-size: 11px; font-weight: 700; color: {{b.pillC}}; background: {{b.pillBg}}">{{b.state}}</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="position: absolute; left: 0; right: 0; bottom: 0; height: 66px; display: flex; justify-content: center; align-items: flex-start; padding-top: 6px; box-sizing: border-box">
+<div style="display: flex; gap: 2px; padding: 3px; border-radius: 13px; background: rgba(255,255,255,0.85); box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.10); backdrop-filter: blur(18px)">
+<div style="padding: 6px 18px; border-radius: 10px; background: rgba(0,0,0,0.07); display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 11px; font-weight: 700"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111316" stroke-width="2" aria-hidden="true"><path d="M12 6.8C10 5.3 7 4.8 3.5 5.1v12.6c3.5-.3 6.5.2 8.5 1.7 2-1.5 5-2 8.5-1.7V5.1C17 4.8 14 5.3 12 6.8zM12 6.8v12.6"></path></svg>서재</div>
+<div style="padding: 6px 18px; display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 11px; color: #6C6C70"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6C6C70" stroke-width="2" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"></path></svg>독서 기록</div>
+<div style="padding: 6px 18px; display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 11px; color: #6C6C70"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6C6C70" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"></path></svg>설정</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+constructor(p) { super(p); this.state = { tab: 'folder', path: [], from: 0, last: null }; }
+renderVals() {
+const s = this.state;
+const G = (top, bot) => 'linear-gradient(180deg, ' + top + ' 0%, ' + bot + ' 100%)';
+const PLAIN = {
+'어린 왕자': [G('#1E7BD6', '#0B2D63'), '생텍쥐페리'], '데미안': [G('#B21E1E', '#4A0B0B'), '헤르만 헤세'], '동물농장': [G('#1F8A3A', '#0B3A1A'), '조지 오웰'],
+'겨울의 정원': [G('#6B6B6F', '#2A2A2D'), '한소율'], '등대지기': [G('#B4560F', '#4A1D06'), '이도윤'], '별을 엮는 아이': [G('#2457C6', '#0A1E4E'), '윤재이']
+};
+const ART = {
+'코트 위의 여름 1': ['#FF6A13', '#1C1C1C'], '코트 위의 여름 2': ['#F2C230', '#1C1C1C'], '코트 위의 여름 3': ['#16B8E8', '#0C2233']
+};
+const BAND = { HWP: '#2E6FA8', HWPX: '#2E6FA8', DOCX: '#2B579A', PDF: '#C2343F', TXT: '#9A958C' };
+const bk = (title, fmt, pct, when) => {
+const p = PLAIN[title], a = ART[title], doc = !p && !a;
+const reading = pct && pct < 100;
+const state = pct === 100 ? '다 읽음' : reading ? pct + '%' : (when || '새 책');
+return {
+title, by: p ? p[1] : '', fmt,
+bg: p ? p[0] : a ? a[0] : '#FFFFFF', ink: p ? '#FFFFFF' : a ? a[1] : '#26282B', ink2: 'rgba(255,255,255,0.75)',
+align: p ? 'center' : 'left', tw: p ? 500 : 900, tTop: doc ? '19px' : p ? '20px' : '16px', clamp: doc ? 3 : p ? 3 : 2,
+tsS: doc ? '7.5px' : p ? (title.length > 6 ? '11px' : '12.5px') : '12.5px',
+frameShow: p ? 'block' : 'none', byShow: p ? 'block' : 'none',
+docShow: doc ? 'block' : 'none', tableShow: fmt === 'HWP' || fmt === 'HWPX' ? 'block' : 'none', band: BAND[fmt] || '#999',
+ratio: doc ? '1 / 1.414' : '1 / 1.48',
+pct: (pct || 0) + '%', barShow: reading ? 'block' : 'none',
+meta: (p ? p[1] + '  ' : '') + fmt,
+state, pillC: reading ? '#0A84FF' : '#3A3A3C', pillBg: reading ? 'rgba(10,132,255,0.08)' : 'transparent'
+};
+};
+const DATA = {
+folder: [
+{ id: 'work', name: '업무', n: 64, recent: [bk('2025 행정업무운영 편람', 'HWP', 42), bk('인사 규정', 'PDF', 65), bk('업무 편람', 'HWP', 10)],
+books: [bk('2025 행정업무운영 편람', 'HWP', 42), bk('2025년도 아동양육시설 운영비 보조금 교부 신청서 및 사업계획서', 'HWPX', 0, '어제 받음'), bk('인사 규정', 'PDF', 65), bk('업무 편람', 'HWP', 10), bk('보조금 정산', 'HWPX'), bk('결산 보고', 'PDF', 100)],
+kids: [{ id: 'work25', name: '2025', n: 40, books: [bk('2025 행정업무운영 편람', 'HWP', 42), bk('예산서', 'HWPX'), bk('결산 보고', 'PDF', 100), bk('시설 안전 점검표', 'HWPX')] },
+{ id: 'rule', name: '규정', n: 24, books: [bk('취업규칙', 'HWP'), bk('복무 규정', 'HWP'), bk('회계 규칙', 'PDF')] }] },
+{ id: 'books', name: 'Books', n: 12, recent: [bk('어린 왕자', 'EPUB', 80), bk('등대지기', 'EPUB', 100)],
+books: [bk('어린 왕자', 'EPUB', 80), bk('데미안', 'EPUB'), bk('동물농장', 'EPUB'), bk('겨울의 정원', 'EPUB'), bk('등대지기', 'EPUB', 100), bk('별을 엮는 아이', 'EPUB')] },
+{ id: 'comics', name: 'Comics', n: 41, recent: [bk('코트 위의 여름 2', 'CBZ', 30)],
+books: [bk('코트 위의 여름 1', 'CBZ', 100), bk('코트 위의 여름 2', 'CBZ', 30), bk('코트 위의 여름 3', 'CBZ')],
+kids: [{ id: 'court', name: '코트 위의 여름', n: 24, books: [bk('코트 위의 여름 1', 'CBZ', 100), bk('코트 위의 여름 2', 'CBZ', 30), bk('코트 위의 여름 3', 'CBZ')] }] },
+{ id: 'dl', name: 'Download', n: 23, recent: [bk('운영 규정 개정안 (2026년 4월 이사회 의결본)', 'HWPX', 20)],
+books: [bk('운영 규정 개정안 (2026년 4월 이사회 의결본)', 'HWPX', 20), bk('회의 자료', 'PDF'), bk('신청서 양식', 'DOCX')],
+kids: [{ id: 'kakao', name: 'KakaoTalk', n: 9, books: [bk('제천 시내버스 시간표 (2026년 3월 3일 개편)', 'HWP', 100), bk('공문 회신', 'HWP'), bk('견적서', 'PDF')] }] }
+],
+format: [
+{ id: 'epub', name: '이북', n: 38, books: [bk('어린 왕자', 'EPUB', 80), bk('데미안', 'EPUB'), bk('동물농장', 'EPUB'), bk('겨울의 정원', 'EPUB'), bk('등대지기', 'EPUB', 100), bk('별을 엮는 아이', 'EPUB')] },
+{ id: 'hwp', name: '한글 문서', n: 31, books: [bk('2025 행정업무운영 편람', 'HWP', 42), bk('2025년도 아동양육시설 운영비 보조금 교부 신청서 및 사업계획서', 'HWPX', 0, '어제 받음'), bk('취업규칙', 'HWP'), bk('제천 시내버스 시간표 (2026년 3월 3일 개편)', 'HWP', 100)] },
+{ id: 'pdf', name: 'PDF', n: 24, books: [bk('인사 규정', 'PDF', 65), bk('회의 자료', 'PDF'), bk('결산 보고', 'PDF', 100)] },
+{ id: 'comic', name: '만화', n: 41, books: [bk('코트 위의 여름 2', 'CBZ', 30), bk('코트 위의 여름 1', 'CBZ', 100), bk('코트 위의 여름 3', 'CBZ')] }
+],
+series: [
+{ id: 'court', name: '코트 위의 여름', n: 24, books: [bk('코트 위의 여름 1', 'CBZ', 100), bk('코트 위의 여름 2', 'CBZ', 30), bk('코트 위의 여름 3', 'CBZ')] },
+{ id: 'lit', name: '세계 문학', n: 7, books: [bk('어린 왕자', 'EPUB', 80), bk('데미안', 'EPUB'), bk('동물농장', 'EPUB')] }
+]
+};
+const list = DATA[s.tab];
+const find = (arr, id) => { for (const g of arr) { if (g.id === id) return g; if (g.kids) { const r = find(g.kids, id); if (r) return r; } } return null; };
+const cur = s.path.length ? find(list, s.path[s.path.length - 1]) : null;
+const shown = cur || (s.last ? find(list, s.last) : null);
+const fanOf = (g) => g.books.slice(0, 3).map((b, k) => ({ bg: b.bg, ink: b.ink, title: b.title, align: b.align, tw: b.tw, frameShow: b.frameShow, docShow: b.docShow, bandShow: b.docShow, band: b.band, top: b.docShow === 'block' ? '13px' : '14px', clamp: b.docShow === 'block' ? 3 : 2, ts: b.docShow === 'block' ? '6.5px' : '8.5px', x: (k * 54) + 'px', h: [86, 96, 90][k] + 'px' }));
+const groups = list.map((g, gi) => ({
+name: g.name, aria: g.name + ', ' + g.n + '권',
+sub: (g.kids ? '폴더 ' + g.kids.length + '개  ' : '') + g.n + '권',
+fan: fanOf(g), go: () => this.setState({ path: [g.id], from: gi, last: g.id })
+}));
+const tabs = [['recent', '최근'], ['all', '전체'], ['format', '형식'], ['folder', '폴더'], ['series', '시리즈']].map(([k, l]) => ({
+label: l, bg: k === s.tab ? 'rgba(0,0,0,0.08)' : 'transparent', weight: k === s.tab ? 700 : 500,
+pick: () => { if (DATA[k]) this.setState({ tab: k, path: [], last: null }); }
+}));
+const open = !!cur;
+const oy = 150 + s.from * 130;
+const shelves = [];
+if (shown) {
+if (shown.recent) shelves.push({ title: '이어 읽기', n: '', chev: 'none', books: shown.recent, go: () => {} });
+(shown.kids || []).forEach(k => shelves.push({ title: k.name, n: k.n + '권', chev: 'inline', books: k.books, go: () => this.setState({ path: s.path.concat([k.id]), last: k.id }) }));
+}
+return {
+tabs, groups, heading: { folder: '폴더', format: '형식', series: '시리즈' }[s.tab],
+originY: oy + 'px',
+listScale: open ? 0.94 : 1, listOp: open ? 0.4 : 1, listBlur: open ? '2px' : '0',
+detailScale: open ? 1 : 0.9, detailOp: open ? 1 : 0, detailPE: open ? 'auto' : 'none',
+clipTop: open ? '0px' : (oy - 58) + 'px', clipBottom: open ? '0px' : (778 - (oy + 58)) + 'px', clipR: open ? '0px' : '12px', clipSide: open ? '0px' : '16px',
+back: () => { const np = s.path.slice(0, -1); this.setState({ path: np, last: np.length ? np[np.length - 1] : s.last }); },
+dName: shown ? shown.name : '', dSub: shown ? (shown.kids ? '폴더 ' + shown.kids.length + '개, ' : '') + '책 ' + shown.n + '권' : '',
+shelves, allN: shown ? shown.n + '권' : '',
+books: shown ? shown.books : []
+};
+}
+}
+</script>
+</body>
+</html>
