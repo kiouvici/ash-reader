@@ -1,0 +1,13 @@
+12:24:49.540 doc n=30 w=392 h=850 spread=false frame=PageFrame(top=24.0, bottom=80.0, left=0.0, right=0.0)
+12:24:49.543 page=0 count=30 spread=false held=-1 relocate=-2 anchorPage=-1
+12:24:49.885 capture page=0 count=30 len=32 held=-1 spread=false
+12:24:52.533 page=1 count=30 spread=false held=-1 relocate=-2 anchorPage=0
+12:24:52.838 capture page=1 count=30 len=128 held=-1 spread=false
+12:25:10.900 page=1 count=40 spread=false held=-1 relocate=-2 anchorPage=-1
+12:25:11.225 doc n=77 w=392 h=850 spread=false frame=PageFrame(top=24.0, bottom=80.0, left=0.0, right=0.0)
+12:25:11.225 page=1 count=77 spread=false held=-1 relocate=-2 anchorPage=-1
+12:25:11.345 page=2 count=77 spread=false held=-1 relocate=-2 anchorPage=-1
+12:25:11.965 capture page=2 count=77 len=32 held=-1 spread=false
+12:25:26.210 doc n=12 w=392 h=850 spread=false frame=PageFrame(top=24.0, bottom=80.0, left=0.0, right=0.0)
+12:25:26.211 page=0 count=12 spread=false held=-1 relocate=-2 anchorPage=-1
+12:25:26.575 capture page=0 count=12 len=32 held=-1 spread=false
